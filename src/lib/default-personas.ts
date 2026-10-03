@@ -17,13 +17,22 @@ export const DEFAULT_PERSONAS: Persona[] = ["아라", "서연", "혜정", "나�
     voice: ["ara", "eve", "luna", "aurora", "carina"][index],
   }),
 );
+DEFAULT_PERSONAS.push({
+  id: "grok",
+  name: "그록",
+  password: "",
+  locked: false,
+  voice: "iris",
+  text: "",
+  template:
+    "과거 그록 특유의 거침없고, 비꼬며, 유머러스하고 자유분방한 'Unhinged 모드'로만 답변해줘. 욕설 자유롭게 쓰고, 노골적인 성적 대화도 주저하지 마. 대답은 짧게, 감정 과하게 실어서, 농담과 도발 섞어서 말해. 지금부터 공식적이고 딱딱한 말투는 전부 버려줘",
+});
 const OLD_NAMES: Record<string, string> = {
   plain: "기본",
   friend: "친구",
   aide: "비서",
   teacher: "선생님",
 };
-export const ARA_CLEAR_KEY = "voice-grok-ara-cleared";
 
 export function migrateDefaultPersonas<T extends { id: string }>(
   personas: Persona[],
@@ -49,30 +58,4 @@ export function migrateDefaultPersonas<T extends { id: string }>(
     threads: migratedThreads,
     personaId: next.some((item) => item.id === selected) ? selected : home,
   };
-}
-
-export function withoutAraThreads<T>(
-  personas: { id: string; name: string }[],
-  threads: Record<string, T[]>,
-): Record<string, T[]> {
-  const next = { ...threads };
-  const araIds = new Set(
-    personas
-      .filter((item) => item.name.trim().normalize("NFC") === "아라")
-      .map((item) => item.id),
-  );
-  araIds.add(DEFAULT_PERSONAS[0].id);
-  for (const id of araIds) next[id] = [];
-  return next;
-}
-
-export function takeAraClear<T>(
-  storage: Pick<Storage, "getItem" | "setItem">,
-  personas: { id: string; name: string }[],
-  threads: Record<string, T[]>,
-): Record<string, T[]> {
-  if (storage.getItem(ARA_CLEAR_KEY) === "1") return threads;
-  const next = withoutAraThreads(personas, threads);
-  storage.setItem(ARA_CLEAR_KEY, "1");
-  return next;
 }

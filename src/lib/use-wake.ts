@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { takeWake } from "@/lib/wake";
+import { takePersonaWake } from "@/lib/wake";
 import { mergeUtterance, sessionTranscript } from "@/lib/speech-text";
 
 type Rec = {
@@ -16,8 +16,8 @@ type Rec = {
 type Options = {
   enabled: boolean;
   paused: boolean;
-  name: string;
-  onWake: (rest: string) => void;
+  names: { id: string; name: string }[];
+  onWake: (rest: string, id: string) => void;
   onError: (message: string) => void;
 };
 
@@ -30,21 +30,24 @@ function recognitionCtor() {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
-export function useWake({ enabled, paused, name, onWake, onError }: Options) {
+export function useWake({ enabled, paused, names, onWake, onError }: Options) {
   const [listening, setListening] = useState(false);
   const [standby, setStandby] = useState(false);
   const [note, setNote] = useState("");
   const wanted = useRef(false);
   const tail = useRef("");
   const pausedRef = useRef(paused);
-  const nameRef = useRef(name);
+  const nameRef = useRef(names);
   const recRef = useRef<Rec | null>(null);
+  const fireTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const callbacks = useRef({ onWake, onError });
   pausedRef.current = paused;
-  nameRef.current = name;
+  nameRef.current = names;
   callbacks.current = { onWake, onError };
 
   const close = () => {
+    if (fireTimer.current) clearTimeout(fireTimer.current);
+    fireTimer.current = null;
     const rec = recRef.current;
     recRef.current = null;
     if (!rec) return;
@@ -60,8 +63,7 @@ export function useWake({ enabled, paused, name, onWake, onError }: Options) {
 
   const open = () => {
     if (recRef.current || pausedRef.current || !wanted.current) return;
-    const key = nameRef.current.replace(/\s+/g, "").trim();
-    if (!key) {
+    if (!nameRef.current.length) {
       setNote("페르소나 이름을 먼저 정해 주세요.");
       return;
     }
@@ -79,14 +81,17 @@ export function useWake({ enabled, paused, name, onWake, onError }: Options) {
     rec.onresult = (event) => {
       if (fired) return;
       heard = sessionTranscript(event);
-      const rest = takeWake(mergeUtterance(tail.current, heard), nameRef.current);
-      if (rest === null) return;
-      fired = true;
-      tail.current = "";
-      close();
-      setListening(false);
-      setStandby(false);
-      callbacks.current.onWake(rest);
+      const hit = takePersonaWake(mergeUtterance(tail.current, heard), nameRef.current);
+      if (!hit) return;
+      if (fireTimer.current) clearTimeout(fireTimer.current);
+      fireTimer.current = setTimeout(() => {
+        fired = true;
+        tail.current = "";
+        close();
+        setListening(false);
+        setStandby(false);
+        callbacks.current.onWake(hit.rest, hit.id);
+      }, 700);
     };
     rec.onerror = (event) => {
       const code = event.error ?? "";
@@ -114,6 +119,10 @@ export function useWake({ enabled, paused, name, onWake, onError }: Options) {
       if (said) tail.current = mergeUtterance(tail.current, said).slice(-24);
       if (recRef.current !== rec) return;
       recRef.current = null;
+      if (fireTimer.current) {
+        setListening(false);
+        return;
+      }
       if (!wanted.current || pausedRef.current || fired) {
         setListening(false);
         return;
@@ -153,8 +162,8 @@ export function useWake({ enabled, paused, name, onWake, onError }: Options) {
 
   useEffect(() => {
     if (!enabled || paused) {
-      wanted.current = false;
-      setStandby(false);
+      if (!enabled) wanted.current = false;
+      setStandby(wanted.current);
       close();
       setListening(false);
       return;

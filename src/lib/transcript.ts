@@ -7,6 +7,9 @@ export type Turn = {
   image?: string;
   video?: string;
   at?: number;
+  personaName?: string;
+  personaId?: string;
+  voice?: string;
 };
 
 export type ParseMode = "labeled" | "alternating" | "empty";

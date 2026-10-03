@@ -10,14 +10,15 @@ import {
   type PersonaKnowledge,
   type PersonaAsset,
 } from "@/lib/persona-memory";
-import {
-  ARA_CLEAR_KEY,
-  DEFAULT_PERSONAS,
-  migrateDefaultPersonas,
-  takeAraClear,
-  withoutAraThreads,
-} from "@/lib/default-personas";
+import { DEFAULT_PERSONAS, migrateDefaultPersonas } from "@/lib/default-personas";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useVoiceBackup } from "@/components/use-voice-backup";
+import {
+  conversationEnded,
+  deleteConversationCommand,
+  relayCommand,
+} from "@/lib/conversation-actions";
+import { takePersonaWake } from "@/lib/wake";
 import {
   ArrowLeftRight,
   ClipboardPaste,
@@ -65,7 +66,7 @@ import {
 } from "@/lib/transcript";
 import { FEMALE_VOICES, MALE_VOICES, isFemaleVoice, isMaleVoice } from "@/lib/voices";
 import { useWake } from "@/lib/use-wake";
-import { takeWake, wakeForms } from "@/lib/wake";
+import { wakeForms } from "@/lib/wake";
 
 const STORAGE_KEY = "nangdok-v1";
 const AUTO_BACKUP_KEY = "voice-grok-auto-backup";
@@ -259,6 +260,9 @@ export function ReaderApp() {
     });
   };
   const [personas, setPersonas] = useState<PersonaItem[]>(STARTER_PERSONAS);
+  const [groupMembers, setGroupMembers] = useState<string[]>([]);
+  const [groupSetup, setGroupSetup] = useState(false);
+  const [deleteChat, setDeleteChat] = useState<{ id: string; name: string } | null>(null);
   useEffect(() => {
     const selected = personas.find((item) => item.id === personaId);
     if (selected?.voice && isFemaleVoice(selected.voice)) setVoiceGrok(selected.voice);
@@ -324,28 +328,17 @@ export function ReaderApp() {
     silenceMs: Math.round(silence * 1000),
     autoSend: autoReply,
     onText: setComposer,
-    onUtterance: (text) => {
-      if (wakeOnRef.current) {
-        const hit = takeWake(text, personaNameRef.current);
-        if (hit !== null) {
-          if (!hit.trim()) {
-            setComposer("");
-            return;
-          }
-          askRef.current(hit.trim());
-          return;
-        }
-      }
-      askRef.current(text);
-    },
+    onUtterance: (text) => askRef.current(text),
     onError: setBanner,
   });
-  const personaName = (personas.find((item) => item.id === personaId) ?? personas[0])?.name ?? "";
+  const personaName = personaId.startsWith("group:")
+    ? "함께 대화"
+    : ((personas.find((item) => item.id === personaId) ?? personas[0])?.name ?? "");
   const wakeCall = wakeForms(personaName);
   personaNameRef.current = personaName;
   personaRef.current = persona;
   wakeOnRef.current = wakeOn;
-  const wakeHandler = useRef<(rest: string) => void>(() => {});
+  const wakeHandler = useRef<(rest: string, id: string) => void>(() => {});
   const wake = useWake({
     enabled: wakeOn && hydrated,
     paused:
@@ -355,10 +348,39 @@ export function ReaderApp() {
       filming ||
       reader.status === "playing" ||
       reader.preparing,
-    name: personaName,
-    onWake: (rest) => wakeHandler.current(rest),
+    names: personas,
+    onWake: (rest, id) => wakeHandler.current(rest, id),
     onError: setBanner,
   });
+  const voiceBackup = useVoiceBackup(
+    personas,
+    threads,
+    hydrated,
+    asking || painting || filming,
+    (id, content) => {
+      const update = (items: PersonaItem[]) =>
+        items.map((item) =>
+          item.id === id
+            ? applyPersonaAsset(item, {
+                kind: "memory",
+                bot: item.name,
+                source: "voicegrok/memory.md",
+                content,
+              })
+            : item,
+        );
+      try {
+        const next = update(personas);
+        if (settingsBase.current)
+          settingsBase.current.personas = update(settingsBase.current.personas);
+        setPersonas(next);
+      } catch {
+        setBanner(
+          "Dropbox에는 요약을 저장했지만 앱 기억이 한도에 도달했습니다. 기존 기억을 정리한 뒤 파일을 다시 불러오세요.",
+        );
+      }
+    },
+  );
 
   useEffect(() => {
     const saved = loadSaved();
@@ -390,20 +412,6 @@ export function ReaderApp() {
           }));
         if (next.length > 0) {
           const migrated = migrateDefaultPersonas(next, loaded ?? {}, saved.personaId);
-          const pendingAraClear = localStorage.getItem(ARA_CLEAR_KEY) !== "1";
-          migrated.threads = takeAraClear(localStorage, migrated.personas, migrated.threads);
-          if (pendingAraClear) {
-            try {
-              const raw = readLocalBackup(localStorage);
-              const parsed = raw ? JSON.parse(raw) : null;
-              if (parsed?.threads && Array.isArray(parsed.personas)) {
-                parsed.threads = withoutAraThreads(parsed.personas, parsed.threads);
-                saveLocalBackup(localStorage, JSON.stringify(parsed));
-              }
-            } catch {
-              /* a failed backup rewrite must not keep the old chat on screen */
-            }
-          }
           setPersonas(migrated.personas);
           setThreads(migrated.threads);
           const picked = migrated.personas.find((item) => item.id === migrated.personaId)!;
@@ -1193,9 +1201,56 @@ export function ReaderApp() {
     }
   }
 
-  async function ask(spoken?: string) {
-    const text = (spoken ?? composer).trim();
+  async function ask(spoken?: string, target?: string) {
+    let text = (spoken ?? composer).trim();
     if (!text || busyRef.current) return;
+    const hit = takePersonaWake(text, personas);
+    if (hit && !target) {
+      target = hit.id;
+      selectPersona(target);
+      text = hit.rest.trim();
+      if (!text) {
+        void greet(target);
+        return;
+      }
+    }
+    const id = target ?? personaIdRef.current;
+    const active = personas.find((item) => item.id === id);
+    if (deleteChat) {
+      if (
+        /^(응|네|예|그래|확인|삭제해|모두삭제|전체삭제|정말모두삭제)[.!]*$/.test(
+          text.replace(/\s+/g, ""),
+        )
+      ) {
+        confirmDeleteChat();
+        return;
+      }
+      if (/취소|아니|삭제하지마/.test(text)) {
+        setDeleteChat(null);
+        setBanner("삭제를 취소했습니다.");
+        return;
+      }
+      setBanner("전체 대화를 삭제하려면 삭제 확인을 누르거나 '모두 삭제'라고 말하세요.");
+      return;
+    }
+    if (deleteConversationCommand(text)) {
+      if (active) setDeleteChat({ id, name: active.name });
+      setComposer("");
+      return;
+    }
+    const relay = relayCommand(text, personas);
+    if (relay) {
+      const sender = active?.name ?? personaName;
+      selectPersona(relay.id);
+      await ask(`사용자가 ${sender}를 통해 전한 메시지: ${relay.message}`, relay.id);
+      setBanner(`${sender}를 통해 메시지를 전달했습니다.`);
+      return;
+    }
+    if (!target && groupMembers.length >= 2 && id.startsWith("group:")) {
+      await askGroup(text, id);
+      return;
+    }
+    const finishBackup = conversationEnded(text);
     if (wantsVideo(text)) {
       await film(text);
       return;
@@ -1210,9 +1265,12 @@ export function ReaderApp() {
     setComposer("");
     const sentAt = Date.now();
     const mine = { id: `me-${sentAt.toString(36)}`, speaker: "me" as const, text, at: sentAt };
-    const withUser = [...turnsNow.current, mine];
-    turnsNow.current = withUser;
-    setTurns(withUser);
+    const withUser = [...(threads[id] ?? []), mine];
+    const commit = (next: Turn[]) => {
+      setThreads((prev) => ({ ...prev, [id]: next }));
+      if (personaIdRef.current === id) turnsNow.current = next;
+    };
+    commit(withUser);
     try {
       const history = withUser
         .filter((turn) => turn !== mine && !turn.id.startsWith("s"))
@@ -1221,20 +1279,27 @@ export function ReaderApp() {
           role: turn.speaker === "me" ? ("user" as const) : ("assistant" as const),
           content: turn.text,
         }));
-      const activePersona = personas.find((item) => item.id === personaIdRef.current);
+      const activePersona = personas.find((item) => item.id === id);
       const role = activePersona ? personaInstructions(activePersona) : persona;
       const memory = memoryForQuestion(activePersona?.memories, text);
       const grokId = `gk-${sentAt.toString(36)}`;
       let played = false;
       const show = (said: string) => {
         const next = [
-          ...turnsNow.current.filter((turn) => turn.id !== mine.id && turn.id !== grokId),
+          ...withUser.filter((turn) => turn.id !== mine.id && turn.id !== grokId),
           mine,
-          { id: grokId, speaker: "grok" as const, text: said, at: sentAt },
+          {
+            id: grokId,
+            speaker: "grok" as const,
+            text: said,
+            at: sentAt,
+            personaId: id,
+            personaName: activePersona?.name,
+            voice: activePersona?.voice,
+          },
         ];
-        turnsNow.current = next;
-        setTurns(next);
-        if (!played) {
+        commit(next);
+        if (!played && personaIdRef.current === id) {
           played = true;
           reader.playFrom(next, next.length - 1);
         }
@@ -1256,26 +1321,28 @@ export function ReaderApp() {
     } finally {
       busyRef.current = false;
       setAsking(false);
+      if (finishBackup) voiceBackup.trigger([id]);
     }
   }
   askRef.current = ask;
-  wakeHandler.current = (rest) => {
+  wakeHandler.current = (rest, id) => {
+    selectPersona(id);
     const follow = rest.trim();
     setComposer("");
-    dictation.arm();
     if (follow) {
-      askRef.current(follow);
+      void ask(follow, id);
       return;
     }
-    void greet();
+    void greet(id);
   };
 
-  async function greet() {
+  async function greet(target = personaIdRef.current) {
     if (busyRef.current) return;
     busyRef.current = true;
     setAsking(true);
-    const tone = personaRef.current;
-    const name = personaNameRef.current || "그록";
+    const item = personas.find((persona) => persona.id === target);
+    const tone = item?.text ?? personaRef.current;
+    const name = item?.name || "그록";
     let line = fallbackGreet(tone);
     try {
       const result = await Promise.race([
@@ -1283,9 +1350,7 @@ export function ReaderApp() {
           data: {
             message: `${name}를 불렀다. 번호 ${Math.floor(Math.random() * 1000)}.`,
             history: [],
-            persona: personaInstructions(
-              personas.find((item) => item.id === personaIdRef.current) ?? { name, text: tone },
-            ),
+            persona: personaInstructions(item ?? { name, text: tone }),
             ack: true,
           },
         }),
@@ -1302,11 +1367,19 @@ export function ReaderApp() {
     }
     const at = Date.now();
     const next = [
-      ...turnsNow.current,
-      { id: `gk-${at.toString(36)}`, speaker: "grok" as const, text: line, at },
+      ...(threads[target] ?? []),
+      {
+        id: `gk-${at.toString(36)}`,
+        speaker: "grok" as const,
+        text: line,
+        at,
+        personaId: target,
+        personaName: name,
+        voice: item?.voice,
+      },
     ];
-    setTurns(next);
-    reader.playFrom(next, next.length - 1);
+    setThreads((prev) => ({ ...prev, [target]: next }));
+    if (personaIdRef.current === target) reader.playFrom(next, next.length - 1);
     busyRef.current = false;
     setAsking(false);
   }
@@ -1407,10 +1480,152 @@ export function ReaderApp() {
     const item = personas.find((entry) => entry.id === id);
     if (!item) return;
     if (item.id !== personaIdRef.current) reader.stop();
+    personaIdRef.current = item.id;
+    turnsNow.current = threads[item.id] ?? [];
     setPersonaId(item.id);
     setPersona(item.text);
     setNewPersona(null);
     setEditingId(null);
+  }
+
+  function confirmDeleteChat() {
+    if (!deleteChat) return;
+    const id = deleteChat.id;
+    reader.stop();
+    dictation.stop();
+    voiceBackup.forget(id);
+    setThreads((prev) =>
+      Object.fromEntries(
+        Object.entries(prev).map(([key, list]) => [
+          key,
+          key === id ? [] : list.filter((turn) => turn.personaId !== id),
+        ]),
+      ),
+    );
+    if (personaIdRef.current === id) turnsNow.current = [];
+    try {
+      for (const key of [STORAGE_KEY, LOCAL_BACKUP_KEY]) {
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        const saved = JSON.parse(raw);
+        if (saved.threads)
+          saved.threads = Object.fromEntries(
+            Object.entries(saved.threads).map(([thread, list]) => [
+              thread,
+              thread === id ? [] : (list as Turn[]).filter((turn) => turn.personaId !== id),
+            ]),
+          );
+        if (saved.personaId === id) saved.turns = [];
+        if (Array.isArray(saved.personas))
+          saved.personas = saved.personas.map((item: PersonaItem) =>
+            item.id === id
+              ? {
+                  ...item,
+                  memories: item.memories?.filter(
+                    (memory) => memory.source !== "voicegrok/memory.md",
+                  ),
+                }
+              : item,
+          );
+        localStorage.setItem(key, JSON.stringify(saved));
+      }
+    } catch {
+      setBanner("대화는 삭제했지만 내부 백업 갱신에 실패했습니다.");
+    }
+    setPersonas((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              memories: item.memories?.filter((memory) => memory.source !== "voicegrok/memory.md"),
+            }
+          : item,
+      ),
+    );
+    setDeleteChat(null);
+    setEditingId(null);
+    setComposer("");
+    setBanner(
+      `${deleteChat.name}의 전체 대화를 삭제했습니다. Dropbox에 이미 저장된 파일은 유지됩니다.`,
+    );
+  }
+
+  async function askGroup(text: string, room: string) {
+    const members = personas.filter((item) => groupMembers.includes(item.id));
+    if (members.length < 2) return;
+    busyRef.current = true;
+    setAsking(true);
+    setComposer("");
+    reader.stop();
+    const at = Date.now();
+    const mine: Turn = { id: `me-${at.toString(36)}`, speaker: "me", text, at };
+    const current = [...(threads[room] ?? []), mine];
+    setThreads((prev) => ({ ...prev, [room]: current }));
+    try {
+      const shared = current
+        .slice(-12)
+        .map((turn) => `${turn.speaker === "me" ? "사용자" : turn.personaName}: ${turn.text}`)
+        .join("\n");
+      const replies = await Promise.all(
+        members.map(async (member) => {
+          const result = await streamAsk(
+            {
+              message: text,
+              history: [],
+              persona: `${personaInstructions(member)}\n함께 대화하는 사람: ${members.map((item) => item.name).join(", ")}. 반드시 ${member.name} 한 사람의 입장에서만 답한다.`,
+              memory:
+                `${memoryForQuestion(member.memories, text, 8000)}\n단체 대화 기록:\n${shared}`.slice(
+                  0,
+                  12000,
+                ),
+            },
+            () => {},
+          ).catch(() => ({ ok: false as const, error: "그록에게 연결하지 못했습니다." }));
+          return { member, result };
+        }),
+      );
+      const answers: Turn[] = replies
+        .filter((reply) => reply.result.ok)
+        .map(({ member, result }) => ({
+          id: `gk-${at.toString(36)}-${member.id}`,
+          speaker: "grok",
+          text: result.ok ? result.text : "",
+          at: Date.now(),
+          personaId: member.id,
+          personaName: member.name,
+          voice: member.voice,
+        }));
+      const next = [...current, ...answers];
+      setThreads((prev) => {
+        const updated = { ...prev, [room]: next };
+        for (const member of members)
+          updated[member.id] = [...(prev[member.id] ?? []), mine, ...answers];
+        return updated;
+      });
+      const errors = replies
+        .filter((reply) => !reply.result.ok)
+        .map((reply) => `${reply.member.name}: ${reply.result.ok ? "" : reply.result.error}`);
+      if (errors.length) setBanner(errors.join(" · "));
+      if (personaIdRef.current === room && answers.length) reader.playFrom(next, current.length);
+    } finally {
+      busyRef.current = false;
+      setAsking(false);
+      if (conversationEnded(text)) voiceBackup.trigger(members.map((item) => item.id));
+    }
+  }
+
+  function startGroup() {
+    if (groupMembers.length < 2 || groupMembers.length > 6) {
+      setBanner("함께 대화할 페르소나를 2~6명 선택하세요.");
+      return;
+    }
+    const room = `group:${[...groupMembers].sort().join("|")}`;
+    reader.stop();
+    personaIdRef.current = room;
+    setPersonaId(room);
+    setPersona("");
+    setGroupSetup(false);
+    turnsNow.current = threads[room] ?? [];
   }
 
   const selectedPersona = personas.find((item) => item.id === personaId) ?? personas[0];
@@ -1534,7 +1749,14 @@ export function ReaderApp() {
                 {APP_VERSION}
               </span>
             </div>
-            <p className="mt-1 truncate text-sm text-muted">{topicWith(personaName || "기본")}</p>
+            <p className="mt-1 truncate text-sm text-muted">
+              {personaId.startsWith("group:")
+                ? `${groupMembers
+                    .map((id) => personas.find((item) => item.id === id)?.name)
+                    .filter(Boolean)
+                    .join(" · ")}와 함께 대화`
+                : topicWith(personaName || "그록")}
+            </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button
@@ -1601,7 +1823,43 @@ export function ReaderApp() {
         </div>
       </header>
 
+      <div className="flex flex-wrap gap-2 px-4 pb-2">
+        <button
+          type="button"
+          disabled={asking}
+          onClick={() => setGroupSetup(true)}
+          className="min-h-11 rounded-full border border-line px-3 text-sm text-fg"
+        >
+          함께 대화
+        </button>
+        <button
+          type="button"
+          disabled={asking || voiceBackup.saving}
+          onClick={() =>
+            void voiceBackup.backup(personaId.startsWith("group:") ? groupMembers : [personaId])
+          }
+          className="min-h-11 rounded-full border border-line px-3 text-sm text-fg"
+        >
+          대화 종료·기억 백업
+        </button>
+        {!personaId.startsWith("group:") ? (
+          <button
+            type="button"
+            disabled={asking}
+            onClick={() => setDeleteChat({ id: personaId, name: personaName })}
+            className="min-h-11 rounded-full border border-line px-3 text-sm text-muted"
+          >
+            전체 대화 삭제
+          </button>
+        ) : null}
+      </div>
+
       <main ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+        {voiceBackup.note ? (
+          <p role="status" className="mb-3 text-sm text-muted">
+            {voiceBackup.note}
+          </p>
+        ) : null}
         {banner ? <p className="mb-3 text-sm text-pretty text-muted">{banner}</p> : null}
         {turns.length === 0 ? (
           <div className="flex h-full flex-col items-start justify-center gap-4">
@@ -1667,7 +1925,9 @@ export function ReaderApp() {
                               {playing && reader.status === "playing" && !reader.preparing ? (
                                 <Equalizer />
                               ) : null}
-                              {turn.speaker === "me" ? "나" : personaName || "그록"}
+                              {turn.speaker === "me"
+                                ? "나"
+                                : turn.personaName || personaName || "그록"}
                               <span className={mine ? "text-ink/70" : "text-faint"}>
                                 {index + 1}
                               </span>
@@ -2141,6 +2401,38 @@ export function ReaderApp() {
               <div className="flex flex-col gap-3">
                 <h2 className="text-lg font-medium text-fg">대화 불러오기</h2>
                 {dropboxPanel}
+                <section className="flex flex-col gap-3 rounded-2xl border border-line bg-bg p-3">
+                  <h3 className="text-base font-medium text-fg">Dropbox 대화 종료 요약 백업</h3>
+                  <label className="flex min-h-11 items-center justify-between text-sm text-fg">
+                    자동 요약 백업
+                    <input
+                      type="checkbox"
+                      checked={voiceBackup.enabled}
+                      onChange={(event) => voiceBackup.setEnabled(event.target.checked)}
+                    />
+                  </label>
+                  <p className="text-sm text-muted">
+                    종료·작별·도착·백업 요청을 말하거나 마지막 대화 후 30분이 지나면
+                    /Grok/voicegrok/페르소나 이름에 요약 MD를 저장합니다. 변경이 없으면 저장하지
+                    않습니다. 앱이 열려 있어야 실행됩니다.
+                  </p>
+                  <p className="text-sm text-muted">
+                    Dropbox 콘솔 Permissions에서 files.content.write를 켜고 Submit한 뒤 아래
+                    버튼으로 다시 연결하세요.
+                  </p>
+                  <button
+                    type="button"
+                    className="min-h-11 rounded-full border border-line text-sm text-fg"
+                    onClick={() => void voiceBackup.connect()}
+                  >
+                    Dropbox 백업 쓰기 권한 연결
+                  </button>
+                  {voiceBackup.note ? (
+                    <p role="status" className="text-sm text-muted">
+                      {voiceBackup.note}
+                    </p>
+                  ) : null}
+                </section>
                 <details className="rounded-2xl border border-line bg-bg p-3 text-sm text-muted">
                   <summary className="min-h-11 text-fg">요약 기억·성격 템플릿 파일 형식</summary>
                   <p className="mb-2">
@@ -2606,9 +2898,8 @@ export function ReaderApp() {
                   />
                 </label>
                 <p className="text-sm text-pretty text-muted">
-                  {wakeCall.length > 1
-                    ? `「${wakeCall[0]}」 또는 「${wakeCall[1]}」라고 하면 대답하고 말하기가 켜집니다.`
-                    : "페르소나 이름을 정하면 그 이름으로 부를 수 있습니다."}
+                  등록된 모든 페르소나를 이름으로 부르면 해당 대화로 이동합니다. 예: “아라야”,
+                  “혜정아”, “혜정이”.
                   {wakeOn && !wake.listening
                     ? " 브라우저가 듣기를 끝내면 자동으로 다시 켜지 않습니다. 다시 듣고 싶으면 스위치를 껐다 켜 주세요."
                     : ""}
@@ -2684,6 +2975,95 @@ export function ReaderApp() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      ) : null}
+      {groupSetup ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/70 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="함께 대화할 페르소나"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-5 text-fg">
+            <h2 className="text-lg">함께 대화할 페르소나</h2>
+            <p className="mt-2 text-sm text-muted">
+              2~6명을 고르세요. 각자 자기 설정과 기억으로 답하고, 목소리는 차례로 읽습니다.
+            </p>
+            <div className="my-3 grid grid-cols-2 gap-1">
+              {personas.map((item) => (
+                <label key={item.id} className="flex min-h-11 items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={groupMembers.includes(item.id)}
+                    onChange={(event) =>
+                      setGroupMembers((prev) =>
+                        event.target.checked
+                          ? [...prev, item.id]
+                          : prev.filter((id) => id !== item.id),
+                      )
+                    }
+                  />
+                  {item.name}
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                className="min-h-11 flex-1 rounded-full border border-line"
+                onClick={() => setGroupSetup(false)}
+              >
+                취소
+              </button>
+              <button
+                className="min-h-11 flex-1 rounded-full bg-primary text-ink"
+                onClick={startGroup}
+              >
+                대화 시작
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {deleteChat ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/70 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="전체 대화 삭제 확인"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-5 text-fg">
+            <h2 className="text-lg">{deleteChat.name}의 대화를 정말 모두 삭제할까요?</h2>
+            <p className="my-3 text-sm text-muted">
+              이 기기의 전체 대화와 앱에서 만든 요약 기억을 삭제합니다. 성격 템플릿과 외부에서
+              불러온 기억, Dropbox 파일은 유지합니다. 삭제 후 되돌릴 수 없습니다.
+            </p>
+            <p className="mb-3 text-sm text-muted">
+              음성 확인은 마이크를 누르고 “모두 삭제” 또는 “취소”라고 말하세요.
+            </p>
+            <div className="mb-3 flex gap-2">
+              <button
+                className="min-h-11 flex-1 rounded-full border border-line"
+                onClick={() => dictation.toggle()}
+              >
+                음성으로 확인
+              </button>
+              <button
+                className="min-h-11 flex-1 rounded-full border border-line"
+                onClick={() => {
+                  setDeleteChat(null);
+                  dictation.stop();
+                }}
+              >
+                취소
+              </button>
+            </div>
+            <button
+              className="min-h-11 w-full rounded-full bg-primary text-ink"
+              onClick={confirmDeleteChat}
+            >
+              정말 모두 삭제
+            </button>
           </div>
         </div>
       ) : null}

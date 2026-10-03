@@ -1,7 +1,28 @@
 export function wakeForms(name: string) {
   const key = name.replace(/\s+/g, "").trim();
   if (!key) return [];
-  return [`${key}야`, `${key}아`];
+  const code = key.charCodeAt(key.length - 1) - 0xac00;
+  const consonant = code >= 0 && code <= 11171 && code % 28 !== 0;
+  return [
+    ...new Set([
+      consonant ? `${key}아` : `${key}야`,
+      consonant ? `${key}이` : `${key}아`,
+      `${key}야`,
+    ]),
+  ];
+}
+
+export function takePersonaWake(text: string, personas: { id: string; name: string }[]) {
+  for (const persona of personas) {
+    if (
+      text.replace(/[\s.,!?~…"'“”]/g, "").normalize("NFC") ===
+      persona.name.replace(/\s+/g, "").normalize("NFC")
+    )
+      return { id: persona.id, rest: "" };
+    const rest = takeWake(text, persona.name);
+    if (rest !== null) return { id: persona.id, rest };
+  }
+  return null;
 }
 
 export function takeWake(text: string, name: string) {

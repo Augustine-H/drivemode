@@ -14,7 +14,7 @@ type Options = {
   onlyGrok: boolean;
 };
 
-type Piece = { t: number; c: number; text: string; speaker: Speaker };
+type Piece = { t: number; c: number; text: string; speaker: Speaker; voice?: string };
 
 const audioCache = new Map<string, string>();
 const audioInflight = new Map<string, Promise<string>>();
@@ -31,7 +31,7 @@ function pieceAt(turns: Turn[], t: number, c: number, onlyGrok: boolean): Piece 
     }
     const chunks = chunkText(turns[ti]?.text ?? "");
     if (ci < chunks.length) {
-      return { t: ti, c: ci, text: chunks[ci], speaker: turns[ti].speaker };
+      return { t: ti, c: ci, text: chunks[ci], speaker: turns[ti].speaker, voice: turns[ti].voice };
     }
     ti += 1;
     ci = 0;
@@ -178,7 +178,8 @@ export function useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok }: Op
     (t: number, c: number) => {
       const next = pieceAt(turnsRef.current, t, c, onlyGrokRef.current);
       if (!next) return;
-      const voiceId = voiceFor(next.speaker);
+      const voiceId =
+        next.voice && API_VOICES.has(next.voice) ? next.voice : voiceFor(next.speaker);
       if (!API_VOICES.has(voiceId)) return;
       void fetchAudio(next.text, voiceId, rateRef.current).catch(() => {});
     },
@@ -314,7 +315,8 @@ export function useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok }: Op
           c = piece.c;
           setPos(t, c);
           setStatusBoth("playing");
-          const voiceId = voiceFor(piece.speaker);
+          const voiceId =
+            piece.voice && API_VOICES.has(piece.voice) ? piece.voice : voiceFor(piece.speaker);
           prefetch(t, c + 1);
 
           let played = false;

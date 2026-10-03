@@ -13,7 +13,7 @@ export const DROPBOX_ROOT = "/Grok/grokbot";
 const GRANT_KEY = "voice-grok-dropbox-grant";
 const FLOW_KEY = "voice-grok-dropbox-flow";
 type Grant = { access_token: string; refresh_token: string; expires_at: number };
-type Flow = { state: string; verifier: string; redirect: string; started: number };
+type Flow = { state: string; verifier: string; redirect: string; started: number; write?: boolean };
 type Entry = {
   ".tag": string;
   path_lower?: string;
@@ -33,7 +33,10 @@ function base64url(bytes: Uint8Array) {
 }
 
 function placement(file: Entry, root: string) {
-  const raw = (file.path_display ?? file.path_lower ?? "").normalize("NFC").split("/").filter(Boolean);
+  const raw = (file.path_display ?? file.path_lower ?? "")
+    .normalize("NFC")
+    .split("/")
+    .filter(Boolean);
   const depth = root.split("/").filter(Boolean).length;
   const bot = normalizedBot(raw[depth] ?? "");
   const container = normalizedBot(raw.at(-2) ?? "").toLowerCase();
@@ -68,7 +71,7 @@ export class DropboxClient {
       return null;
     }
   }
-  async authorizationUrl(redirect: string) {
+  async authorizationUrl(redirect: string, write = false) {
     const verifier = base64url(crypto.getRandomValues(new Uint8Array(48)));
     const state = base64url(crypto.getRandomValues(new Uint8Array(32)));
     const challenge = base64url(
@@ -76,7 +79,7 @@ export class DropboxClient {
     );
     this.session.setItem(
       FLOW_KEY,
-      JSON.stringify({ state, verifier, redirect, started: Date.now() }),
+      JSON.stringify({ state, verifier, redirect, started: Date.now(), write }),
     );
     const query = new URLSearchParams({
       client_id: DROPBOX_APP_KEY,
@@ -86,7 +89,7 @@ export class DropboxClient {
       code_challenge: challenge,
       code_challenge_method: "S256",
       token_access_type: "offline",
-      scope: "files.metadata.read files.content.read",
+      scope: `files.metadata.read files.content.read${write ? " files.content.write" : ""}`,
     });
     return `https://www.dropbox.com/oauth2/authorize?${query}`;
   }
@@ -129,6 +132,7 @@ export class DropboxClient {
         access_token: token.access_token,
         refresh_token: token.refresh_token,
         expires_at: Date.now() + token.expires_in * 1000,
+        write: flow.write === true,
       }),
     );
     return true;
@@ -208,6 +212,67 @@ export class DropboxClient {
       );
     return response.json();
   }
+  canWrite() {
+    return (this.grant() as (Grant & { write?: boolean }) | null)?.write === true;
+  }
+  async uploadMemory(name: string, filename: string, content: string) {
+    if (!this.canWrite())
+      throw new Error(
+        "Dropbox 쓰기 권한으로 다시 연결하세요. 콘솔 Permissions의 files.content.write를 활성화해야 합니다.",
+      );
+    if (
+      !name ||
+      Array.from(name + filename).some(
+        (char) => char.charCodeAt(0) < 32 || char === "/" || char === "\\",
+      )
+    )
+      throw new Error("백업 이름을 확인하세요.");
+    if (new TextEncoder().encode(content).length > 1024 * 1024)
+      throw new Error("요약 파일이 너무 큽니다.");
+    const token = await this.accessToken();
+    for (const path of ["/Grok", "/Grok/voicegrok", `/Grok/voicegrok/${name}`]) {
+      const folder = await this.request("https://api.dropboxapi.com/2/files/create_folder_v2", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ path, autorename: false }),
+        signal: AbortSignal.timeout(30000),
+      });
+      if (!folder.ok) {
+        const error = await folder.json().catch(() => ({}));
+        if (
+          folder.status !== 409 ||
+          !String(error.error_summary ?? "").startsWith("path/conflict/folder")
+        )
+          throw new Error("Dropbox 백업 폴더를 만들지 못했습니다. 쓰기 권한을 확인하세요.");
+      }
+    }
+    const arg = JSON.stringify({
+      path: `/Grok/voicegrok/${name}/${filename}`,
+      mode: "overwrite",
+      autorename: false,
+      mute: true,
+    }).replace(
+      /[\u007f-\uffff]/g,
+      (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
+    );
+    const response = await this.request("https://content.dropboxapi.com/2/files/upload", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/octet-stream",
+        "Dropbox-API-Arg": arg,
+      },
+      body: new TextEncoder().encode(content),
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!response.ok)
+      throw new Error(
+        response.status === 403
+          ? "Dropbox 쓰기 권한을 확인하고 다시 연결하세요."
+          : "Dropbox 기억 업로드에 실패했습니다.",
+      );
+    return response.json();
+  }
   async backups(root: string): Promise<DropboxBatch> {
     const normalized = root.trim().replace(/\/+$/, "").normalize("NFC");
     if (/\.(?:json|md)$/i.test(normalized))
@@ -253,8 +318,14 @@ export class DropboxClient {
       try {
         if (
           !file.path_lower ||
-          (!file.path_lower.normalize("NFC").toLowerCase().startsWith(`${normalized.toLowerCase()}/`) &&
-            !file.path_display?.normalize("NFC").toLowerCase().startsWith(`${normalized.toLowerCase()}/`))
+          (!file.path_lower
+            .normalize("NFC")
+            .toLowerCase()
+            .startsWith(`${normalized.toLowerCase()}/`) &&
+            !file.path_display
+              ?.normalize("NFC")
+              .toLowerCase()
+              .startsWith(`${normalized.toLowerCase()}/`))
         )
           throw new Error("폴더 밖의 파일입니다.");
         if ((file.size ?? 0) > 10 * 1024 * 1024) throw new Error("파일이 10MB를 넘습니다.");

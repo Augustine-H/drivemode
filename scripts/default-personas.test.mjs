@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_PERSONAS, migrateDefaultPersonas, takeAraClear } from "../src/lib/default-personas.ts";
+import {
+  DEFAULT_PERSONAS,
+  migrateDefaultPersonas,
+} from "../src/lib/default-personas.ts";
 test("defaults replace old personas and drop their conversations", () => {
   const ara = {
     id: "custom-ara",
@@ -19,10 +22,10 @@ test("defaults replace old personas and drop their conversations", () => {
   );
   assert.deepEqual(
     result.personas.map((item) => item.name),
-    ["아라", "서연", "혜정", "나경", "알리나"],
+    ["아라", "서연", "혜정", "나경", "알리나", "그록"],
   );
   assert.deepEqual(result.personas[0], { ...ara, voice: "ara" });
-  assert.equal(new Set(result.personas.map((item) => item.voice)).size, 5);
+  assert.equal(new Set(result.personas.map((item) => item.voice)).size, 6);
   const changed = { ...result.personas[0], voice: "iris" };
   assert.equal(migrateDefaultPersonas([changed], {}, changed.id).personas[0].voice, "iris");
   assert.equal(result.personaId, ara.id);
@@ -35,26 +38,5 @@ test("defaults replace old personas and drop their conversations", () => {
     migrateDefaultPersonas(result.personas, result.threads, result.personaId),
     result,
   );
-  assert.equal(DEFAULT_PERSONAS.length, 5);
-});
-
-test("Ara conversations are cleared once and a later import is kept", () => {
-  const storage = new Map();
-  const memory = {
-    getItem: (key) => storage.get(key) ?? null,
-    setItem: (key, value) => storage.set(key, value),
-  };
-  const personas = [{ id: "custom-ara", name: "아라" }];
-  const first = takeAraClear(memory, personas, {
-    "custom-ara": [{ id: "leftover" }],
-    [DEFAULT_PERSONAS[0].id]: [{ id: "also-leftover" }],
-    "grokbot-other": [{ id: "keep" }],
-  });
-  assert.deepEqual(first["custom-ara"], []);
-  assert.deepEqual(first[DEFAULT_PERSONAS[0].id], []);
-  assert.deepEqual(first["grokbot-other"], [{ id: "keep" }]);
-  const imported = takeAraClear(memory, personas, {
-    "custom-ara": [{ id: "imported" }],
-  });
-  assert.deepEqual(imported["custom-ara"], [{ id: "imported" }]);
+  assert.equal(DEFAULT_PERSONAS.length, 6);
 });

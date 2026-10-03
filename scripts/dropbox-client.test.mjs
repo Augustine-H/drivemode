@@ -68,6 +68,37 @@ test("invalid state never exchanges a token", async () => {
   assert.equal(client.connected(), false);
 });
 
+test("summary upload requests write consent and creates folders without overwriting other backups", async () => {
+  const local = storage(),
+    session = storage();
+  const calls = [];
+  const client = new DropboxClient(local, session, async (url, options) => {
+    calls.push({ url, options });
+    if (url.endsWith("/oauth2/token"))
+      return json({ access_token: "test", refresh_token: "refresh", expires_in: 3600 });
+    if (url.endsWith("/create_folder_v2"))
+      return new Response(JSON.stringify({ error_summary: "path/conflict/folder/" }), {
+        status: 409,
+      });
+    return json({ name: "summary.md" });
+  });
+  const auth = new URL(await client.authorizationUrl("https://example.com/", true));
+  assert.ok(auth.searchParams.get("scope").includes("files.content.write"));
+  await client.finishAuthorization(
+    `https://example.com/?code=code&state=${auth.searchParams.get("state")}`,
+  );
+  assert.equal(client.canWrite(), true);
+  await client.uploadMemory("아라", "2026-10-04_00-00-01_아라_summary.md", "# 기억\n새 요약");
+  assert.equal(calls.filter((call) => call.url.endsWith("/create_folder_v2")).length, 3);
+  const upload = calls.find((call) => call.url.endsWith("/files/upload"));
+  assert.equal(
+    JSON.parse(upload.options.headers["Dropbox-API-Arg"]).path,
+    "/Grok/voicegrok/아라/2026-10-04_00-00-01_아라_summary.md",
+  );
+  assert.equal(new TextDecoder().decode(upload.options.body), "# 기억\n새 요약");
+  assert.ok(!/[아-힣]/.test(upload.options.headers["Dropbox-API-Arg"]));
+});
+
 test("browser fetch keeps its global receiver during OAuth and API calls", async () => {
   let calls = 0;
   const client = new DropboxClient(storage(), storage(), async function (url) {
@@ -282,4 +313,3 @@ test("NFD nested Dropbox paths still import the NFC bot conversation", async () 
   assert.equal(result.backups.length, 1);
   assert.equal(result.backups[0].turns[1].speaker, "me");
 });
-
