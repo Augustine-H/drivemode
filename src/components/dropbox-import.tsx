@@ -1,10 +1,14 @@
+import type { PersonaAsset } from "@/lib/persona-memory";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DROPBOX_ROOT, getDropboxClient } from "@/lib/dropbox-client";
 import type { GrokbotBackup } from "@/lib/grokbot-backup";
 
 const SETTINGS = "voice-grok-dropbox-settings";
 export function useDropboxImport(
-  onImport: (backups: GrokbotBackup[]) => { changed: number; errors: string[] },
+  onImport: (
+    backups: GrokbotBackup[],
+    assets: PersonaAsset[],
+  ) => { changed: number; errors: string[] },
   enabled: boolean,
 ) {
   const [connected, setConnected] = useState(false);
@@ -29,16 +33,16 @@ export function useDropboxImport(
     try {
       const result = await getDropboxClient().backups(state.current.root);
       if (currentEpoch !== epoch.current) return;
-      const applied = state.current.onImport(result.backups);
+      const applied = state.current.onImport(result.backups, result.assets);
       const failures = [...result.errors, ...applied.errors];
       setErrors(failures);
       setLastCheck(new Date().toISOString());
       setNote(
         failures.length
           ? `확인 완료 · 반영 ${applied.changed}개 · 실패 ${failures.length}개`
-          : result.backups.length
+          : result.backups.length + result.assets.length
             ? `확인 완료 · 새로 반영한 백업 ${applied.changed}개`
-            : "백업 폴더에 JSON 파일이 아직 없습니다.",
+            : "폴더에 대화 JSON·성격 템플릿·요약 MD가 아직 없습니다.",
       );
     } catch (error) {
       if (currentEpoch !== epoch.current) return;
@@ -116,8 +120,9 @@ export function useDropboxImport(
     <div className="flex flex-col gap-3 rounded-2xl border border-line bg-bg p-3">
       <h3 className="text-base font-medium text-fg">Dropbox 봇 대화 자동 불러오기</h3>
       <p className="text-sm text-muted">
-        봇별 폴더의 JSON 백업을 전용 페르소나로 가져옵니다. 같은 날짜는 갱신하고 다른 날짜와 앱
-        대화는 유지합니다. 현재 1:1 대화를 지원하며 단톡은 별도 형식 확인이 필요합니다.
+        봇별 폴더의 대화 JSON, 성격 템플릿 JSON, 요약 MD를 같은 이름의 페르소나로 가져옵니다. 같은
+        날짜는 갱신하고 다른 날짜와 앱 대화는 유지합니다. 현재 1:1 대화를 지원하며 단톡은 별도 형식
+        확인이 필요합니다.
       </p>
       <label className="flex flex-col gap-2 text-sm text-fg">
         백업 폴더
@@ -133,7 +138,8 @@ export function useDropboxImport(
         />
       </label>
       <p className="text-sm text-muted">
-        하위 폴더 이름과 JSON의 봇 이름이 같아야 합니다. 예: 아라/2026-10-03_아라.json
+        하위 폴더 이름은 봇 이름입니다. 대화: 날짜_아라.json · 템플릿: persona.json · 요약 기억:
+        memory.md 또는 날짜_summary.md
       </p>
       {connected ? (
         <>

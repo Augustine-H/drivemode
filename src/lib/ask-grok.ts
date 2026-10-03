@@ -26,7 +26,11 @@ function answerText(body: unknown) {
     const message = item as { type?: string; content?: unknown };
     if (message.type !== "message" || !Array.isArray(message.content)) continue;
     for (const part of message.content) {
-      if (part && typeof part === "object" && typeof (part as { text?: unknown }).text === "string") {
+      if (
+        part &&
+        typeof part === "object" &&
+        typeof (part as { text?: unknown }).text === "string"
+      ) {
         parts.push((part as { text: string }).text);
       }
     }
@@ -35,23 +39,40 @@ function answerText(body: unknown) {
 }
 
 export const askGrok = createServerFn({ method: "POST" })
-  .validator((input: { message: string; history: AskTurn[]; persona?: string; ack?: boolean }) => {
-    const message = String(input?.message ?? "")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 500);
-    const history = Array.isArray(input?.history)
-      ? input.history.map((item) => ({
-          role: item?.role === "assistant" ? ("assistant" as const) : ("user" as const),
-          content: String(item?.content ?? ""),
-        }))
-      : [];
-    const persona = String(input?.persona ?? "")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 240);
-    return { message, history: askTurns(history.filter((item) => item.content.trim())), persona, ack: input?.ack === true };
-  })
+  .validator(
+    (input: {
+      message: string;
+      history: AskTurn[];
+      persona?: string;
+      memory?: string;
+      ack?: boolean;
+    }) => {
+      const message = String(input?.message ?? "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 500);
+      const history = Array.isArray(input?.history)
+        ? input.history.map((item) => ({
+            role: item?.role === "assistant" ? ("assistant" as const) : ("user" as const),
+            content: String(item?.content ?? ""),
+          }))
+        : [];
+      const persona = String(input?.persona ?? "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 9000);
+      const memory = String(input?.memory ?? "")
+        .trim()
+        .slice(0, 12000);
+      return {
+        message,
+        memory,
+        history: askTurns(history.filter((item) => item.content.trim())),
+        persona,
+        ack: input?.ack === true,
+      };
+    },
+  )
   .handler(async ({ data }): Promise<AskResult> => {
     if (!data.message) return { ok: false, error: "물어볼 말이 없습니다." };
     const apiKey = process.env.XAI_API_KEY;
@@ -71,8 +92,13 @@ export const askGrok = createServerFn({ method: "POST" })
           max_output_tokens: data.ack ? 40 : facts ? 140 : 90,
           ...(facts ? { max_tool_calls: 1, tools: [{ type: "web_search" }] } : {}),
           input: [
-            { role: "system", content: askInstructions(data.persona, data.ack, facts) },
-            ...(data.ack ? [] : data.history.map((item) => ({ role: item.role, content: item.content }))),
+            {
+              role: "system",
+              content: askInstructions(data.persona, data.ack, facts, data.memory),
+            },
+            ...(data.ack
+              ? []
+              : data.history.map((item) => ({ role: item.role, content: item.content }))),
             { role: "user", content: data.message },
           ],
         }),

@@ -1,3 +1,14 @@
+import {
+  parsePersonaTemplate,
+  parsePersonaMarkdown,
+  applyPersonaAsset,
+  cleanPersonaKnowledge,
+  findPersonaByName,
+  personaInstructions,
+  memoryForQuestion,
+  type PersonaKnowledge,
+  type PersonaAsset,
+} from "@/lib/persona-memory";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeftRight,
@@ -86,7 +97,7 @@ type SettingsSnap = {
   personas: PersonaItem[];
 };
 
-type PersonaItem = {
+type PersonaItem = PersonaKnowledge & {
   id: string;
   name: string;
   text: string;
@@ -279,6 +290,7 @@ export function ReaderApp() {
   const [draft, setDraft] = useState("");
   const [draftNote, setDraftNote] = useState<string | null>(null);
   const [exportText, setExportText] = useState<string | null>(null);
+  const [pendingPersonaAsset, setPendingPersonaAsset] = useState<PersonaAsset | null>(null);
   const [pendingBotBackup, setPendingBotBackup] = useState<GrokbotBackup | null>(null);
   const [pendingBackup, setPendingBackup] = useState<{
     backup: NangdokBackup;
@@ -378,7 +390,15 @@ export function ReaderApp() {
       // Microphone sessions require an explicit action each time the app opens.
       if (typeof saved.persona === "string") setPersona(saved.persona.slice(0, 240));
       if (Array.isArray(saved.personas)) {
-        const next = saved.personas.filter(isPersona).slice(0, 12);
+        const next = saved.personas
+          .filter(isPersona)
+          .slice(0, 12)
+          .map((item) => ({
+            ...item,
+            template: undefined,
+            memories: undefined,
+            ...cleanPersonaKnowledge(item),
+          }));
         if (next.length > 0) {
           setPersonas(next);
           const picked = next.find((item) => item.id === saved.personaId) ?? next[0];
@@ -849,12 +869,19 @@ export function ReaderApp() {
   async function loadBackupFile(file: File) {
     setPendingBackup(null);
     setPendingBotBackup(null);
+    setPendingPersonaAsset(null);
     try {
       if (file.size > 10 * 1024 * 1024) throw new Error("대화 파일은 10MB 이하로 선택하세요.");
       const text = await file.text();
       const trimmed = text.trim();
       if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
         const data: unknown = JSON.parse(trimmed);
+        const asset = parsePersonaTemplate(data, file.name);
+        if (asset) {
+          setPendingPersonaAsset({ ...asset, source: `${asset.bot}/${file.name}` });
+          setDraftNote(null);
+          return;
+        }
         const botBackup = parseGrokbotBackup(data);
         if (botBackup) {
           setPendingBotBackup(botBackup);
@@ -879,6 +906,12 @@ export function ReaderApp() {
         }
         throw new Error("이 파일에서 대화를 찾지 못했습니다.");
       }
+      if (file.name.toLowerCase().endsWith(".md")) {
+        const asset = parsePersonaMarkdown(text, file.name, selectedPersona.name);
+        setPendingPersonaAsset({ ...asset, source: `${asset.bot}/${file.name}` });
+        setDraftNote(null);
+        return;
+      }
       setImported(null);
       setDraft(text);
       setDraftNote(
@@ -893,7 +926,7 @@ export function ReaderApp() {
     if (!pendingBotBackup) return;
     try {
       const backup = pendingBotBackup;
-      const id = grokbotPersonaId(backup.bot);
+      const id = findPersonaByName(personas, backup.bot)?.id ?? grokbotPersonaId(backup.bot);
       const existing = personas.find((item) => item.id === id);
       if (!existing && personas.length >= 12) throw new Error("페르소나는 최대 12개입니다.");
       const next = mergeGrokbotBackup(threads[id] ?? [], backup);
@@ -916,14 +949,46 @@ export function ReaderApp() {
     }
   }
 
-  function syncBotBackups(backups: GrokbotBackup[]) {
+  function syncBotBackups(backups: GrokbotBackup[], assets: PersonaAsset[] = []) {
     let nextPersonas = personas;
     let nextThreads = threads;
     const errors: string[] = [];
     let changed = 0;
+    for (const asset of assets) {
+      try {
+        const existing = findPersonaByName(nextPersonas, asset.bot);
+        if (!existing && nextPersonas.length >= 12) throw new Error("페르소나는 최대 12개입니다.");
+        const current = existing ?? {
+          id: grokbotPersonaId(asset.bot),
+          name: asset.bot,
+          text: "",
+          password: "",
+          locked: false,
+        };
+        const applied = applyPersonaAsset(current, asset);
+        if (JSON.stringify(current) !== JSON.stringify(applied)) {
+          nextPersonas = existing
+            ? nextPersonas.map((item) => (item.id === current.id ? applied : item))
+            : [...nextPersonas, applied];
+          if (settingsBase.current) {
+            const prior = settingsBase.current.personas.find((item) => item.id === current.id);
+            if (prior)
+              settingsBase.current.personas = settingsBase.current.personas.map((item) =>
+                item.id === current.id ? applyPersonaAsset(item, asset) : item,
+              );
+            else settingsBase.current.personas.push({ ...applied });
+          }
+          changed++;
+        }
+      } catch (error) {
+        errors.push(
+          `${asset.bot}: ${error instanceof Error ? error.message : "기억·템플릿 반영 실패"}`,
+        );
+      }
+    }
     for (const backup of backups) {
       try {
-        const id = grokbotPersonaId(backup.bot);
+        const id = findPersonaByName(nextPersonas, backup.bot)?.id ?? grokbotPersonaId(backup.bot);
         const missing = !nextPersonas.some((item) => item.id === id);
         if (missing) {
           if (nextPersonas.length >= 12) throw new Error("페르소나는 최대 12개입니다.");
@@ -1138,6 +1203,9 @@ export function ReaderApp() {
           role: turn.speaker === "me" ? ("user" as const) : ("assistant" as const),
           content: turn.text,
         }));
+      const activePersona = personas.find((item) => item.id === personaIdRef.current);
+      const role = activePersona ? personaInstructions(activePersona) : persona;
+      const memory = memoryForQuestion(activePersona?.memories, text);
       const grokId = `gk-${sentAt.toString(36)}`;
       let played = false;
       const show = (said: string) => {
@@ -1155,12 +1223,12 @@ export function ReaderApp() {
       };
       let result: { ok: true; text: string } | { ok: false; error: string };
       try {
-        result = await streamAsk({ message: text, history, persona }, show);
+        result = await streamAsk({ message: text, history, persona: role, memory }, show);
       } catch {
         result = { ok: false, error: "그록에게 연결하지 못했습니다." };
       }
       if (!result.ok && !played) {
-        const again = await askGrok({ data: { message: text, history, persona } });
+        const again = await askGrok({ data: { message: text, history, persona: role, memory } });
         if (!again.ok) {
           setBanner(again.error);
           return;
@@ -1197,7 +1265,9 @@ export function ReaderApp() {
           data: {
             message: `${name}를 불렀다. 번호 ${Math.floor(Math.random() * 1000)}.`,
             history: [],
-            persona: tone,
+            persona: personaInstructions(
+              personas.find((item) => item.id === personaIdRef.current) ?? { name, text: tone },
+            ),
             ack: true,
           },
         }),
@@ -2053,6 +2123,31 @@ export function ReaderApp() {
               <div className="flex flex-col gap-3">
                 <h2 className="text-lg font-medium text-fg">대화 불러오기</h2>
                 {dropboxPanel}
+                <details className="rounded-2xl border border-line bg-bg p-3 text-sm text-muted">
+                  <summary className="min-h-11 text-fg">요약 기억·성격 템플릿 파일 형식</summary>
+                  <p className="mb-2">
+                    MD는 memory.md 또는 날짜_summary.md로 저장하세요. bot은 페르소나 이름과
+                    맞춥니다. 요약은 기존 기억까지 합친 누적 요약으로 memory.md 하나를 갱신하는
+                    방식이 간단합니다.
+                  </p>
+                  <pre className="overflow-auto whitespace-pre-wrap break-words">
+                    {
+                      "---\nbot: 아라\n---\n# 대화 요약\n- 사용자의 취향과 중요한 약속\n- 둘이 나눈 주요 이야기\n- 기록 날짜와 변경된 사실"
+                    }
+                  </pre>
+                  <p className="mt-3">
+                    JSON은 name(이름), description(설명), profile(프로필), rules(룰), skills(스킬),
+                    routines(루틴)을 지원합니다. 이름은 profile 안에 넣어도 됩니다. system_prompt가
+                    있으면 함께 적용합니다. 스킬과 루틴은 답변 지침이며 자동 실행 예약은 아닙니다.
+                  </p>
+                  <a
+                    className="mt-2 flex min-h-11 items-center text-primary underline"
+                    href="/examples/persona-template.json"
+                    download
+                  >
+                    페르소나 JSON 예시 받기
+                  </a>
+                </details>
                 <p className="text-sm text-muted">
                   저장한 파일을 선택하세요. 백업을 불러오면 현재 대화와 페르소나를 바꾸기 전에
                   내용을 확인합니다. 컴퓨터에서는 연결된 동기화·NAS 폴더의 파일을, 휴대폰에서는 파일
@@ -2078,6 +2173,46 @@ export function ReaderApp() {
                 >
                   기기 내부 자동 백업 불러오기
                 </button>
+                {pendingPersonaAsset ? (
+                  <div className="flex flex-col gap-2 rounded-2xl border border-line bg-bg p-3">
+                    <p className="text-sm text-fg">
+                      {pendingPersonaAsset.bot} ·{" "}
+                      {pendingPersonaAsset.kind === "memory" ? "요약 기억" : "성격 템플릿"} ·{" "}
+                      {pendingPersonaAsset.content.length}자
+                    </p>
+                    <p className="text-sm text-muted">
+                      같은 이름의 페르소나에 적용합니다. 없으면 생성합니다. 기억과 설정은 답변을
+                      생성할 때 참고합니다.
+                    </p>
+                    <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words text-sm text-muted">
+                      {pendingPersonaAsset.content}
+                    </pre>
+                    <button
+                      type="button"
+                      className="h-11 rounded-full bg-primary text-sm text-ink"
+                      onClick={() => {
+                        const result = syncBotBackups([], [pendingPersonaAsset]);
+                        if (result.errors.length) {
+                          setDraftNote(result.errors.join(" · "));
+                          return;
+                        }
+                        setBanner(
+                          `${pendingPersonaAsset.bot}에 ${pendingPersonaAsset.kind === "memory" ? "요약 기억" : "템플릿"}을 적용했습니다.`,
+                        );
+                        setPendingPersonaAsset(null);
+                      }}
+                    >
+                      같은 이름의 페르소나에 적용
+                    </button>
+                    <button
+                      type="button"
+                      className="h-11 rounded-full border border-line text-sm text-fg"
+                      onClick={() => setPendingPersonaAsset(null)}
+                    >
+                      취소
+                    </button>
+                  </div>
+                ) : null}
                 {pendingBotBackup ? (
                   <div className="flex flex-col gap-2 rounded-2xl border border-line bg-bg p-3">
                     <p className="text-sm text-fg">
@@ -2343,6 +2478,36 @@ export function ReaderApp() {
                         aria-label="페르소나 내용"
                         className="w-full resize-none rounded-2xl border border-line bg-bg px-3 py-3 text-base text-fg placeholder:text-faint"
                       />
+                      <div className="flex flex-col gap-2 rounded-2xl border border-line bg-bg p-3">
+                        <p className="text-sm text-fg">{selectedPersona?.name}의 기억·템플릿</p>
+                        <p className="text-sm text-muted">
+                          요약 기억 {selectedPersona?.memories?.length ?? 0}개 · 템플릿{" "}
+                          {selectedPersona?.template
+                            ? `${selectedPersona.template.length}자`
+                            : "없음"}
+                        </p>
+                        <p className="text-sm text-muted">
+                          불러오기에서 MD 요약이나 페르소나 JSON을 선택하세요. Dropbox 자동 연결도
+                          같은 이름에 적용합니다. 답변 요청에는 선택된 기억 일부와 성격 템플릿이
+                          전달됩니다.
+                        </p>
+                        {selectedPersona?.template ? (
+                          <details className="text-sm text-muted">
+                            <summary>성격 템플릿 보기</summary>
+                            <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words">
+                              {selectedPersona.template}
+                            </pre>
+                          </details>
+                        ) : null}
+                        {(selectedPersona?.memories ?? []).map((memory) => (
+                          <details key={memory.source} className="text-sm text-muted">
+                            <summary>{memory.source}</summary>
+                            <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words">
+                              {memory.content}
+                            </pre>
+                          </details>
+                        ))}
+                      </div>
                       <div className="flex gap-2">
                         <button
                           type="button"

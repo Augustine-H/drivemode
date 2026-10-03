@@ -1,3 +1,9 @@
+import {
+  parsePersonaTemplate,
+  parsePersonaMarkdown,
+  isMemoryFile,
+  type PersonaAsset,
+} from "./persona-memory.ts";
 import { parseGrokbotBackup, type GrokbotBackup } from "./grokbot-backup.ts";
 
 export const DROPBOX_APP_KEY = "93d0wi1ioc4gkab";
@@ -6,9 +12,16 @@ const GRANT_KEY = "voice-grok-dropbox-grant";
 const FLOW_KEY = "voice-grok-dropbox-flow";
 type Grant = { access_token: string; refresh_token: string; expires_at: number };
 type Flow = { state: string; verifier: string; redirect: string; started: number };
-type Entry = { ".tag": string; path_lower?: string; name: string; rev?: string; size?: number };
+type Entry = {
+  ".tag": string;
+  path_lower?: string;
+  path_display?: string;
+  name: string;
+  rev?: string;
+  size?: number;
+};
 type Page = { entries: Entry[]; has_more: boolean; cursor: string };
-export type DropboxBatch = { backups: GrokbotBackup[]; errors: string[] };
+export type DropboxBatch = { backups: GrokbotBackup[]; assets: PersonaAsset[]; errors: string[] };
 
 function base64url(bytes: Uint8Array) {
   return btoa(String.fromCharCode(...bytes))
@@ -205,12 +218,17 @@ export class DropboxClient {
       page = await this.api("files/list_folder/continue", { cursor: page.cursor });
     }
     const files = entries
-      .filter((entry) => entry[".tag"] === "file" && entry.name.toLowerCase().endsWith(".json"))
+      .filter(
+        (entry) =>
+          entry[".tag"] === "file" &&
+          (entry.name.toLowerCase().endsWith(".json") || isMemoryFile(entry.name)),
+      )
       .sort((a, b) => a.name.localeCompare(b.name));
     if (files.length > 250)
-      throw new Error("한 번에 JSON 파일 250개까지 지원합니다. 백업 폴더를 나누세요.");
-    const result: DropboxBatch = { backups: [], errors: [] };
+      throw new Error("한 번에 백업 파일 250개까지 지원합니다. 백업 폴더를 나누세요.");
+    const result: DropboxBatch = { backups: [], assets: [], errors: [] };
     const seen = new Set<string>();
+    const templates = new Set<string>();
     for (const file of files) {
       try {
         if (!file.path_lower || !file.path_lower.startsWith(`${normalized.toLowerCase()}/`))
@@ -230,9 +248,29 @@ export class DropboxClient {
         const text = await response.text();
         if (new TextEncoder().encode(text).length > 10 * 1024 * 1024)
           throw new Error("파일이 10MB를 넘습니다.");
+        const parent = file.path_lower.split("/").at(-2)!;
+        const botName = (file.path_display ?? file.path_lower).split("/").at(-2)!;
+        const source = `${parent}/${file.name}`;
+        const asset = file.name.toLowerCase().endsWith(".md")
+          ? parsePersonaMarkdown(text, source, botName)
+          : parsePersonaTemplate(JSON.parse(text), source);
+        if (asset) {
+          if (asset.bot.toLowerCase() !== parent)
+            throw new Error("폴더 이름과 봇 이름이 다릅니다.");
+          if (asset.kind === "template") {
+            if (templates.has(parent)) {
+              result.assets = result.assets.filter(
+                (item) => !(item.kind === "template" && item.bot.toLowerCase() === parent),
+              );
+              throw new Error("봇 폴더에는 성격 템플릿을 하나만 넣으세요.");
+            }
+            templates.add(parent);
+          }
+          result.assets.push(asset);
+          continue;
+        }
         const backup = parseGrokbotBackup(JSON.parse(text));
         if (!backup) throw new Error("지원하는 봇 JSON 형식이 아닙니다.");
-        const parent = file.path_lower.split("/").at(-2);
         if (parent !== backup.bot.toLowerCase()) throw new Error("폴더 이름과 봇 이름이 다릅니다.");
         if (seen.has(backup.source)) {
           result.backups = result.backups.filter((item) => item.source !== backup.source);

@@ -18,13 +18,22 @@ function canSpeak(text: string) {
 
 function deltaOf(event: unknown) {
   if (!event || typeof event !== "object") return "";
-  const row = event as { type?: string; delta?: unknown; choices?: { delta?: { content?: unknown } }[] };
+  const row = event as {
+    type?: string;
+    delta?: unknown;
+    choices?: { delta?: { content?: unknown } }[];
+  };
   if (row.type === "response.output_text.delta" && typeof row.delta === "string") return row.delta;
   const content = row.choices?.[0]?.delta?.content;
   return typeof content === "string" ? content : "";
 }
 
-async function streamAnswer(message: string, history: { role: "user" | "assistant"; content: string }[], persona: string) {
+async function streamAnswer(
+  message: string,
+  history: { role: "user" | "assistant"; content: string }[],
+  persona: string,
+  memory: string,
+) {
   const apiKey = process.env.XAI_API_KEY;
   if (!apiKey) return Response.json({ error: "그록에게 물어볼 수 없습니다." }, { status: 503 });
   const facts = needsFacts(message);
@@ -41,7 +50,7 @@ async function streamAnswer(message: string, history: { role: "user" | "assistan
       max_output_tokens: facts ? 140 : 90,
       ...(facts ? { max_tool_calls: 1, tools: [{ type: "web_search" }] } : {}),
       input: [
-        { role: "system", content: askInstructions(persona, false, facts) },
+        { role: "system", content: askInstructions(persona, false, facts, memory) },
         ...history.map((item) => ({ role: item.role, content: item.content })),
         { role: "user", content: message },
       ],
@@ -108,7 +117,7 @@ export const Route = createFileRoute("/api/ask")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        let body: { message?: unknown; history?: unknown; persona?: unknown };
+        let body: { message?: unknown; history?: unknown; persona?: unknown; memory?: unknown };
         try {
           body = (await request.json()) as typeof body;
         } catch {
@@ -131,9 +140,16 @@ export const Route = createFileRoute("/api/ask")({
         const persona = String(body.persona ?? "")
           .replace(/\s+/g, " ")
           .trim()
-          .slice(0, 240);
+          .slice(0, 9000);
         try {
-          return await streamAnswer(message, history, persona);
+          return await streamAnswer(
+            message,
+            history,
+            persona,
+            String(body.memory ?? "")
+              .trim()
+              .slice(0, 12000),
+          );
         } catch {
           return Response.json({ error: "그록에게 연결하지 못했습니다." }, { status: 502 });
         }

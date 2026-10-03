@@ -1,6 +1,7 @@
 import type { Turn } from "@/lib/transcript";
+import { cleanPersonaKnowledge, type PersonaKnowledge } from "./persona-memory.ts";
 
-export type BackupPersona = {
+export type BackupPersona = PersonaKnowledge & {
   id: string;
   name: string;
   text: string;
@@ -24,8 +25,10 @@ function isTurn(value: unknown): value is Turn {
     (turn.speaker === "me" || turn.speaker === "grok") &&
     typeof turn.text === "string" &&
     typeof turn.id === "string" &&
-    (turn.image === undefined || (typeof turn.image === "string" && turn.image.startsWith("https://"))) &&
-    (turn.video === undefined || (typeof turn.video === "string" && turn.video.startsWith("https://"))) &&
+    (turn.image === undefined ||
+      (typeof turn.image === "string" && turn.image.startsWith("https://"))) &&
+    (turn.video === undefined ||
+      (typeof turn.video === "string" && turn.video.startsWith("https://"))) &&
     (turn.at === undefined || (typeof turn.at === "number" && Number.isFinite(turn.at)))
   );
 }
@@ -56,7 +59,10 @@ export function buildBackup(input: {
     personaId: input.personaId,
     personas: input.personas.map((item) => ({ ...item })),
     threads: Object.fromEntries(
-      Object.entries(input.threads).map(([key, turns]) => [key, turns.map((turn) => ({ ...turn }))]),
+      Object.entries(input.threads).map(([key, turns]) => [
+        key,
+        turns.map((turn) => ({ ...turn })),
+      ]),
     ),
   };
 }
@@ -65,12 +71,18 @@ export function parseNangdokBackup(value: unknown): NangdokBackup | null {
   if (!value || typeof value !== "object") return null;
   const row = value as Record<string, unknown>;
   if (row.app !== "nangdok" || row.version !== 1 || !Array.isArray(row.personas)) return null;
-  const personas = row.personas.filter(isPersona).slice(0, 12).map((item) => ({
-    ...item,
-    name: item.name.trim().slice(0, 16),
-    text: item.text.slice(0, 240),
-    password: item.password.slice(0, 32),
-  }));
+  const personas = row.personas
+    .filter(isPersona)
+    .slice(0, 12)
+    .map((item) => ({
+      ...item,
+      template: undefined,
+      memories: undefined,
+      ...cleanPersonaKnowledge(item),
+      name: item.name.trim().slice(0, 16),
+      text: item.text.slice(0, 240),
+      password: item.password.slice(0, 32),
+    }));
   if (personas.length === 0) return null;
   const threads: Record<string, Turn[]> = {};
   if (row.threads && typeof row.threads === "object") {
@@ -80,7 +92,9 @@ export function parseNangdokBackup(value: unknown): NangdokBackup | null {
       threads[key] = turns;
     }
   }
-  const personaId = personas.some((item) => item.id === row.personaId) ? String(row.personaId) : personas[0].id;
+  const personaId = personas.some((item) => item.id === row.personaId)
+    ? String(row.personaId)
+    : personas[0].id;
   return {
     app: "nangdok",
     version: 1,

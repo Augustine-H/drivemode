@@ -167,3 +167,28 @@ test("conflicting files for the same bot/day are not applied", async () => {
   assert.equal(result.backups.length, 0);
   assert.equal(result.errors.length, 1);
 });
+
+test("bot folder imports summary Markdown and persona JSON alongside conversations", async () => {
+  const files = [
+    entry,
+    { ...entry, name: "memory.md", path_lower: "/grok/grokbot/아라/memory.md" },
+    { ...entry, name: "persona.json", path_lower: "/grok/grokbot/아라/persona.json" },
+  ];
+  const { client } = await setup((url, options) => {
+    if (url.endsWith("/list_folder")) return json({ entries: files, has_more: false });
+    const path = JSON.parse(options.headers["Dropbox-API-Arg"]).path;
+    if (path.endsWith("memory.md"))
+      return new Response("---\nbot: 아라\n---\n사용자는 레몬차를 좋아한다.");
+    if (path.endsWith("persona.json"))
+      return json({ type: "persona_template", name: "아라", system_prompt: "차분하게 답한다." });
+    return json(fixture);
+  });
+  const result = await client.backups("/Grok/grokbot");
+  assert.equal(result.backups.length, 1);
+  assert.equal(result.assets.length, 2);
+  assert.deepEqual(result.errors, []);
+  assert.ok(
+    result.assets.some((asset) => asset.kind === "memory" && asset.content.includes("레몬차")),
+  );
+  assert.ok(result.assets.some((asset) => asset.kind === "template" && asset.bot === "아라"));
+});
