@@ -1,0 +1,38 @@
+{
+  "url": "http://127.0.0.1:8081/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "보이스 그록",
+      "hasCanvas": false,
+      "bodyTextLen": 381,
+      "bodyTextHash": "6884956726e3301986431124f284924c46fb5d94a82091c0f9e92a49bab7a0ee",
+      "bodyTextPrefix": "보이스 그록 1.1.0 기본과 나누는 대화 불러오기 기본 친구 비서 선생님 나 1 수정 그록이랑 나눈 대화를 운전하",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "보이스 그록",
+      "hasCanvas": false,
+      "bodyTextLen": 381,
+      "bodyTextHash": "6884956726e3301986431124f284924c46fb5d94a82091c0f9e92a49bab7a0ee",
+      "bodyTextPrefix": "보이스 그록 1.1.0 기본과 나누는 대화 불러오기 기본 친구 비서 선생님 나 1 수정 그록이랑 나눈 대화를 운전하",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-built.json",
+  "divergesFromBaseline": false,
+  "baselineReasons": []
+}

@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #141210;
+  --color-surface: #211e1a;
+  --color-raised: #2c2822;
+  --color-fg: #f4efe6;
+  --color-muted: #a89f90;
+  --color-faint: #6f675c;
+  --color-primary: #e6a15a;
+  --color-ink: #1a1208;
+  --color-line: #3a342c;
+  --font-sans: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  --font-display: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+}
+
+@layer base {
+  html {
+    height: 100%;
+    color-scheme: dark;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--color-primary);
+    color: var(--color-ink);
+  }
+}
+
+.eq {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 0.875rem;
+}
+
+.eq > span {
+  display: block;
+  width: 2px;
+  height: 100%;
+  background: currentColor;
+  transform-origin: bottom;
+  animation: eq 0.9s ease-in-out infinite;
+}
+
+.eq > span:nth-child(2) {
+  animation-delay: 0.12s;
+}
+
+.eq > span:nth-child(3) {
+  animation-delay: 0.28s;
+}
+
+.eq > span:nth-child(4) {
+  animation-delay: 0.05s;
+}
+
+@keyframes eq {
+  0%,
+  100% {
+    transform: scaleY(0.28);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eq > span {
+    animation: none;
+    transform: scaleY(0.65);
+  }
+}

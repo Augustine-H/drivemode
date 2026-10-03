@@ -1,0 +1,219 @@
+/** Puts a backup file in a folder the person picked, or hands it to the phone share sheet. */
+
+const DB_NAME = "voice-grok-dest";
+const STORE = "handles";
+const KEY = "dir";
+
+type DestDir = FileSystemDirectoryHandle & {
+  queryPermission?: (descriptor: { mode: "readwrite" }) => Promise<PermissionState>;
+  requestPermission?: (descriptor: { mode: "readwrite" }) => Promise<PermissionState>;
+};
+
+type PickerWindow = Window & {
+  showDirectoryPicker?: (options?: { mode?: "readwrite"; id?: string }) => Promise<FileSystemDirectoryHandle>;
+  showSaveFilePicker?: (options?: {
+    suggestedName?: string;
+    id?: string;
+    types?: { description: string; accept: Record<string, string[]> }[];
+  }) => Promise<FileSystemFileHandle>;
+};
+
+export type CloudPlace =
+  | { ok: true; where: string; via: "folder" | "share" | "file"; fresh: boolean }
+  | { ok: false; reason: "cancel" | "preview" | "blocked" | "failed" };
+
+export function backupFileName(exportedAt: string): string {
+  const stamp = exportedAt.slice(0, 16).replace(/[:T]/g, "-");
+  return `voice-grok-${stamp || "backup"}.json`;
+}
+
+function pickerWindow(): PickerWindow {
+  return window as PickerWindow;
+}
+
+function openDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore(STORE);
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function readHandle(): Promise<DestDir | null> {
+  if (typeof indexedDB === "undefined") return null;
+  try {
+    const db = await openDb();
+    const handle = await new Promise<DestDir | null>((resolve, reject) => {
+      const tx = db.transaction(STORE, "readonly");
+      const request = tx.objectStore(STORE).get(KEY);
+      request.onsuccess = () => resolve((request.result as DestDir | undefined) ?? null);
+      request.onerror = () => reject(request.error);
+    });
+    db.close();
+    return handle;
+  } catch {
+    return null;
+  }
+}
+
+async function writeHandle(handle: FileSystemDirectoryHandle): Promise<void> {
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).put(handle, KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+}
+
+async function clearHandle(): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+  try {
+    const db = await openDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE, "readwrite");
+      tx.objectStore(STORE).delete(KEY);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch {
+    /* the next pick replaces it */
+  }
+}
+
+export async function cloudFolderName(): Promise<string | null> {
+  const handle = await readHandle();
+  return handle?.name ?? null;
+}
+
+async function allowed(dir: DestDir): Promise<boolean> {
+  const descriptor = { mode: "readwrite" as const };
+  try {
+    if (dir.queryPermission) {
+      if ((await dir.queryPermission(descriptor)) === "granted") return true;
+    }
+    if (dir.requestPermission) return (await dir.requestPermission(descriptor)) === "granted";
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function writeNamed(dir: FileSystemDirectoryHandle, name: string, json: string): Promise<void> {
+  const file = await dir.getFileHandle(name, { create: true });
+  const stream = await file.createWritable();
+  try {
+    await stream.write(json);
+    await stream.close();
+  } catch (error) {
+    await stream.abort().catch(() => undefined);
+    throw error;
+  }
+}
+
+function cancelled(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
+async function shareFile(json: string, name: string): Promise<"shared" | "cancel" | "no"> {
+  if (!navigator.share) return "no";
+  for (const type of ["text/plain", "application/json"]) {
+    const file = new File([json], name, { type });
+    if (navigator.canShare && !navigator.canShare({ files: [file] })) continue;
+    try {
+      await navigator.share({ files: [file], title: name });
+      return "shared";
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return "cancel";
+    }
+  }
+  return "no";
+}
+
+async function pickFolder(name: string, json: string): Promise<CloudPlace | null> {
+  const pick = pickerWindow().showDirectoryPicker;
+  if (!pick) return null;
+  try {
+    const dir = await pick({ mode: "readwrite", id: "voice-grok" });
+    try {
+      await writeNamed(dir, name, json);
+    } catch {
+      return { ok: false, reason: "failed" };
+    }
+    try {
+      await writeHandle(dir);
+    } catch {
+      /* the file is already in the folder */
+    }
+    return { ok: true, where: dir.name, via: "folder", fresh: true };
+  } catch (error) {
+    if (cancelled(error)) return { ok: false, reason: "cancel" };
+    if (error instanceof DOMException && error.name === "SecurityError") return { ok: false, reason: "preview" };
+    return { ok: false, reason: "blocked" };
+  }
+}
+
+async function pickFile(name: string, json: string): Promise<CloudPlace | null> {
+  const pick = pickerWindow().showSaveFilePicker;
+  if (!pick) return null;
+  try {
+    const file = await pick({
+      suggestedName: name,
+      id: "voice-grok-file",
+      types: [{ description: "대화 파일", accept: { "application/json": [".json"] } }],
+    });
+    const stream = await file.createWritable();
+    try {
+      await stream.write(json);
+      await stream.close();
+    } catch (error) {
+      await stream.abort().catch(() => undefined);
+      throw error;
+    }
+    return { ok: true, where: file.name, via: "file", fresh: true };
+  } catch (error) {
+    if (cancelled(error)) return { ok: false, reason: "cancel" };
+    if (error instanceof DOMException && error.name === "SecurityError") return { ok: false, reason: "preview" };
+    return null;
+  }
+}
+
+export async function placeInCloud(json: string, name: string, retarget: boolean): Promise<CloudPlace> {
+  if (window.parent !== window) return { ok: false, reason: "preview" };
+
+  if (!retarget) {
+    const saved = await readHandle();
+    if (saved && (await allowed(saved))) {
+      try {
+        await writeNamed(saved, name, json);
+        return { ok: true, where: saved.name, via: "folder", fresh: false };
+      } catch {
+        await clearHandle();
+      }
+    }
+  }
+
+  const canPickFolder = Boolean(pickerWindow().showDirectoryPicker);
+  if (!canPickFolder) {
+    const shared = await shareFile(json, name);
+    if (shared === "shared") return { ok: true, where: "", via: "share", fresh: false };
+    if (shared === "cancel") return { ok: false, reason: "cancel" };
+  }
+
+  const folder = await pickFolder(name, json);
+  if (folder) return folder;
+
+  const shared = await shareFile(json, name);
+  if (shared === "shared") return { ok: true, where: "", via: "share", fresh: false };
+  if (shared === "cancel") return { ok: false, reason: "cancel" };
+
+  const file = await pickFile(name, json);
+  if (file) return file;
+
+  return { ok: false, reason: "blocked" };
+}
