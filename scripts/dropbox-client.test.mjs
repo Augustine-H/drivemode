@@ -192,3 +192,32 @@ test("bot folder imports summary Markdown and persona JSON alongside conversatio
   );
   assert.ok(result.assets.some((asset) => asset.kind === "template" && asset.bot === "아라"));
 });
+
+test("timestamped summaries are retained and only the latest template is applied", async () => {
+  const names = [
+    "2026-10-03_23-00-01_아라_template.json",
+    "2026-10-03_23-00-00_아라_template.json",
+    "2026-10-03_23-00-00_아라_summary.md",
+    "2026-10-03_23-00-01_아라_summary.md",
+  ];
+  const { client } = await setup((url, options) => {
+    if (url.endsWith("/list_folder"))
+      return json({
+        entries: names.map((name) => ({
+          ...entry,
+          name,
+          path_lower: `/grok/grokbot/아라/${name}`,
+        })),
+        has_more: false,
+      });
+    const path = JSON.parse(options.headers["Dropbox-API-Arg"]).path;
+    if (path.endsWith(".md")) return new Response("새로운 기억");
+    return json({ name: "아라", rules: [path.includes("23-00-01") ? "최신 말투" : "이전 말투"] });
+  });
+  const result = await client.backups("/Grok/grokbot");
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.assets.filter((asset) => asset.kind === "memory").length, 2);
+  const templates = result.assets.filter((asset) => asset.kind === "template");
+  assert.equal(templates.length, 1);
+  assert.match(templates[0].content, /최신 말투/);
+});

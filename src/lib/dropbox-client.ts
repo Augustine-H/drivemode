@@ -2,6 +2,7 @@ import {
   parsePersonaTemplate,
   parsePersonaMarkdown,
   isMemoryFile,
+  personaFileTimestamp,
   type PersonaAsset,
 } from "./persona-memory.ts";
 import { parseGrokbotBackup, type GrokbotBackup } from "./grokbot-backup.ts";
@@ -228,7 +229,7 @@ export class DropboxClient {
       throw new Error("한 번에 백업 파일 250개까지 지원합니다. 백업 폴더를 나누세요.");
     const result: DropboxBatch = { backups: [], assets: [], errors: [] };
     const seen = new Set<string>();
-    const templates = new Set<string>();
+    const templates = new Map<string, string>();
     for (const file of files) {
       try {
         if (!file.path_lower || !file.path_lower.startsWith(`${normalized.toLowerCase()}/`))
@@ -258,13 +259,17 @@ export class DropboxClient {
           if (asset.bot.toLowerCase() !== parent)
             throw new Error("폴더 이름과 봇 이름이 다릅니다.");
           if (asset.kind === "template") {
+            const timestamp = personaFileTimestamp(file.name);
             if (templates.has(parent)) {
+              const previous = templates.get(parent)!;
+              if (timestamp && previous && timestamp < previous) continue;
               result.assets = result.assets.filter(
                 (item) => !(item.kind === "template" && item.bot.toLowerCase() === parent),
               );
-              throw new Error("봇 폴더에는 성격 템플릿을 하나만 넣으세요.");
+              if (!timestamp || !previous || timestamp === previous)
+                throw new Error("여러 템플릿은 서로 다른 날짜·시·분·초를 파일명 앞에 넣으세요.");
             }
-            templates.add(parent);
+            templates.set(parent, timestamp);
           }
           result.assets.push(asset);
           continue;

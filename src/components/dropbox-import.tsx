@@ -138,8 +138,9 @@ export function useDropboxImport(
         />
       </label>
       <p className="text-sm text-muted">
-        하위 폴더 이름은 봇 이름입니다. 대화: 날짜_아라.json · 템플릿: persona.json · 요약 기억:
-        memory.md 또는 날짜_summary.md
+        하위 폴더 이름은 봇 이름입니다. 템플릿: 2026-10-03_23-00-00_아라_template.json · 요약 기억:
+        2026-10-03_23-00-00_아라_summary.md. 시간은 백업한 시각이며 템플릿은 가장 최근 파일을
+        적용합니다.
       </p>
       {connected ? (
         <>

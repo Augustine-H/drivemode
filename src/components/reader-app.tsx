@@ -6,6 +6,7 @@ import {
   findPersonaByName,
   personaInstructions,
   memoryForQuestion,
+  personaTemplateFilename,
   type PersonaKnowledge,
   type PersonaAsset,
 } from "@/lib/persona-memory";
@@ -2126,7 +2127,7 @@ export function ReaderApp() {
                 <details className="rounded-2xl border border-line bg-bg p-3 text-sm text-muted">
                   <summary className="min-h-11 text-fg">요약 기억·성격 템플릿 파일 형식</summary>
                   <p className="mb-2">
-                    MD는 memory.md 또는 날짜_summary.md로 저장하세요. bot은 페르소나 이름과
+                    MD는 2026-10-03_23-00-00_아라_summary.md처럼 저장하세요. bot은 페르소나 이름과
                     맞춥니다. 요약은 기존 기억까지 합친 누적 요약으로 memory.md 하나를 갱신하는
                     방식이 간단합니다.
                   </p>
@@ -2143,7 +2144,7 @@ export function ReaderApp() {
                   <a
                     className="mt-2 flex min-h-11 items-center text-primary underline"
                     href="/examples/persona-template.json"
-                    download
+                    download={personaTemplateFilename("아라")}
                   >
                     페르소나 JSON 예시 받기
                   </a>
