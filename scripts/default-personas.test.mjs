@@ -21,7 +21,10 @@ test("defaults replace old personas and preserve an existing Ara and conversatio
     result.personas.map((item) => item.name),
     ["아라", "서연", "혜정", "나경", "알리나"],
   );
-  assert.equal(result.personas[0], ara);
+  assert.deepEqual(result.personas[0], { ...ara, voice: "ara" });
+  assert.equal(new Set(result.personas.map((item) => item.voice)).size, 5);
+  const changed = { ...result.personas[0], voice: "iris" };
+  assert.equal(migrateDefaultPersonas([changed], {}, changed.id).personas[0].voice, "iris");
   assert.equal(result.personaId, ara.id);
   assert.deepEqual(
     result.threads[ara.id].map((turn) => turn.id),

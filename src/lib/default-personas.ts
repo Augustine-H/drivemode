@@ -8,12 +8,13 @@ type Persona = PersonaKnowledge & {
   locked: boolean;
 };
 export const DEFAULT_PERSONAS: Persona[] = ["아라", "서연", "혜정", "나경", "알리나"].map(
-  (name) => ({
+  (name, index) => ({
     id: `grokbot-${encodeURIComponent(name)}`,
     name,
     text: "",
     password: "",
     locked: false,
+    voice: ["ara", "eve", "luna", "aurora", "carina"][index],
   }),
 );
 const OLD_NAMES: Record<string, string> = {
@@ -30,9 +31,10 @@ export function migrateDefaultPersonas<T extends { id: string }>(
 ) {
   const removed = personas.filter((item) => OLD_NAMES[item.id] === item.name);
   const kept = personas.filter((item) => OLD_NAMES[item.id] !== item.name);
-  const next = DEFAULT_PERSONAS.map(
-    (item) => kept.find((existing) => existing.name === item.name) ?? { ...item },
-  );
+  const next = DEFAULT_PERSONAS.map((item) => {
+    const existing = kept.find((candidate) => candidate.name === item.name);
+    return existing ? { ...existing, voice: existing.voice ?? item.voice } : { ...item };
+  });
   next.push(
     ...kept.filter(
       (item) => !DEFAULT_PERSONAS.some((defaultItem) => defaultItem.name === item.name),

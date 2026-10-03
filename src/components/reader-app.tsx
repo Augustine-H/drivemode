@@ -253,6 +253,10 @@ export function ReaderApp() {
     });
   };
   const [personas, setPersonas] = useState<PersonaItem[]>(STARTER_PERSONAS);
+  useEffect(() => {
+    const selected = personas.find((item) => item.id === personaId);
+    if (selected?.voice && isFemaleVoice(selected.voice)) setVoiceGrok(selected.voice);
+  }, [personaId, personas]);
   const [newPersona, setNewPersona] = useState<{
     name: string;
     text: string;
@@ -2528,11 +2532,16 @@ export function ReaderApp() {
                   onPreview={() => void previewVoice(voiceMe)}
                 />
                 <VoiceSelect
-                  label="그록 목소리 · 여자"
+                  label={`${selectedPersona?.name ?? "그록"} 목소리 · 여자`}
                   value={voiceGrok}
                   voices={FEMALE_VOICES}
                   previewing={previewing === voiceGrok}
-                  onChange={setVoiceGrok}
+                  onChange={(voice) => {
+                    setVoiceGrok(voice);
+                    setPersonas((prev) =>
+                      prev.map((item) => (item.id === personaId ? { ...item, voice } : item)),
+                    );
+                  }}
                   onPreview={() => void previewVoice(voiceGrok)}
                 />
                 <Slider

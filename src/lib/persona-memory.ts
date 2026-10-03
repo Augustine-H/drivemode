@@ -1,7 +1,8 @@
+import { isFemaleVoice } from "./voices.ts";
 export type PersonaMemory = { source: string; content: string };
 export const PERSONA_TEMPLATE_LIMIT = 60000;
 export const PERSONA_INSTRUCTIONS_LIMIT = PERSONA_TEMPLATE_LIMIT + 1000;
-export type PersonaKnowledge = { template?: string; memories?: PersonaMemory[] };
+export type PersonaKnowledge = { template?: string; memories?: PersonaMemory[]; voice?: string };
 export type PersonaAsset =
   | { kind: "template"; bot: string; content: string; source: string }
   | { kind: "memory"; bot: string; content: string; source: string };
@@ -103,6 +104,7 @@ export function cleanPersonaKnowledge(value: unknown): PersonaKnowledge {
   if (!value || typeof value !== "object") return {};
   const row = value as Record<string, unknown>;
   const result: PersonaKnowledge = {};
+  if (typeof row.voice === "string" && isFemaleVoice(row.voice)) result.voice = row.voice;
   if (typeof row.template === "string" && row.template.length <= PERSONA_TEMPLATE_LIMIT)
     result.template = row.template;
   if (Array.isArray(row.memories)) {

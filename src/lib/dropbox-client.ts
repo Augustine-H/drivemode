@@ -2,6 +2,7 @@ import {
   parsePersonaTemplate,
   parsePersonaMarkdown,
   isMemoryFile,
+  normalizedBot,
   personaFileTimestamp,
   type PersonaAsset,
 } from "./persona-memory.ts";
@@ -261,7 +262,7 @@ export class DropboxClient {
             : location === "memories"
               ? "memories"
               : null;
-        const parent = parts.at(category ? -3 : -2)!;
+        const parent = normalizedBot(parts.at(category ? -3 : -2)!).toLowerCase();
         const botName = (file.path_display ?? file.path_lower).split("/").at(category ? -3 : -2)!;
         const source = `${parent}/${file.name}`;
         const asset = file.name.toLowerCase().endsWith(".md")
@@ -270,8 +271,10 @@ export class DropboxClient {
         if (asset) {
           if (category && category !== (asset.kind === "template" ? "templates" : "memories"))
             throw new Error("템플릿은 templates 폴더, 요약 기억은 memories 폴더에 넣으세요.");
-          if (asset.bot.toLowerCase() !== parent)
-            throw new Error("폴더 이름과 봇 이름이 다릅니다.");
+          if (normalizedBot(asset.bot).toLowerCase() !== parent)
+            throw new Error(
+              `폴더 이름 '${botName}'과 템플릿·기억의 봇 이름 '${asset.bot}'이 다릅니다. 경로: ${file.path_display ?? file.path_lower}`,
+            );
           if (asset.kind === "template") {
             const timestamp = personaFileTimestamp(file.name);
             if (templates.has(parent)) {
@@ -291,7 +294,8 @@ export class DropboxClient {
         const backup = parseGrokbotBackup(JSON.parse(text));
         if (category) throw new Error("대화 원본 JSON은 봇 폴더에 넣으세요.");
         if (!backup) throw new Error("지원하는 봇 JSON 형식이 아닙니다.");
-        if (parent !== backup.bot.toLowerCase()) throw new Error("폴더 이름과 봇 이름이 다릅니다.");
+        if (parent !== normalizedBot(backup.bot).toLowerCase())
+          throw new Error(`폴더 이름 '${botName}'과 대화의 봇 이름 '${backup.bot}'이 다릅니다.`);
         if (seen.has(backup.source)) {
           result.backups = result.backups.filter((item) => item.source !== backup.source);
           throw new Error("같은 봇·날짜의 파일이 여러 개 있습니다.");
