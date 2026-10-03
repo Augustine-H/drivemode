@@ -1,4 +1,9 @@
 import type { Turn } from "./transcript";
+import { normalizedBot } from "./persona-memory.ts";
+
+const USER_NAMES = new Set(
+  ["만학님", "user", "사용자", "나"].map((name) => normalizedBot(name).toLowerCase()),
+);
 
 export type GrokbotBackup = { bot: string; date: string; source: string; turns: Turn[] };
 
@@ -20,14 +25,23 @@ export function parseGrokbotBackup(value: unknown): GrokbotBackup | null {
   if (row.message_count !== row.messages.length)
     throw new Error("백업의 대화 개수와 실제 내용이 다릅니다.");
   const bot = row.bot.trim();
+  const botKey = normalizedBot(bot).toLowerCase();
+  const seenSpeakers = new Set<string>();
+  for (const item of row.messages) {
+    if (item && typeof item === "object" && typeof (item as { speaker?: unknown }).speaker === "string")
+      seenSpeakers.add(normalizedBot((item as { speaker: string }).speaker).toLowerCase());
+  }
+  const otherSpeakers = [...seenSpeakers].filter((name) => name !== botKey && !USER_NAMES.has(name));
+  const otherUser = otherSpeakers.length === 1 ? otherSpeakers[0] : null;
   const source = `grokbot:${encodeURIComponent(bot)}:${row.date}:`;
   const turns = row.messages.map((item: unknown, index: number): Turn => {
     if (!item || typeof item !== "object") throw new Error("대화 항목을 확인하세요.");
     const message = item as Record<string, unknown>;
+    const speakerName = typeof message.speaker === "string" ? normalizedBot(message.speaker).toLowerCase() : "";
     const speaker =
-      message.speaker === bot
+      speakerName === botKey
         ? "grok"
-        : message.speaker === "만학님" || message.speaker === "user" || message.speaker === "사용자"
+        : USER_NAMES.has(speakerName) || speakerName === otherUser
           ? "me"
           : null;
     if (!speaker) throw new Error("알 수 없는 화자가 있습니다. 화자 이름을 확인하세요.");

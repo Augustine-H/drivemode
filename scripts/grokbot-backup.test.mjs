@@ -60,7 +60,11 @@ test("invalid or incomplete exports cannot silently replace data", () => {
   assert.throws(() => parseGrokbotBackup(bad));
   bad.messages[0].time = "14:07";
   bad.messages[0].speaker = "알 수 없는 봇";
+  bad.messages[1].speaker = "다른 사람";
   assert.throws(() => parseGrokbotBackup(bad));
+  const named = fixture();
+  named.messages[1].speaker = "만학";
+  assert.equal(parseGrokbotBackup(named).turns[1].speaker, "me");
   const backup = parseGrokbotBackup(fixture());
   assert.throws(() =>
     mergeGrokbotBackup(

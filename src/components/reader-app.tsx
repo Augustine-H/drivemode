@@ -10,7 +10,13 @@ import {
   type PersonaKnowledge,
   type PersonaAsset,
 } from "@/lib/persona-memory";
-import { DEFAULT_PERSONAS, migrateDefaultPersonas } from "@/lib/default-personas";
+import {
+  ARA_CLEAR_KEY,
+  DEFAULT_PERSONAS,
+  migrateDefaultPersonas,
+  takeAraClear,
+  withoutAraThreads,
+} from "@/lib/default-personas";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeftRight,
@@ -35,7 +41,7 @@ import { chatsFromJson, type ImportedChat } from "@/lib/grok-import";
 import { buildBackup, parseNangdokBackup, type NangdokBackup } from "@/lib/nangdok-backup";
 import { backupFileName, cloudFolderName, placeInCloud, openCloudFile } from "@/lib/cloud-dest";
 import { autoSaveInCloud } from "@/lib/cloud-dest";
-import { saveLocalBackup, readLocalBackup } from "@/lib/local-backup";
+import { LOCAL_BACKUP_KEY, saveLocalBackup, readLocalBackup } from "@/lib/local-backup";
 import {
   parseGrokbotBackup,
   mergeGrokbotBackup,
@@ -384,11 +390,26 @@ export function ReaderApp() {
           }));
         if (next.length > 0) {
           const migrated = migrateDefaultPersonas(next, loaded ?? {}, saved.personaId);
+          const pendingAraClear = localStorage.getItem(ARA_CLEAR_KEY) !== "1";
+          migrated.threads = takeAraClear(localStorage, migrated.personas, migrated.threads);
+          if (pendingAraClear) {
+            try {
+              const raw = readLocalBackup(localStorage);
+              const parsed = raw ? JSON.parse(raw) : null;
+              if (parsed?.threads && Array.isArray(parsed.personas)) {
+                parsed.threads = withoutAraThreads(parsed.personas, parsed.threads);
+                saveLocalBackup(localStorage, JSON.stringify(parsed));
+              }
+            } catch {
+              /* a failed backup rewrite must not keep the old chat on screen */
+            }
+          }
           setPersonas(migrated.personas);
           setThreads(migrated.threads);
           const picked = migrated.personas.find((item) => item.id === migrated.personaId)!;
           setPersonaId(picked.id);
           setPersona(picked.text.slice(0, 240));
+          if (picked.name.trim().normalize("NFC") === "아라") bootIndex.current = 0;
         }
       }
       if (typeof saved.index === "number") bootIndex.current = saved.index;
@@ -1014,15 +1035,23 @@ export function ReaderApp() {
   const dropboxPanel = useDropboxImport(syncBotBackups, hydrated);
 
   async function loadCloudFile() {
+    const openDeviceFile = () => fileRef.current?.click();
     try {
-      if (!("showOpenFilePicker" in window)) {
-        fileRef.current?.click();
+      if (window.parent !== window || !("showOpenFilePicker" in window)) {
+        openDeviceFile();
         return;
       }
       const file = await openCloudFile();
       if (file) await loadBackupFile(file);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
+      if (
+        error instanceof DOMException &&
+        (error.name === "SecurityError" || error.name === "NotAllowedError")
+      ) {
+        openDeviceFile();
+        return;
+      }
       setDraftNote(
         "클라우드·NAS 파일을 열지 못했습니다. 기기에서 불러오기를 눌러 파일 앱에서 드라이브나 연결된 NAS를 선택하세요.",
       );

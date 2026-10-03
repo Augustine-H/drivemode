@@ -258,3 +258,28 @@ test("metadata archives are excluded before download and plural template folders
   assert.equal(result.assets[0].bot, "아라");
   assert.match(result.assets[0].content, /먼저 듣는다/);
 });
+
+test("NFD nested Dropbox paths still import the NFC bot conversation", async () => {
+  const nfd = "아라".normalize("NFD");
+  const nested = {
+    ...entry,
+    path_lower: `/grok/grokbot/${nfd}/export/${nfd}.json`,
+    path_display: "/Grok/grokbot/아라/export/아라.json",
+  };
+  const named = {
+    ...fixture,
+    messages: [
+      { time: "14:07", speaker: "아라", text: "연결 테스트" },
+      { time: "14:08", speaker: "만학", text: "불러와 줘" },
+    ],
+    message_count: 2,
+  };
+  const { client } = await setup((url) =>
+    url.endsWith("/list_folder") ? json({ entries: [nested], has_more: false }) : json(named),
+  );
+  const result = await client.backups("/Grok/grokbot");
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.backups.length, 1);
+  assert.equal(result.backups[0].turns[1].speaker, "me");
+});
+

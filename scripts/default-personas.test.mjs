@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_PERSONAS, migrateDefaultPersonas } from "../src/lib/default-personas.ts";
-test("defaults replace old personas and preserve an existing Ara and conversations", () => {
+import { DEFAULT_PERSONAS, migrateDefaultPersonas, takeAraClear } from "../src/lib/default-personas.ts";
+test("defaults replace old personas and drop their conversations", () => {
   const ara = {
     id: "custom-ara",
     name: "아라",
@@ -28,7 +28,7 @@ test("defaults replace old personas and preserve an existing Ara and conversatio
   assert.equal(result.personaId, ara.id);
   assert.deepEqual(
     result.threads[ara.id].map((turn) => turn.id),
-    ["current", "old"],
+    ["current"],
   );
   assert.equal(result.threads.plain, undefined);
   assert.deepEqual(
@@ -36,4 +36,25 @@ test("defaults replace old personas and preserve an existing Ara and conversatio
     result,
   );
   assert.equal(DEFAULT_PERSONAS.length, 5);
+});
+
+test("Ara conversations are cleared once and a later import is kept", () => {
+  const storage = new Map();
+  const memory = {
+    getItem: (key) => storage.get(key) ?? null,
+    setItem: (key, value) => storage.set(key, value),
+  };
+  const personas = [{ id: "custom-ara", name: "아라" }];
+  const first = takeAraClear(memory, personas, {
+    "custom-ara": [{ id: "leftover" }],
+    [DEFAULT_PERSONAS[0].id]: [{ id: "also-leftover" }],
+    "grokbot-other": [{ id: "keep" }],
+  });
+  assert.deepEqual(first["custom-ara"], []);
+  assert.deepEqual(first[DEFAULT_PERSONAS[0].id], []);
+  assert.deepEqual(first["grokbot-other"], [{ id: "keep" }]);
+  const imported = takeAraClear(memory, personas, {
+    "custom-ara": [{ id: "imported" }],
+  });
+  assert.deepEqual(imported["custom-ara"], [{ id: "imported" }]);
 });

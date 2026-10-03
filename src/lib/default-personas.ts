@@ -23,6 +23,7 @@ const OLD_NAMES: Record<string, string> = {
   aide: "비서",
   teacher: "선생님",
 };
+export const ARA_CLEAR_KEY = "voice-grok-ara-cleared";
 
 export function migrateDefaultPersonas<T extends { id: string }>(
   personas: Persona[],
@@ -41,19 +42,37 @@ export function migrateDefaultPersonas<T extends { id: string }>(
     ),
   );
   const migratedThreads = { ...threads };
+  for (const item of removed) delete migratedThreads[item.id];
   const home = next[0].id;
-  for (const item of removed) {
-    const existing = migratedThreads[home] ?? [];
-    const seen = new Set(existing.map((turn) => turn.id));
-    migratedThreads[home] = [
-      ...existing,
-      ...(migratedThreads[item.id] ?? []).filter((turn) => !seen.has(turn.id)),
-    ];
-    delete migratedThreads[item.id];
-  }
   return {
     personas: next,
     threads: migratedThreads,
     personaId: next.some((item) => item.id === selected) ? selected : home,
   };
+}
+
+export function withoutAraThreads<T>(
+  personas: { id: string; name: string }[],
+  threads: Record<string, T[]>,
+): Record<string, T[]> {
+  const next = { ...threads };
+  const araIds = new Set(
+    personas
+      .filter((item) => item.name.trim().normalize("NFC") === "아라")
+      .map((item) => item.id),
+  );
+  araIds.add(DEFAULT_PERSONAS[0].id);
+  for (const id of araIds) next[id] = [];
+  return next;
+}
+
+export function takeAraClear<T>(
+  storage: Pick<Storage, "getItem" | "setItem">,
+  personas: { id: string; name: string }[],
+  threads: Record<string, T[]>,
+): Record<string, T[]> {
+  if (storage.getItem(ARA_CLEAR_KEY) === "1") return threads;
+  const next = withoutAraThreads(personas, threads);
+  storage.setItem(ARA_CLEAR_KEY, "1");
+  return next;
 }

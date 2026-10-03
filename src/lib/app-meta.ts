@@ -7,4 +7,4 @@ export const APP_NAME = "보이스 그록";
  * minor: something new you can use
  * patch: a fix
  */
-export const APP_VERSION = "1.5.6";
+export const APP_VERSION = "1.5.7";

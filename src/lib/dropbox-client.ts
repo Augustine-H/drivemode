@@ -32,6 +32,20 @@ function base64url(bytes: Uint8Array) {
     .replace(/=+$/, "");
 }
 
+function placement(file: Entry, root: string) {
+  const raw = (file.path_display ?? file.path_lower ?? "").normalize("NFC").split("/").filter(Boolean);
+  const depth = root.split("/").filter(Boolean).length;
+  const bot = normalizedBot(raw[depth] ?? "");
+  const container = normalizedBot(raw.at(-2) ?? "").toLowerCase();
+  const category =
+    container === "template" || container === "templates"
+      ? "templates"
+      : container === "memories"
+        ? "memories"
+        : null;
+  return { bot, category };
+}
+
 export class DropboxClient {
   private storage: Storage;
   private session: Storage;
@@ -237,7 +251,11 @@ export class DropboxClient {
     const templates = new Map<string, string>();
     for (const file of files) {
       try {
-        if (!file.path_lower || !file.path_lower.startsWith(`${normalized.toLowerCase()}/`))
+        if (
+          !file.path_lower ||
+          (!file.path_lower.normalize("NFC").toLowerCase().startsWith(`${normalized.toLowerCase()}/`) &&
+            !file.path_display?.normalize("NFC").toLowerCase().startsWith(`${normalized.toLowerCase()}/`))
+        )
           throw new Error("폴더 밖의 파일입니다.");
         if ((file.size ?? 0) > 10 * 1024 * 1024) throw new Error("파일이 10MB를 넘습니다.");
         const token = await this.accessToken();
@@ -254,16 +272,9 @@ export class DropboxClient {
         const text = await response.text();
         if (new TextEncoder().encode(text).length > 10 * 1024 * 1024)
           throw new Error("파일이 10MB를 넘습니다.");
-        const parts = file.path_lower.split("/");
-        const location = parts.at(-2)!;
-        const category =
-          location === "template" || location === "templates"
-            ? "templates"
-            : location === "memories"
-              ? "memories"
-              : null;
-        const parent = normalizedBot(parts.at(category ? -3 : -2)!).toLowerCase();
-        const botName = (file.path_display ?? file.path_lower).split("/").at(category ? -3 : -2)!;
+        const { bot, category } = placement(file, normalized);
+        const parent = bot.toLowerCase();
+        const botName = bot || (file.path_display ?? file.path_lower ?? file.name);
         const source = `${parent}/${file.name}`;
         const asset = file.name.toLowerCase().endsWith(".md")
           ? parsePersonaMarkdown(text, source, botName)
