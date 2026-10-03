@@ -104,7 +104,29 @@ async function allowed(dir: DestDir): Promise<boolean> {
   }
 }
 
+const fileWrites = new WeakMap<FileSystemDirectoryHandle, Map<string, Promise<void>>>();
+
 async function writeNamed(
+  dir: FileSystemDirectoryHandle,
+  name: string,
+  json: string,
+): Promise<void> {
+  let writes = fileWrites.get(dir);
+  if (!writes) {
+    writes = new Map();
+    fileWrites.set(dir, writes);
+  }
+  const previous = writes.get(name) ?? Promise.resolve();
+  const task = previous.catch(() => undefined).then(() => writeFileContents(dir, name, json));
+  writes.set(name, task);
+  try {
+    await task;
+  } finally {
+    if (writes.get(name) === task) writes.delete(name);
+  }
+}
+
+async function writeFileContents(
   dir: FileSystemDirectoryHandle,
   name: string,
   json: string,
@@ -255,4 +277,20 @@ export async function placeInCloud(
   if (file) return file;
 
   return { ok: false, reason: "blocked" };
+}
+
+/** Background writes never open a picker, permission prompt, or share sheet. */
+export async function autoSaveInCloud(json: string, name: string): Promise<CloudPlace> {
+  if (window.parent !== window) return { ok: false, reason: "preview" };
+  const dir = savedDir;
+  if (!dir) return { ok: false, reason: "blocked" };
+  try {
+    if (!dir.queryPermission || (await dir.queryPermission({ mode: "readwrite" })) !== "granted") {
+      return { ok: false, reason: "permission" };
+    }
+    await writeNamed(dir, name, json);
+    return { ok: true, where: dir.name, via: "folder", fresh: false };
+  } catch {
+    return { ok: false, reason: "failed" };
+  }
 }

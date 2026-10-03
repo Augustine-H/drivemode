@@ -7,6 +7,7 @@ async function setup(options = {}) {
   const dir = {
     name: "NAS",
     requestPermission: async () => options.permission ?? "granted",
+    queryPermission: async () => options.permission ?? "granted",
     async getFileHandle(name) {
       if (options.writeError) throw new Error("Disconnected");
       let contents = "";
@@ -198,4 +199,26 @@ test("cloud import opens a file in the remembered folder with its Window receive
     return [{ getFile: async () => new File(['{"restored":true}'], "backup.json") }];
   };
   assert.equal(await (await mod.openCloudFile()).text(), '{"restored":true}');
+});
+
+test("automatic backups only write with existing permission and never prompt or share", async () => {
+  const { mod, dir, win, writes } = await setup();
+  assert.deepEqual(await mod.autoSaveInCloud("{}", "auto.json"), { ok: false, reason: "blocked" });
+  await mod.placeInCloud("{}", "initial.json", false);
+  win.showDirectoryPicker = () => {
+    throw new Error("Automatic backups must not prompt");
+  };
+  dir.requestPermission = () => {
+    throw new Error("Automatic backups must not request permission");
+  };
+  navigator.share = () => {
+    throw new Error("Automatic backups must not share");
+  };
+  assert.equal((await mod.autoSaveInCloud('{"changed":true}', "auto.json")).ok, true);
+  dir.queryPermission = async () => "prompt";
+  assert.deepEqual(await mod.autoSaveInCloud("{}", "auto.json"), {
+    ok: false,
+    reason: "permission",
+  });
+  assert.equal(writes.length, 2);
 });

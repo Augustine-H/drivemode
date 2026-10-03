@@ -20,6 +20,8 @@ import { streamAsk } from "@/lib/ask-stream";
 import { chatsFromJson, type ImportedChat } from "@/lib/grok-import";
 import { buildBackup, parseNangdokBackup, type NangdokBackup } from "@/lib/nangdok-backup";
 import { backupFileName, cloudFolderName, placeInCloud, openCloudFile } from "@/lib/cloud-dest";
+import { autoSaveInCloud } from "@/lib/cloud-dest";
+import { AutoBackupQueue } from "@/lib/auto-backup";
 import { importGrokShare } from "@/lib/grok-share";
 import { imagineImage, startVideo, videoStatus } from "@/lib/imagine";
 import { speakLine } from "@/lib/tts";
@@ -39,6 +41,8 @@ import { useWake } from "@/lib/use-wake";
 import { takeWake, wakeForms } from "@/lib/wake";
 
 const STORAGE_KEY = "nangdok-v1";
+const AUTO_BACKUP_KEY = "voice-grok-auto-backup";
+const AUTO_BACKUP_FILE = "voice-grok-autobackup.json";
 
 type Saved = {
   turns: Turn[];
@@ -273,6 +277,17 @@ export function ReaderApp() {
   } | null>(null);
   const [cloudFolder, setCloudFolder] = useState<string | null>(null);
   const [cloudBusy, setCloudBusy] = useState(false);
+  const [autoBackupOn, setAutoBackupOn] = useState(false);
+  const [autoBackupReady, setAutoBackupReady] = useState(false);
+  const [autoBackupPaused, setAutoBackupPaused] = useState(false);
+  const [autoBackupNote, setAutoBackupNote] = useState("");
+  const [autoBackupAt, setAutoBackupAt] = useState<string | null>(null);
+  const autoBackupQueue = useRef<AutoBackupQueue | null>(null);
+  const autoBackupSaved = useRef<string | null>(null);
+  const backupSnapshot = useMemo(
+    () => JSON.stringify({ personaId, personas, threads }),
+    [personaId, personas, threads],
+  );
   const [shareUrl, setShareUrl] = useState("");
   const [shareBusy, setShareBusy] = useState(false);
   const [imported, setImported] = useState<ImportedChat[] | null>(null);
@@ -366,8 +381,77 @@ export function ReaderApp() {
     setHydrated(true);
     void cloudFolderName().then((name) => {
       if (name) setCloudFolder(name);
+      try {
+        const savedAuto = JSON.parse(localStorage.getItem(AUTO_BACKUP_KEY) ?? "null");
+        setAutoBackupOn(savedAuto?.enabled === true);
+        if (typeof savedAuto?.lastSaved === "string") setAutoBackupAt(savedAuto.lastSaved);
+      } catch {
+        /* the setting is optional */
+      }
+      setAutoBackupReady(true);
     });
   }, []);
+
+  useEffect(() => {
+    if (!autoBackupReady) return;
+    try {
+      localStorage.setItem(
+        AUTO_BACKUP_KEY,
+        JSON.stringify({ enabled: autoBackupOn, lastSaved: autoBackupAt }),
+      );
+    } catch {
+      /* saving the file still works */
+    }
+  }, [autoBackupReady, autoBackupOn, autoBackupAt]);
+
+  useEffect(() => {
+    if (!hydrated || !autoBackupReady || !autoBackupOn || autoBackupPaused) return;
+    let active = true;
+    const queue = new AutoBackupQueue(
+      async (snapshot) => {
+        if (active) setAutoBackupNote("자동 백업 파일을 저장하는 중입니다.");
+        const data = JSON.parse(snapshot) as Parameters<typeof buildBackup>[0];
+        const backup = buildBackup(data);
+        const result = await autoSaveInCloud(JSON.stringify(backup, null, 2), AUTO_BACKUP_FILE);
+        if (!active) return result.ok;
+        if (result.ok) {
+          autoBackupSaved.current = snapshot;
+          setAutoBackupAt(backup.exportedAt);
+          setAutoBackupNote(`${AUTO_BACKUP_FILE} 저장 및 내용 확인 완료`);
+        } else {
+          setAutoBackupPaused(true);
+          setAutoBackupNote(
+            "자동 백업이 멈췄습니다. 폴더 연결과 쓰기 권한을 확인한 뒤 ‘다시 연결’을 누르세요.",
+          );
+        }
+        return result.ok;
+      },
+      30_000,
+      {
+        set: (callback, delay) => window.setTimeout(callback, delay),
+        clear: (timer) => window.clearTimeout(timer as number),
+      },
+      autoBackupSaved.current,
+    );
+    autoBackupQueue.current = queue;
+    return () => {
+      active = false;
+      queue.stop();
+      autoBackupQueue.current = null;
+    };
+  }, [hydrated, autoBackupReady, autoBackupOn, autoBackupPaused]);
+
+  useEffect(() => {
+    autoBackupQueue.current?.update(backupSnapshot);
+    if (
+      autoBackupOn &&
+      autoBackupReady &&
+      !autoBackupPaused &&
+      backupSnapshot !== autoBackupSaved.current
+    ) {
+      setAutoBackupNote("변경을 감지했습니다. 마지막 변경 후 30초에 자동 백업합니다.");
+    }
+  }, [backupSnapshot, hydrated, autoBackupReady, autoBackupOn, autoBackupPaused]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -614,7 +698,15 @@ export function ReaderApp() {
       const placed = await placeInCloud(json, name, mode === "retarget");
       if (placed.ok) {
         setExportText(null);
-        if (placed.via === "folder") setCloudFolder(placed.where);
+        if (placed.via === "folder") {
+          setCloudFolder(placed.where);
+          if (mode === "retarget" && autoBackupOn) {
+            setAutoBackupPaused(true);
+            setAutoBackupNote(
+              "저장 폴더가 바뀌었습니다. ‘다시 연결’을 눌러 이 폴더에서 자동 백업을 시작하세요.",
+            );
+          }
+        }
         setDraftNote(
           placed.via === "folder"
             ? placed.fresh
@@ -662,6 +754,41 @@ export function ReaderApp() {
       );
     } catch {
       setDraftNote("파일을 저장하지 못했습니다. 폴더 연결과 쓰기 권한을 확인한 뒤 다시 누르세요.");
+    } finally {
+      setCloudBusy(false);
+    }
+  }
+
+  async function enableAutoBackup() {
+    if (cloudBusy) return;
+    if (!("showDirectoryPicker" in window)) {
+      setAutoBackupNote(
+        "자동 백업은 폴더 저장을 지원하는 컴퓨터 크롬·엣지에서 사용할 수 있습니다. 휴대폰은 위의 저장 버튼으로 공유하세요.",
+      );
+      return;
+    }
+    autoBackupQueue.current?.stop();
+    setCloudBusy(true);
+    try {
+      const backup = buildBackup({ personaId, personas, threads });
+      const result = await placeInCloud(JSON.stringify(backup, null, 2), AUTO_BACKUP_FILE, false);
+      if (!result.ok || result.via !== "folder") {
+        if (!result.ok && result.reason === "cancel") return;
+        setAutoBackupPaused(true);
+        setAutoBackupNote(
+          "자동 백업 폴더에 저장하지 못했습니다. 폴더와 쓰기 권한을 확인한 뒤 다시 연결하세요.",
+        );
+        return;
+      }
+      autoBackupSaved.current = backupSnapshot;
+      setCloudFolder(result.where);
+      setAutoBackupAt(backup.exportedAt);
+      setAutoBackupPaused(false);
+      setAutoBackupOn(true);
+      setAutoBackupNote(`${AUTO_BACKUP_FILE} 저장 및 내용 확인 완료`);
+    } catch {
+      setAutoBackupPaused(true);
+      setAutoBackupNote("자동 백업을 시작하지 못했습니다. 폴더 연결과 쓰기 권한을 확인하세요.");
     } finally {
       setCloudBusy(false);
     }
@@ -1649,12 +1776,57 @@ export function ReaderApp() {
 
             {sheet === "save" ? (
               <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-3 rounded-2xl border border-line bg-bg p-3">
+                  <label className="flex min-h-11 items-center justify-between gap-3 text-sm text-fg">
+                    자동 백업
+                    <input
+                      type="checkbox"
+                      checked={autoBackupOn}
+                      disabled={cloudBusy || !autoBackupReady}
+                      className="size-5 accent-primary"
+                      onChange={(event) => {
+                        if (event.target.checked) void enableAutoBackup();
+                        else {
+                          autoBackupQueue.current?.stop();
+                          setAutoBackupOn(false);
+                          setAutoBackupPaused(false);
+                          setAutoBackupNote("자동 백업을 껐습니다.");
+                        }
+                      }}
+                    />
+                  </label>
+                  <p className="text-sm text-muted">
+                    앱을 열어 둔 동안 대화·페르소나가 바뀌면 30초 후 선택한 폴더의{" "}
+                    {AUTO_BACKUP_FILE}을 갱신합니다. 이전 내용은 최신 내용으로 바뀝니다.
+                  </p>
+                  <p role="status" className="text-sm text-primary">
+                    {autoBackupNote ||
+                      (autoBackupOn
+                        ? "변경 후 30초에 자동 백업합니다."
+                        : "켜면 폴더를 확인하고 첫 백업을 저장합니다.")}
+                  </p>
+                  {autoBackupAt ? (
+                    <p className="text-sm text-muted">
+                      마지막 성공 · {new Date(autoBackupAt).toLocaleString("ko-KR")}
+                    </p>
+                  ) : null}
+                  {autoBackupPaused ? (
+                    <button
+                      type="button"
+                      disabled={cloudBusy}
+                      className="h-11 rounded-full border border-line text-sm text-fg disabled:opacity-40"
+                      onClick={() => void enableAutoBackup()}
+                    >
+                      다시 연결
+                    </button>
+                  ) : null}
+                </div>
                 <div className="flex flex-col gap-3 rounded-2xl border border-line bg-bg px-3 py-3">
                   <p className="text-sm text-pretty text-fg">대화 저장하기</p>
                   <p className="text-sm text-pretty text-muted">
-                    모든 페르소나와 대화를 JSON 파일로 저장합니다. 클라우드·NAS는 컴퓨터에
-                    연결된 동기화 폴더에 저장하고, 휴대폰에서는 공유 앱을 고릅니다. 저장 파일에는
-                    삭제용 비밀번호도 포함됩니다.
+                    모든 페르소나와 대화를 JSON 파일로 저장합니다. 클라우드·NAS는 컴퓨터에 연결된
+                    동기화 폴더에 저장하고, 휴대폰에서는 공유 앱을 고릅니다. 저장 파일에는 삭제용
+                    비밀번호도 포함됩니다.
                   </p>
                   {cloudFolder ? (
                     <div className="flex items-center justify-between gap-2">
