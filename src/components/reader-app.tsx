@@ -620,6 +620,14 @@ export function ReaderApp() {
         setDraftNote("고른 폴더에 넣지 못했습니다. 다른 폴더를 다시 고르세요.");
         return;
       }
+      if (placed.reason === "permission") {
+        setDraftNote("폴더 쓰기 권한이 허용되지 않았습니다. 다시 눌러 권한을 허용하거나 다른 폴더를 고르세요.");
+        return;
+      }
+      if (placed.reason === "activation") {
+        setDraftNote("브라우저가 폴더 창을 열지 못했습니다. 저장 버튼을 다시 누르세요. 계속되면 게시된 앱을 크롬의 새 탭에서 여세요.");
+        return;
+      }
       setExportText(json);
       const copied = await copyText(json);
       if (placed.reason === "preview") {
@@ -635,6 +643,8 @@ export function ReaderApp() {
           ? "이 브라우저는 폴더를 직접 열지 못해 대화를 복사했습니다. 크롬에서 다시 누르면 폴더를 고를 수 있고, 휴대폰은 공유 창이 뜹니다."
           : "이 브라우저는 폴더를 직접 열지 못합니다. 아래 글을 길게 눌러 복사하세요.",
       );
+    } catch {
+      setDraftNote("파일을 저장하지 못했습니다. 폴더 연결과 쓰기 권한을 확인한 뒤 다시 누르세요.");
     } finally {
       setCloudBusy(false);
     }
