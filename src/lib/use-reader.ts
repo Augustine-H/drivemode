@@ -68,6 +68,7 @@ export function useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok }: Op
   const turnRef = useRef(0);
   const chunkRef = useRef(0);
   const genRef = useRef(0);
+  const mountedRef = useRef(true);
   const timerRef = useRef<number | null>(null);
   const sleepResolveRef = useRef<((alive: boolean) => void) | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -271,7 +272,7 @@ export function useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok }: Op
 
   const speakFrom = useCallback(
     (turn: number, chunk: number) => {
-      if (typeof window === "undefined") return;
+      if (typeof window === "undefined" || !mountedRef.current) return;
       clearTimer();
       haltAudio();
       cancelDevice();
@@ -387,6 +388,13 @@ export function useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok }: Op
     cancelDevice();
     setPreparing(false);
   }, []);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      stopAll();
+    };
+  }, [stopAll]);
 
   useEffect(() => {
     const prev = rateRef.current;

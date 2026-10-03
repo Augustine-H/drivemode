@@ -24,6 +24,13 @@ export function useVoiceBackup(
   const receipts = useRef<Record<string, Receipt>>({});
   const running = useRef(false);
   const generation = useRef<Record<string, number>>({});
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   useEffect(() => {
     try {
       receipts.current = JSON.parse(localStorage.getItem(KEY) ?? "{}");
@@ -42,7 +49,7 @@ export function useVoiceBackup(
     }
   };
   const backup = async (ids?: string[]) => {
-    if (running.current || state.current.busy) return;
+    if (!mounted.current || running.current || state.current.busy) return;
     const client = getDropboxClient();
     if (!client.canWrite()) {
       setNote("자동 요약 백업을 위해 Dropbox 쓰기 권한으로 연결하세요.");
@@ -82,18 +89,19 @@ export function useVoiceBackup(
         }
         if (block) chunks.push(block);
         for (const chunk of chunks) {
-          if ((generation.current[persona.id] ?? 0) !== epoch) break;
+          if (!mounted.current || (generation.current[persona.id] ?? 0) !== epoch) break;
           const result = await summarizeConversation({
             data: { name: persona.name, previous: summary, transcript: chunk },
           });
           if (!result.ok) throw new Error(result.error);
           summary = result.text;
         }
-        if ((generation.current[persona.id] ?? 0) !== epoch || !summary) continue;
+        if (!mounted.current || (generation.current[persona.id] ?? 0) !== epoch || !summary)
+          continue;
         const name = summaryFilename(persona.name);
         const content = `---\nbot: ${JSON.stringify(persona.name)}\nupdated: ${new Date().toISOString()}\nsource: voicegrok\n---\n${summary}\n`;
         await client.uploadMemory(persona.name, name, content);
-        if ((generation.current[persona.id] ?? 0) !== epoch) continue;
+        if (!mounted.current || (generation.current[persona.id] ?? 0) !== epoch) continue;
         receipts.current[persona.id] = { digest, summary };
         localStorage.setItem(KEY, JSON.stringify(receipts.current));
         state.current.onMemory(persona.id, summary);

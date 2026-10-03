@@ -90,3 +90,13 @@
     transform: scaleY(0.65);
   }
 }
+
+.privacy-curtain {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  background: #000;
+}
+.privacy-curtain[hidden] {
+  display: none;
+}

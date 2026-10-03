@@ -13,6 +13,7 @@ import {
 import { DEFAULT_PERSONAS, migrateDefaultPersonas } from "@/lib/default-personas";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useVoiceBackup } from "@/components/use-voice-backup";
+import { AppSecuritySettings } from "@/components/app-security";
 import {
   conversationEnded,
   deleteConversationCommand,
@@ -89,6 +90,7 @@ type Saved = {
   index: number;
   threads?: Record<string, Turn[]>;
   wakeDefaulted?: boolean;
+  groupMembers?: string[];
 };
 
 type SettingsSnap = {
@@ -262,6 +264,8 @@ export function ReaderApp() {
   const [personas, setPersonas] = useState<PersonaItem[]>(STARTER_PERSONAS);
   const [groupMembers, setGroupMembers] = useState<string[]>([]);
   const [groupSetup, setGroupSetup] = useState(false);
+  const [groupDraft, setGroupDraft] = useState<string[]>([]);
+  const [deleteAllStage, setDeleteAllStage] = useState<0 | 1 | 2>(0);
   const [deleteChat, setDeleteChat] = useState<{ id: string; name: string } | null>(null);
   useEffect(() => {
     const selected = personas.find((item) => item.id === personaId);
@@ -342,6 +346,7 @@ export function ReaderApp() {
   const wake = useWake({
     enabled: wakeOn && hydrated,
     paused:
+      deleteAllStage !== 0 ||
       dictation.armed ||
       asking ||
       painting ||
@@ -417,6 +422,20 @@ export function ReaderApp() {
           const picked = migrated.personas.find((item) => item.id === migrated.personaId)!;
           setPersonaId(picked.id);
           setPersona(picked.text.slice(0, 240));
+          if (
+            typeof saved.personaId === "string" &&
+            saved.personaId.startsWith("group:") &&
+            Array.isArray(saved.groupMembers)
+          ) {
+            const members = [...new Set(saved.groupMembers)]
+              .filter((id) => migrated.personas.some((item) => item.id === id))
+              .slice(0, 6);
+            if (members.length >= 2) {
+              setGroupMembers(members);
+              setPersonaId(saved.personaId);
+              setPersona("");
+            }
+          }
           if (picked.name.trim().normalize("NFC") === "아라") bootIndex.current = 0;
         }
       }
@@ -550,11 +569,13 @@ export function ReaderApp() {
       personas,
       threads,
       wakeDefaulted: true,
+      groupMembers,
       index: reader.turnIndex,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   }, [
     hydrated,
+    groupMembers,
     turns,
     rate,
     gap,
@@ -1202,6 +1223,7 @@ export function ReaderApp() {
   }
 
   async function ask(spoken?: string, target?: string) {
+    if (deleteAllStage) return;
     let text = (spoken ?? composer).trim();
     if (!text || busyRef.current) return;
     const hit = takePersonaWake(text, personas);
@@ -1615,17 +1637,79 @@ export function ReaderApp() {
   }
 
   function startGroup() {
-    if (groupMembers.length < 2 || groupMembers.length > 6) {
-      setBanner("함께 대화할 페르소나를 2~6명 선택하세요.");
+    if (groupDraft.length < 1 || groupDraft.length > 6) {
+      setBanner("함께 대화할 페르소나를 1~6명 선택하세요.");
       return;
     }
-    const room = `group:${[...groupMembers].sort().join("|")}`;
+    const previous = personaIdRef.current;
+    const history = threads[previous] ?? [];
+    const room =
+      groupDraft.length === 1
+        ? groupDraft[0]
+        : previous.startsWith("group:")
+          ? previous
+          : `group:${Date.now().toString(36)}`;
+    setGroupMembers([...groupDraft]);
+    setThreads((prev) => {
+      const next = { ...prev, [room]: history };
+      for (const id of groupDraft) {
+        if (id === room) continue;
+        const existing = prev[id] ?? [];
+        const seen = new Set(existing.map((turn) => turn.id));
+        next[id] = [...existing, ...history.filter((turn) => !seen.has(turn.id))];
+      }
+      return next;
+    });
     reader.stop();
     personaIdRef.current = room;
     setPersonaId(room);
-    setPersona("");
+    setPersona(personas.find((item) => item.id === room)?.text ?? "");
     setGroupSetup(false);
-    turnsNow.current = threads[room] ?? [];
+    turnsNow.current = history;
+    setBanner(
+      `대화 참여자: ${personas
+        .filter((item) => groupDraft.includes(item.id))
+        .map((item) => item.name)
+        .join(", ")}. 기존 대화가 이어집니다.`,
+    );
+  }
+
+  function confirmDeleteAll() {
+    if (deleteAllStage !== 2 || asking || painting || filming || voiceBackup.saving) return;
+    reader.stop();
+    dictation.stop();
+    for (const item of personas) voiceBackup.forget(item.id);
+    const clean = personas.map((item) => ({
+      ...item,
+      memories: item.memories?.filter((memory) => memory.source !== "voicegrok/memory.md"),
+    }));
+    setThreads({});
+    setPersonas(clean);
+    turnsNow.current = [];
+    if (settingsBase.current) settingsBase.current.personas = clean;
+    setComposer("");
+    setDeleteChat(null);
+    setDeleteAllStage(0);
+    setEditingId(null);
+    setDraft("");
+    setExportText(null);
+    try {
+      for (const key of [STORAGE_KEY, LOCAL_BACKUP_KEY]) {
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        const saved = JSON.parse(raw);
+        saved.threads = {};
+        saved.turns = [];
+        saved.personas = clean;
+        localStorage.setItem(key, JSON.stringify(saved));
+      }
+      localStorage.removeItem("voice-grok-summary-receipts");
+      setBanner(
+        "이 기기의 모든 페르소나·단체 대화를 삭제했습니다. Dropbox 파일과 외부 기억은 유지됩니다.",
+      );
+    } catch {
+      setBanner("화면의 대화는 삭제했지만 기기 백업 갱신에 실패했습니다. 저장소를 확인하세요.");
+    }
   }
 
   const selectedPersona = personas.find((item) => item.id === personaId) ?? personas[0];
@@ -1754,7 +1838,7 @@ export function ReaderApp() {
                 ? `${groupMembers
                     .map((id) => personas.find((item) => item.id === id)?.name)
                     .filter(Boolean)
-                    .join(" · ")}와 함께 대화`
+                    .join(" · ")} 함께 대화`
                 : topicWith(personaName || "그록")}
             </p>
           </div>
@@ -1827,10 +1911,13 @@ export function ReaderApp() {
         <button
           type="button"
           disabled={asking}
-          onClick={() => setGroupSetup(true)}
+          onClick={() => {
+            setGroupDraft(personaId.startsWith("group:") ? [...groupMembers] : [personaId]);
+            setGroupSetup(true);
+          }}
           className="min-h-11 rounded-full border border-line px-3 text-sm text-fg"
         >
-          함께 대화
+          참여자 초대·나가기
         </button>
         <button
           type="button"
@@ -2950,6 +3037,27 @@ export function ReaderApp() {
                 <p className="text-center text-xs text-muted">
                   {APP_NAME} {APP_VERSION}
                 </p>
+                <AppSecuritySettings />
+                <section className="space-y-3 rounded-2xl border border-line p-4">
+                  <h3>모든 대화 삭제</h3>
+                  <p className="text-sm text-muted">
+                    이 기기의 모든 페르소나와 단체 대화, 기기 내부 대화 백업을 삭제합니다. 두 번
+                    확인한 뒤 실행하며 되돌릴 수 없습니다. 템플릿·외부 기억·Dropbox 파일은
+                    유지합니다.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={asking || painting || filming || voiceBackup.saving}
+                    className="min-h-11 w-full rounded-full border border-line text-fg"
+                    onClick={() => {
+                      reader.stop();
+                      dictation.stop();
+                      setDeleteAllStage(1);
+                    }}
+                  >
+                    보이스 그록의 모든 대화 전체 삭제
+                  </button>
+                </section>
                 <div className="sticky bottom-0 -mx-4 flex gap-2 border-t border-line bg-surface px-4 py-3">
                   <button
                     type="button"
@@ -2988,16 +3096,17 @@ export function ReaderApp() {
           <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-5 text-fg">
             <h2 className="text-lg">함께 대화할 페르소나</h2>
             <p className="mt-2 text-sm text-muted">
-              2~6명을 고르세요. 각자 자기 설정과 기억으로 답하고, 목소리는 차례로 읽습니다.
+              체크하면 참여하고 해제하면 나갑니다. 1~6명이 대화할 수 있으며 기존 대화가 이어집니다.
+              각자 자기 설정과 기억으로 답합니다.
             </p>
             <div className="my-3 grid grid-cols-2 gap-1">
               {personas.map((item) => (
                 <label key={item.id} className="flex min-h-11 items-center gap-3">
                   <input
                     type="checkbox"
-                    checked={groupMembers.includes(item.id)}
+                    checked={groupDraft.includes(item.id)}
                     onChange={(event) =>
-                      setGroupMembers((prev) =>
+                      setGroupDraft((prev) =>
                         event.target.checked
                           ? [...prev, item.id]
                           : prev.filter((id) => id !== item.id),
@@ -3019,7 +3128,43 @@ export function ReaderApp() {
                 className="min-h-11 flex-1 rounded-full bg-primary text-ink"
                 onClick={startGroup}
               >
-                대화 시작
+                참여자 변경 적용
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {deleteAllStage ? (
+        <div
+          key={deleteAllStage}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/70 p-4"
+          role="alertdialog"
+          aria-modal="true"
+          aria-label={`모든 대화 삭제 ${deleteAllStage}차 확인`}
+        >
+          <div className="w-full max-w-md space-y-4 rounded-2xl border border-line bg-surface p-5 text-fg">
+            <h2 className="text-lg">
+              {deleteAllStage === 1
+                ? "모든 페르소나의 대화를 삭제할까요? (1/2)"
+                : "최종 경고: 모든 대화를 정말 삭제할까요? (2/2)"}
+            </h2>
+            <p className="text-sm text-muted">
+              모든 페르소나·단체 대화와 이 기기의 대화 백업, 앱이 만든 요약 기억이 삭제됩니다.
+              되돌릴 수 없습니다. Dropbox 파일·외부 기억·템플릿은 유지합니다.
+            </p>
+            <div className="flex gap-2">
+              <button
+                autoFocus
+                className="min-h-11 flex-1 rounded-full border border-line"
+                onClick={() => setDeleteAllStage(0)}
+              >
+                취소
+              </button>
+              <button
+                className="min-h-11 flex-1 rounded-full bg-primary text-ink"
+                onClick={() => (deleteAllStage === 1 ? setDeleteAllStage(2) : confirmDeleteAll())}
+              >
+                {deleteAllStage === 1 ? "다음 경고 확인" : "모든 대화 영구 삭제"}
               </button>
             </div>
           </div>
