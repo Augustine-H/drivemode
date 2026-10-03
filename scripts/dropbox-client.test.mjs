@@ -68,6 +68,28 @@ test("invalid state never exchanges a token", async () => {
   assert.equal(client.connected(), false);
 });
 
+test("browser fetch keeps its global receiver during OAuth and API calls", async () => {
+  let calls = 0;
+  const client = new DropboxClient(storage(), storage(), async function (url) {
+    assert.equal(this, globalThis);
+    calls++;
+    if (url.endsWith("/oauth2/token"))
+      return json({ access_token: "test", refresh_token: "test", expires_in: 3600 });
+    return json({ entries: [], has_more: false });
+  });
+  const authorize = new URL(await client.authorizationUrl("https://example.com/"));
+  await client.finishAuthorization(
+    `https://example.com/?code=test&state=${authorize.searchParams.get("state")}`,
+  );
+  await client.backups("/Grok/grokbot");
+  assert.equal(calls, 2);
+  await assert.rejects(
+    client.backups("/Grok/grokbot/아라/2026-10-03_아라.json"),
+    /파일 경로가 아닌/,
+  );
+  assert.equal(calls, 2);
+});
+
 test("folder pagination and Unicode download headers import bot data, excluding MD", async () => {
   const { client, calls } = await setup((url, options) => {
     if (url.endsWith("/list_folder"))

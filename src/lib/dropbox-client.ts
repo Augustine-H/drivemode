@@ -27,7 +27,7 @@ export class DropboxClient {
   constructor(storage: Storage, session: Storage, request: typeof fetch = fetch) {
     this.storage = storage;
     this.session = session;
-    this.request = request;
+    this.request = request.bind(globalThis);
   }
   connected() {
     return !!this.storage.getItem(GRANT_KEY);
@@ -181,6 +181,8 @@ export class DropboxClient {
   }
   async backups(root: string): Promise<DropboxBatch> {
     const normalized = root.trim().replace(/\/+$/, "").normalize("NFC");
+    if (/\.(?:json|md)$/i.test(normalized))
+      throw new Error("파일 경로가 아닌 백업 폴더를 입력하세요. 예: /Grok/grokbot");
     if (
       !normalized.startsWith("/") ||
       normalized.includes("\\") ||
