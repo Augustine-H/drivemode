@@ -24,7 +24,10 @@ type Rec = {
 
 function recognitionCtor() {
   if (typeof window === "undefined") return null;
-  const w = window as Window & { webkitSpeechRecognition?: new () => Rec; SpeechRecognition?: new () => Rec };
+  const w = window as Window & {
+    webkitSpeechRecognition?: new () => Rec;
+    SpeechRecognition?: new () => Rec;
+  };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
@@ -46,7 +49,8 @@ function micMessage(err: unknown) {
   if (name === "NotAllowedError" || name === "PermissionDeniedError") {
     return "마이크 권한을 허용해 주세요. 주소창의 자물쇠에서 마이크를 켜 주세요.";
   }
-  if (name === "NotFoundError" || name === "OverconstrainedError") return "마이크를 찾지 못했습니다.";
+  if (name === "NotFoundError" || name === "OverconstrainedError")
+    return "마이크를 찾지 못했습니다.";
   if (name === "NotReadableError") return "마이크를 다른 앱이 쓰고 있습니다.";
   if (name === "SecurityError") return "이 화면에서는 마이크가 막혀 있습니다.";
   return "마이크를 켜지 못했습니다.";
@@ -131,7 +135,14 @@ function stopRecorder(item: Live) {
   });
 }
 
-export function useDictation({ paused, silenceMs, autoSend, onText, onUtterance, onError }: Options) {
+export function useDictation({
+  paused,
+  silenceMs,
+  autoSend,
+  onText,
+  onUtterance,
+  onError,
+}: Options) {
   const [armed, setArmed] = useState(false);
   const [hearing, setHearing] = useState(false);
   const [note, setNote] = useState("");
@@ -167,6 +178,8 @@ export function useDictation({ paused, silenceMs, autoSend, onText, onUtterance,
       genRef.current += 1;
       bufferRef.current = "";
       speechText.current = "";
+      wanted.current = false;
+      setArmed(false);
       closeSpeech();
       setHearing(false);
       setNote(said);
@@ -230,7 +243,11 @@ export function useDictation({ paused, silenceMs, autoSend, onText, onUtterance,
       const code = event.error ?? "";
       if (code === "no-speech" || code === "aborted") return;
       closeSpeech();
-      if (typeof navigator !== "undefined" && navigator.mediaDevices && modeRef.current !== "record") {
+      if (
+        typeof navigator !== "undefined" &&
+        navigator.mediaDevices &&
+        modeRef.current !== "record"
+      ) {
         modeRef.current = "record";
         setNote("마이크 권한을 요청합니다");
         void begin();
@@ -247,10 +264,15 @@ export function useDictation({ paused, silenceMs, autoSend, onText, onUtterance,
       recRef.current = null;
       if (gen !== genRef.current) return;
       if (!wanted.current || pausedRef.current || modeRef.current !== "speech") return;
-      window.setTimeout(() => {
-        if (!wanted.current || pausedRef.current || recRef.current || gen !== genRef.current) return;
-        startSpeech();
-      }, 200);
+      wanted.current = false;
+      setArmed(false);
+      setHearing(false);
+      const said = bufferRef.current.trim();
+      clearSend();
+      bufferRef.current = "";
+      speechText.current = "";
+      setNote(said || "음성 입력이 끝났습니다. 다시 말하려면 마이크를 누르세요.");
+      if (said && callbacks.current.autoSend) callbacks.current.onUtterance(said);
     };
     try {
       rec.start();
@@ -261,7 +283,9 @@ export function useDictation({ paused, silenceMs, autoSend, onText, onUtterance,
     modeRef.current = "speech";
     setHearing(true);
     setNote(
-      callbacks.current.autoSend ? "듣는 중. 말이 끊기면 그록이 답합니다." : "듣는 중. 끝나면 마이크를 다시 누르세요.",
+      callbacks.current.autoSend
+        ? "듣는 중. 말이 끊기면 그록이 답합니다."
+        : "듣는 중. 끝나면 마이크를 다시 누르세요.",
     );
     return true;
   };
@@ -275,13 +299,16 @@ export function useDictation({ paused, silenceMs, autoSend, onText, onUtterance,
 
   const finish = async (item: Live, commit: boolean, send: boolean) => {
     if (item.done) return;
+    wanted.current = false;
+    setArmed(false);
     item.done = true;
     window.clearInterval(item.timer);
     const blob = await stopRecorder(item);
     release(item);
     if (!commit || !item.heard || blob.size < 400) {
       setHearing(false);
-      if (commit && wanted.current) setNote("목소리가 들리지 않았습니다. 마이크를 가까이 해 주세요.");
+      if (commit && wanted.current)
+        setNote("목소리가 들리지 않았습니다. 마이크를 가까이 해 주세요.");
       if (!wanted.current) setNote("");
       return;
     }
@@ -377,7 +404,9 @@ export function useDictation({ paused, silenceMs, autoSend, onText, onUtterance,
     recorder.start();
     setHearing(true);
     setNote(
-      callbacks.current.autoSend ? "듣는 중. 말이 끊기면 그록이 답합니다." : "듣는 중. 끝나면 마이크를 다시 누르세요.",
+      callbacks.current.autoSend
+        ? "듣는 중. 말이 끊기면 그록이 답합니다."
+        : "듣는 중. 끝나면 마이크를 다시 누르세요.",
     );
     item.timer = window.setInterval(() => {
       if (item.done) return;
@@ -409,6 +438,11 @@ export function useDictation({ paused, silenceMs, autoSend, onText, onUtterance,
     setArmed(true);
     modeRef.current = recognitionCtor() ? "speech" : "record";
     setNote("말하기를 켭니다");
+    if (!pausedRef.current) {
+      if (modeRef.current === "speech" && startSpeech()) return;
+      modeRef.current = "record";
+      void begin();
+    }
   };
 
   const stop = () => {
@@ -509,6 +543,8 @@ export function useDictation({ paused, silenceMs, autoSend, onText, onUtterance,
     if (!wanted.current) return;
     if (paused) {
       const item = live.current;
+      wanted.current = false;
+      setArmed(false);
       closeSpeech();
       if (item && !item.done) void finish(item, false, false);
       setHearing(false);

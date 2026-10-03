@@ -3,7 +3,6 @@ import {
   ArrowLeftRight,
   ClipboardPaste,
   Download,
-  FileUp,
   Mic,
   Pause,
   Play,
@@ -20,7 +19,7 @@ import { askGrok } from "@/lib/ask-grok";
 import { streamAsk } from "@/lib/ask-stream";
 import { chatsFromJson, type ImportedChat } from "@/lib/grok-import";
 import { buildBackup, parseNangdokBackup, type NangdokBackup } from "@/lib/nangdok-backup";
-import { backupFileName, cloudFolderName, placeInCloud } from "@/lib/cloud-dest";
+import { backupFileName, cloudFolderName, placeInCloud, openCloudFile } from "@/lib/cloud-dest";
 import { importGrokShare } from "@/lib/grok-share";
 import { imagineImage, startVideo, videoStatus } from "@/lib/imagine";
 import { speakLine } from "@/lib/tts";
@@ -85,9 +84,27 @@ type PersonaItem = {
 
 const STARTER_PERSONAS: PersonaItem[] = [
   { id: "plain", name: "기본", text: "", password: "", locked: true },
-  { id: "friend", name: "친구", text: "오래된 친구처럼 편하게 반말로 말한다.", password: "", locked: true },
-  { id: "aide", name: "비서", text: "차분한 비서처럼 필요한 것만 또박또박 말한다.", password: "", locked: true },
-  { id: "teacher", name: "선생님", text: "친절한 선생님처럼 쉽게 풀어서 말한다.", password: "", locked: true },
+  {
+    id: "friend",
+    name: "친구",
+    text: "오래된 친구처럼 편하게 반말로 말한다.",
+    password: "",
+    locked: true,
+  },
+  {
+    id: "aide",
+    name: "비서",
+    text: "차분한 비서처럼 필요한 것만 또박또박 말한다.",
+    password: "",
+    locked: true,
+  },
+  {
+    id: "teacher",
+    name: "선생님",
+    text: "친절한 선생님처럼 쉽게 풀어서 말한다.",
+    password: "",
+    locked: true,
+  },
 ];
 
 function turnTime(turn: Turn) {
@@ -95,12 +112,18 @@ function turnTime(turn: Turn) {
   const match = /^(?:me|gk)-([0-9a-z]+)$/i.exec(turn.id);
   if (!match) return null;
   const at = Number.parseInt(match[1], 36);
-  if (!Number.isFinite(at) || at < Date.UTC(2024, 0, 1) || at > Date.now() + 86_400_000) return null;
+  if (!Number.isFinite(at) || at < Date.UTC(2024, 0, 1) || at > Date.now() + 86_400_000)
+    return null;
   return at;
 }
 
 function groupTurns(turns: Turn[]) {
-  const groups: { key: string; day: string; label: string | null; turns: { turn: Turn; index: number }[] }[] = [];
+  const groups: {
+    key: string;
+    day: string;
+    label: string | null;
+    turns: { turn: Turn; index: number }[];
+  }[] = [];
   turns.forEach((turn, index) => {
     const at = turnTime(turn);
     const day = at === null ? "none" : dayKey(at);
@@ -178,7 +201,10 @@ function revealInScroller(scroller: HTMLElement | null, id: string, align: "star
   }
   const scrollerRect = scroller.getBoundingClientRect();
   const nodeRect = node.getBoundingClientRect();
-  const delta = align === "end" ? nodeRect.bottom - scrollerRect.bottom + 12 : nodeRect.top - scrollerRect.top - 8;
+  const delta =
+    align === "end"
+      ? nodeRect.bottom - scrollerRect.bottom + 12
+      : nodeRect.top - scrollerRect.top - 8;
   if (Math.abs(delta) > 2) scroller.scrollTop += delta;
 }
 
@@ -210,7 +236,7 @@ export function ReaderApp() {
   const [onlyGrok, setOnlyGrok] = useState(true);
   const [autoReply, setAutoReply] = useState(true);
   const [silence, setSilence] = useState(2);
-  const [wakeOn, setWakeOn] = useState(true);
+  const [wakeOn, setWakeOn] = useState(false);
   const [persona, setPersona] = useState("");
   const [personaId, setPersonaId] = useState("plain");
   const personaIdRef = useRef(personaId);
@@ -225,7 +251,11 @@ export function ReaderApp() {
     });
   };
   const [personas, setPersonas] = useState<PersonaItem[]>(STARTER_PERSONAS);
-  const [newPersona, setNewPersona] = useState<{ name: string; text: string; password: string } | null>(null);
+  const [newPersona, setNewPersona] = useState<{
+    name: string;
+    text: string;
+    password: string;
+  } | null>(null);
   const [eraseStep, setEraseStep] = useState<0 | 1 | 2 | 3>(0);
   const [erasePassword, setErasePassword] = useState("");
   const [previewing, setPreviewing] = useState<string | null>(null);
@@ -233,11 +263,14 @@ export function ReaderApp() {
   const [painting, setPainting] = useState(false);
   const [filming, setFilming] = useState(false);
   const [hydrated, setHydrated] = useState(false);
-  const [micReady, setMicReady] = useState(false);
-  const [sheet, setSheet] = useState<"script" | "voice" | null>(null);
+  const [sheet, setSheet] = useState<"script" | "save" | "voice" | null>(null);
   const [draft, setDraft] = useState("");
   const [draftNote, setDraftNote] = useState<string | null>(null);
   const [exportText, setExportText] = useState<string | null>(null);
+  const [pendingBackup, setPendingBackup] = useState<{
+    backup: NangdokBackup;
+    name: string;
+  } | null>(null);
   const [cloudFolder, setCloudFolder] = useState<string | null>(null);
   const [cloudBusy, setCloudBusy] = useState(false);
   const [shareUrl, setShareUrl] = useState("");
@@ -288,40 +321,18 @@ export function ReaderApp() {
   wakeOnRef.current = wakeOn;
   const wakeHandler = useRef<(rest: string) => void>(() => {});
   const wake = useWake({
-    enabled: wakeOn && hydrated && micReady,
-    paused: dictation.armed || asking || painting || filming || reader.status === "playing" || reader.preparing,
+    enabled: wakeOn && hydrated,
+    paused:
+      dictation.armed ||
+      asking ||
+      painting ||
+      filming ||
+      reader.status === "playing" ||
+      reader.preparing,
     name: personaName,
     onWake: (rest) => wakeHandler.current(rest),
     onError: setBanner,
   });
-
-  useEffect(() => {
-    let cancel = false;
-    const ready = () => {
-      if (!cancel) setMicReady(true);
-    };
-    const timer = window.setTimeout(ready, 2500);
-    const askMic = navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices);
-    if (!askMic) {
-      window.clearTimeout(timer);
-      ready();
-      return;
-    }
-    void askMic({ audio: true })
-      .then((stream) => {
-        stream.getTracks().forEach((track) => track.stop());
-        window.clearTimeout(timer);
-        ready();
-      })
-      .catch(() => {
-        window.clearTimeout(timer);
-        ready();
-      });
-    return () => {
-      cancel = true;
-      window.clearTimeout(timer);
-    };
-  }, []);
 
   useEffect(() => {
     const saved = loadSaved();
@@ -330,7 +341,8 @@ export function ReaderApp() {
       setThreads(loaded ?? {});
       if (typeof saved.rate === "number") setRate(clamp(saved.rate, 0.7, 1.5));
       if (typeof saved.gap === "number") setGap(clamp(saved.gap, 0, 1.5));
-      if (typeof saved.voiceMe === "string" && isMaleVoice(saved.voiceMe)) setVoiceMe(saved.voiceMe);
+      if (typeof saved.voiceMe === "string" && isMaleVoice(saved.voiceMe))
+        setVoiceMe(saved.voiceMe);
       if (typeof saved.voiceGrok === "string" && isFemaleVoice(saved.voiceGrok)) {
         setVoiceGrok(saved.voiceGrok);
       }
@@ -338,8 +350,7 @@ export function ReaderApp() {
       if (typeof saved.onlyGrok === "boolean") setOnlyGrok(saved.onlyGrok);
       if (typeof saved.autoReply === "boolean") setAutoReply(saved.autoReply);
       if (typeof saved.silence === "number") setSilence(clamp(saved.silence, 1, 5));
-      if (saved.wakeDefaulted === true && typeof saved.wakeOn === "boolean") setWakeOn(saved.wakeOn);
-      else setWakeOn(true);
+      // Microphone sessions require an explicit action each time the app opens.
       if (typeof saved.persona === "string") setPersona(saved.persona.slice(0, 240));
       if (Array.isArray(saved.personas)) {
         const next = saved.personas.filter(isPersona).slice(0, 12);
@@ -466,18 +477,20 @@ export function ReaderApp() {
     ? "영상 만드는 중"
     : painting
       ? "그리는 중"
-    : asking
-      ? "그록이 대답하는 중"
-    : reader.preparing
-      ? "목소리 준비 중"
-      : dictation.hearing || dictation.note
-        ? dictation.note || "듣는 중"
-        : wake.standby
-          ? `「${wakeCall[0] ?? personaName}」라고 부르면 말하기가 켜집니다`
-        : reader.status === "idle" && reader.turnIndex >= turns.length
-          ? "끝까지 읽었습니다. 재생하면 처음부터 다시 시작합니다."
-          : activeChunks[reader.chunkIndex] ||
-            (reader.status === "playing" ? "다음 말로 넘어가는 중" : "재생하면 그록의 말을 끝까지 읽습니다.");
+      : asking
+        ? "그록이 대답하는 중"
+        : reader.preparing
+          ? "목소리 준비 중"
+          : dictation.hearing || dictation.note
+            ? dictation.note || "듣는 중"
+            : wake.standby
+              ? `「${wakeCall[0] ?? personaName}」라고 부르면 말하기가 켜집니다`
+              : reader.status === "idle" && reader.turnIndex >= turns.length
+                ? "끝까지 읽었습니다. 재생하면 처음부터 다시 시작합니다."
+                : activeChunks[reader.chunkIndex] ||
+                  (reader.status === "playing"
+                    ? "다음 말로 넘어가는 중"
+                    : "재생하면 그록의 말을 끝까지 읽습니다.");
   const progress =
     turns.length === 0
       ? 0
@@ -502,7 +515,7 @@ export function ReaderApp() {
     );
   }
 
-  function useImported(chat: ImportedChat) {
+  function applyImported(chat: ImportedChat) {
     if (chat.turns.length === 0) {
       setDraftNote("읽을 문장이 없어요.");
       return;
@@ -519,7 +532,8 @@ export function ReaderApp() {
   }
 
   function restoreBackup(backup: NangdokBackup) {
-    const picked = backup.personas.find((item) => item.id === backup.personaId) ?? backup.personas[0];
+    const picked =
+      backup.personas.find((item) => item.id === backup.personaId) ?? backup.personas[0];
     reader.stop();
     setPersonas(backup.personas);
     setThreads(backup.threads);
@@ -578,21 +592,18 @@ export function ReaderApp() {
     const name = backupFileName(backup.exportedAt);
     const framed = window.parent !== window;
     if (mode === "download") {
-      setExportText(json);
-      if (!framed) downloadText(name, json);
-      const copied = await copyText(json);
-      if (framed) {
-        setDraftNote(
-          copied
-            ? "미리보기에서는 파일 저장이 막혀 대화를 복사했습니다. 메모나 파일 앱에 붙여 넣으세요."
-            : "아래 글을 길게 눌러 전체 선택 후 복사하세요. 미리보기는 파일 저장을 막습니다.",
-        );
+      if (!framed) {
+        downloadText(name, json);
+        setExportText(null);
+        setDraftNote(`${name} 파일 다운로드를 요청했습니다. 기기의 다운로드 목록을 확인하세요.`);
         return;
       }
+      setExportText(json);
+      const copied = await copyText(json);
       setDraftNote(
         copied
-          ? "대화 파일을 받았고, 내용도 복사했습니다."
-          : "대화 파일을 받았습니다. 안 보이면 아래 글을 복사하세요.",
+          ? "미리보기에서는 파일 저장이 막혀 대화를 복사했습니다. 메모나 파일 앱에 붙여 넣으세요."
+          : "아래 글을 길게 눌러 전체 선택 후 복사하세요. 미리보기는 파일 저장을 막습니다.",
       );
       return;
     }
@@ -607,25 +618,31 @@ export function ReaderApp() {
         setDraftNote(
           placed.via === "folder"
             ? placed.fresh
-              ? `「${placed.where}」폴더에 넣었습니다. 다음부터는 같은 폴더에 바로 넣습니다. 그 폴더가 클라우드나 NAS와 동기화되면 그쪽으로 올라갑니다.`
-              : `「${placed.where}」폴더에 넣었습니다.`
+              ? `「${placed.where}」폴더에 ${name} 파일을 저장하고 내용을 확인했습니다. 다음부터는 같은 폴더에 바로 넣습니다. 그 폴더가 클라우드나 NAS와 동기화되면 그쪽으로 올라갑니다.`
+              : `「${placed.where}」폴더에 ${name} 파일을 저장하고 내용을 확인했습니다.`
             : placed.via === "share"
               ? "공유 창에서 고른 앱으로 보냈습니다. 드라이브나 NAS 앱을 고르면 그쪽으로 올라갑니다."
-              : "고른 위치에 저장했습니다. 클라우드나 NAS 폴더를 고르면 그 안으로 들어갑니다.",
+              : `${placed.where} 파일을 저장하고 내용을 확인했습니다.`,
         );
         return;
       }
       if (placed.reason === "cancel") return;
       if (placed.reason === "failed") {
-        setDraftNote("고른 폴더에 넣지 못했습니다. 다른 폴더를 다시 고르세요.");
+        setDraftNote(
+          "파일 저장 또는 내용 확인에 실패했습니다. 폴더 연결과 쓰기 권한을 확인한 뒤 다시 시도하세요. 휴대폰은 공유 앱에서 저장을 완료하세요.",
+        );
         return;
       }
       if (placed.reason === "permission") {
-        setDraftNote("폴더 쓰기 권한이 허용되지 않았습니다. 다시 눌러 권한을 허용하거나 다른 폴더를 고르세요.");
+        setDraftNote(
+          "폴더 쓰기 권한이 허용되지 않았습니다. 다시 눌러 권한을 허용하거나 다른 폴더를 고르세요.",
+        );
         return;
       }
       if (placed.reason === "activation") {
-        setDraftNote("브라우저가 폴더 창을 열지 못했습니다. 저장 버튼을 다시 누르세요. 계속되면 게시된 앱을 크롬의 새 탭에서 여세요.");
+        setDraftNote(
+          "브라우저가 폴더 창을 열지 못했습니다. 저장 버튼을 다시 누르세요. 계속되면 게시된 앱을 크롬의 새 탭에서 여세요.",
+        );
         return;
       }
       setExportText(json);
@@ -650,6 +667,58 @@ export function ReaderApp() {
     }
   }
 
+  async function loadBackupFile(file: File) {
+    setPendingBackup(null);
+    try {
+      if (file.size > 10 * 1024 * 1024) throw new Error("대화 파일은 10MB 이하로 선택하세요.");
+      const text = await file.text();
+      const trimmed = text.trim();
+      if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+        const data: unknown = JSON.parse(trimmed);
+        const backup = parseNangdokBackup(data);
+        if (backup) {
+          setPendingBackup({ backup, name: file.name });
+          setDraftNote(null);
+          return;
+        }
+        const chats = chatsFromJson(data);
+        if (chats.length === 1) {
+          applyImported(chats[0]);
+          return;
+        }
+        if (chats.length > 1) {
+          setImported(chats);
+          setDraftNote("불러올 대화를 고르세요.");
+          return;
+        }
+        throw new Error("이 파일에서 대화를 찾지 못했습니다.");
+      }
+      setImported(null);
+      setDraft(text);
+      setDraftNote(
+        `${file.name} 파일을 읽었습니다. 아래 내용을 확인한 뒤 ‘이 대화로 듣기’를 누르세요.`,
+      );
+    } catch (error) {
+      setDraftNote(error instanceof Error ? error.message : "파일을 읽지 못했습니다.");
+    }
+  }
+
+  async function loadCloudFile() {
+    try {
+      if (!("showOpenFilePicker" in window)) {
+        fileRef.current?.click();
+        return;
+      }
+      const file = await openCloudFile();
+      if (file) await loadBackupFile(file);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setDraftNote(
+        "클라우드·NAS 파일을 열지 못했습니다. 기기에서 불러오기를 눌러 파일 앱에서 드라이브나 연결된 NAS를 선택하세요.",
+      );
+    }
+  }
+
   async function loadShare() {
     if (shareBusy) return;
     setShareBusy(true);
@@ -661,7 +730,7 @@ export function ReaderApp() {
         setDraftNote(result.error);
         return;
       }
-      useImported({ title: result.title || "그록 대화", turns: result.turns });
+      applyImported({ title: result.title || "그록 대화", turns: result.turns });
     } catch {
       setDraftNote("그록 대화에 연결하지 못했습니다.");
     } finally {
@@ -690,11 +759,20 @@ export function ReaderApp() {
       }
       const repliedAt = Date.now();
       const stamp = repliedAt.toString(36);
-      const caption = prompt.length <= 24 ? `${prompt} 그림을 만들었어요.` : "그림을 만들었어요. 화면에서 볼 수 있어요.";
+      const caption =
+        prompt.length <= 24
+          ? `${prompt} 그림을 만들었어요.`
+          : "그림을 만들었어요. 화면에서 볼 수 있어요.";
       const next = [
         ...turnsNow.current,
         { id: `me-${stamp}`, speaker: "me" as const, text, at: sentAt },
-        { id: `gk-${stamp}`, speaker: "grok" as const, text: caption, image: result.url, at: repliedAt },
+        {
+          id: `gk-${stamp}`,
+          speaker: "grok" as const,
+          text: caption,
+          image: result.url,
+          at: repliedAt,
+        },
       ];
       setComposer("");
       setTurns(next);
@@ -758,7 +836,13 @@ export function ReaderApp() {
       const next = [
         ...turnsNow.current,
         { id: `me-${stamp}`, speaker: "me" as const, text, at: sentAt },
-        { id: `gk-${stamp}`, speaker: "grok" as const, text: "짧은 영상을 만들었어요.", video: url, at: repliedAt },
+        {
+          id: `gk-${stamp}`,
+          speaker: "grok" as const,
+          text: "짧은 영상을 만들었어요.",
+          video: url,
+          at: repliedAt,
+        },
       ];
       setComposer("");
       setTurns(next);
@@ -861,7 +945,9 @@ export function ReaderApp() {
             ack: true,
           },
         }),
-        new Promise<{ ok: false; error: string }>((resolve) => setTimeout(() => resolve({ ok: false, error: "" }), 2500)),
+        new Promise<{ ok: false; error: string }>((resolve) =>
+          setTimeout(() => resolve({ ok: false, error: "" }), 2500),
+        ),
       ]);
       if (result.ok) {
         const said = result.text.replace(/\s+/g, " ").trim().slice(0, 80);
@@ -871,7 +957,10 @@ export function ReaderApp() {
       /* keep the local line */
     }
     const at = Date.now();
-    const next = [...turnsNow.current, { id: `gk-${at.toString(36)}`, speaker: "grok" as const, text: line, at }];
+    const next = [
+      ...turnsNow.current,
+      { id: `gk-${at.toString(36)}`, speaker: "grok" as const, text: line, at },
+    ];
     setTurns(next);
     reader.playFrom(next, next.length - 1);
     busyRef.current = false;
@@ -918,7 +1007,8 @@ export function ReaderApp() {
     setOnlyGrok(snap.onlyGrok);
     setAutoReply(snap.autoReply);
     setSilence(snap.silence);
-    setWakeOn(snap.wakeOn);
+    setWakeOn(false);
+    wake.halt();
     if (!snap.wakeOn) wake.halt();
     const restored = snap.personas.map((item) => ({ ...item }));
     const stay = restored.find((item) => item.id === personaIdRef.current);
@@ -941,8 +1031,8 @@ export function ReaderApp() {
     setOnlyGrok(true);
     setAutoReply(true);
     setSilence(2);
-    setWakeOn(true);
-    wake.kick();
+    setWakeOn(false);
+    wake.halt();
     const plain = personas.find((item) => item.id === "plain") ?? STARTER_PERSONAS[0];
     setPersonaId(plain.id);
     setPersona(plain.text);
@@ -1090,7 +1180,9 @@ export function ReaderApp() {
         <div className="flex items-center justify-between gap-3 px-4">
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-2">
-              <h1 className="truncate font-display text-xl leading-none tracking-tight text-fg">{APP_NAME}</h1>
+              <h1 className="truncate font-display text-xl leading-none tracking-tight text-fg">
+                {APP_NAME}
+              </h1>
               <span
                 className="shrink-0 rounded-full border border-line px-1.5 py-0.5 text-[11px] tabular-nums leading-none text-muted"
                 aria-label={`버전 ${APP_VERSION}`}
@@ -1103,17 +1195,6 @@ export function ReaderApp() {
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
-              className="inline-flex h-11 items-center gap-2 rounded-full border border-line bg-surface px-3 text-sm text-fg"
-              onClick={() => {
-                setDraft(turnsToText(turns));
-                setSheet("script");
-              }}
-            >
-              <ClipboardPaste className="size-4" aria-hidden="true" />
-              불러오기
-            </button>
-            <button
-              type="button"
               aria-label="설정"
               className="inline-flex size-11 items-center justify-center rounded-full border border-line bg-surface text-fg"
               onClick={openSettings}
@@ -1122,7 +1203,39 @@ export function ReaderApp() {
             </button>
           </div>
         </div>
-        <div className="mt-3 flex gap-2 overflow-x-auto px-4 pb-3" role="tablist" aria-label="페르소나별 대화">
+        <div className="mx-4 mt-3 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-line bg-surface px-3 text-sm text-fg"
+            onClick={() => {
+              setDraftNote(null);
+              setExportText(null);
+              setSheet("save");
+            }}
+          >
+            <Download className="size-4" aria-hidden="true" />
+            대화 저장하기
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-line bg-surface px-3 text-sm text-fg"
+            onClick={() => {
+              setDraft(turnsToText(turns));
+              setDraftNote(null);
+              setExportText(null);
+              setPendingBackup(null);
+              setSheet("script");
+            }}
+          >
+            <ClipboardPaste className="size-4" aria-hidden="true" />
+            대화 불러오기
+          </button>
+        </div>
+        <div
+          className="mt-3 flex gap-2 overflow-x-auto px-4 pb-3"
+          role="tablist"
+          aria-label="페르소나별 대화"
+        >
           {personas.map((item) => {
             const on = item.id === personaId;
             return (
@@ -1131,7 +1244,10 @@ export function ReaderApp() {
                 type="button"
                 role="tab"
                 aria-selected={on}
-                className={"h-10 shrink-0 rounded-full px-3 text-sm " + (on ? "bg-primary text-ink" : "border border-line text-fg")}
+                className={
+                  "h-10 shrink-0 rounded-full px-3 text-sm " +
+                  (on ? "bg-primary text-ink" : "border border-line text-fg")
+                }
                 onClick={() => selectPersona(item.id)}
               >
                 {item.name}
@@ -1145,14 +1261,20 @@ export function ReaderApp() {
         {banner ? <p className="mb-3 text-sm text-pretty text-muted">{banner}</p> : null}
         {turns.length === 0 ? (
           <div className="flex h-full flex-col items-start justify-center gap-4">
-            <p className="font-display text-3xl text-balance text-fg">{personaName || "그록"}에게 물어보세요</p>
+            <p className="font-display text-3xl text-balance text-fg">
+              {personaName || "그록"}에게 물어보세요
+            </p>
             <p className="max-w-sm text-pretty text-muted">
               답을 붙이지 않아도, 그록이 말한 뒤 그 목소리로 바로 읽어 줍니다.
             </p>
             <button
               type="button"
               className="inline-flex h-12 items-center rounded-full bg-primary px-5 text-base font-medium text-ink"
-              onClick={() => setSheet("script")}
+              onClick={() => {
+                setDraftNote(null);
+                setExportText(null);
+                setSheet("script");
+              }}
             >
               채팅 불러오기
             </button>
@@ -1166,105 +1288,145 @@ export function ReaderApp() {
                 ) : null}
                 <ol className="flex flex-col gap-3">
                   {group.turns.map(({ turn, index }) => {
-              const playing = reader.status !== "idle" && index === reader.turnIndex && !done;
-              const chunks = chunkText(turn.text);
-              const mine = turn.speaker === "me";
-              const whenAt = turnTime(turn);
-              const when = whenAt === null ? "" : formatWhen(whenAt);
-              return (
-                <li id={`turn-${turn.id}`} key={turn.id} className={mine ? "flex justify-end" : "flex justify-start"}>
-                  <article
-                    className={
-                      "w-11/12 rounded-3xl border px-4 py-3 " +
-                      (mine ? "border-primary bg-primary text-ink" : "border-line bg-raised text-fg") +
-                      (playing ? " ring-2 ring-fg ring-offset-2 ring-offset-bg" : "")
-                    }
-                  >
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <button
-                        type="button"
-                        className={"inline-flex items-center gap-2 text-sm font-medium " + (mine ? "text-ink" : "text-primary")}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          reader.jump(index);
-                        }}
+                    const playing = reader.status !== "idle" && index === reader.turnIndex && !done;
+                    const chunks = chunkText(turn.text);
+                    const mine = turn.speaker === "me";
+                    const whenAt = turnTime(turn);
+                    const when = whenAt === null ? "" : formatWhen(whenAt);
+                    return (
+                      <li
+                        id={`turn-${turn.id}`}
+                        key={turn.id}
+                        className={mine ? "flex justify-end" : "flex justify-start"}
                       >
-                        {playing && reader.status === "playing" && !reader.preparing ? <Equalizer /> : null}
-                        {turn.speaker === "me" ? "나" : personaName || "그록"}
-                        <span className={mine ? "text-ink/70" : "text-faint"}>{index + 1}</span>
-                      </button>
-                      <span className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          aria-label="이 말 수정"
-                          className={"inline-flex size-9 items-center justify-center rounded-full " + (mine ? "text-ink/80" : "text-muted")}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingId(editingId === turn.id ? null : turn.id);
-                          }}
+                        <article
+                          className={
+                            "w-11/12 rounded-3xl border px-4 py-3 " +
+                            (mine
+                              ? "border-primary bg-primary text-ink"
+                              : "border-line bg-raised text-fg") +
+                            (playing ? " ring-2 ring-fg ring-offset-2 ring-offset-bg" : "")
+                          }
                         >
-                          <span className="text-xs font-medium">수정</span>
-                        </button>
-                        <button
-                          type="button"
-                          aria-label="이 말 지우기"
-                          className={"inline-flex size-9 items-center justify-center rounded-full " + (mine ? "text-ink/80" : "text-muted")}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeTurn(turn.id);
-                          }}
-                        >
-                          <Trash2 className="size-4" aria-hidden="true" />
-                        </button>
-                      </span>
-                    </div>
-                    {editingId === turn.id ? (
-                      <textarea
-                        value={turn.text}
-                        onChange={(e) => updateTurn(turn.id, e.target.value)}
-                        className={
-                          "min-h-24 w-full resize-y rounded-2xl border px-3 py-2 text-base " +
-                          (mine ? "border-ink/20 bg-fg text-ink" : "border-line bg-bg text-fg")
-                        }
-                      />
-                    ) : (
-                      <button
-                        type="button"
-                        className="block w-full text-left text-base leading-relaxed text-pretty"
-                        onClick={() => reader.jump(index)}
-                      >
-                        {chunks.length === 0
-                          ? "빈 말"
-                          : chunks.map((chunk, ci) => {
-                              const hot = playing && ci === reader.chunkIndex;
-                              return (
-                                <span key={ci}>
-                                  {ci > 0 ? " " : null}
-                                  <span className={hot ? (mine ? "rounded-md bg-ink/15" : "rounded-md bg-primary/25") : undefined}>
-                                    {chunk}
-                                  </span>
-                                </span>
-                              );
-                            })}
-                      </button>
-                    )}
-                    {turn.video ? (
-                      <video
-                        src={turn.video}
-                        controls
-                        playsInline
-                        preload="metadata"
-                        className="mt-3 w-full rounded-2xl bg-bg"
-                      />
-                    ) : turn.image ? (
-                      <img src={turn.image} alt={turn.text} className="mt-3 w-full rounded-2xl bg-bg" />
-                    ) : null}
-                    {when ? (
-                      <p className={"mt-2 text-right text-xs tabular-nums " + (mine ? "text-ink/70" : "text-muted")}>{when}</p>
-                    ) : null}
-                  </article>
-                </li>
-                  );
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              className={
+                                "inline-flex items-center gap-2 text-sm font-medium " +
+                                (mine ? "text-ink" : "text-primary")
+                              }
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                reader.jump(index);
+                              }}
+                            >
+                              {playing && reader.status === "playing" && !reader.preparing ? (
+                                <Equalizer />
+                              ) : null}
+                              {turn.speaker === "me" ? "나" : personaName || "그록"}
+                              <span className={mine ? "text-ink/70" : "text-faint"}>
+                                {index + 1}
+                              </span>
+                            </button>
+                            <span className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                aria-label="이 말 수정"
+                                className={
+                                  "inline-flex size-9 items-center justify-center rounded-full " +
+                                  (mine ? "text-ink/80" : "text-muted")
+                                }
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingId(editingId === turn.id ? null : turn.id);
+                                }}
+                              >
+                                <span className="text-xs font-medium">수정</span>
+                              </button>
+                              <button
+                                type="button"
+                                aria-label="이 말 지우기"
+                                className={
+                                  "inline-flex size-9 items-center justify-center rounded-full " +
+                                  (mine ? "text-ink/80" : "text-muted")
+                                }
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeTurn(turn.id);
+                                }}
+                              >
+                                <Trash2 className="size-4" aria-hidden="true" />
+                              </button>
+                            </span>
+                          </div>
+                          {editingId === turn.id ? (
+                            <textarea
+                              value={turn.text}
+                              onChange={(e) => updateTurn(turn.id, e.target.value)}
+                              className={
+                                "min-h-24 w-full resize-y rounded-2xl border px-3 py-2 text-base " +
+                                (mine
+                                  ? "border-ink/20 bg-fg text-ink"
+                                  : "border-line bg-bg text-fg")
+                              }
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              className="block w-full text-left text-base leading-relaxed text-pretty"
+                              onClick={() => reader.jump(index)}
+                            >
+                              {chunks.length === 0
+                                ? "빈 말"
+                                : chunks.map((chunk, ci) => {
+                                    const hot = playing && ci === reader.chunkIndex;
+                                    return (
+                                      <span key={ci}>
+                                        {ci > 0 ? " " : null}
+                                        <span
+                                          className={
+                                            hot
+                                              ? mine
+                                                ? "rounded-md bg-ink/15"
+                                                : "rounded-md bg-primary/25"
+                                              : undefined
+                                          }
+                                        >
+                                          {chunk}
+                                        </span>
+                                      </span>
+                                    );
+                                  })}
+                            </button>
+                          )}
+                          {turn.video ? (
+                            <video
+                              src={turn.video}
+                              controls
+                              playsInline
+                              preload="metadata"
+                              className="mt-3 w-full rounded-2xl bg-bg"
+                            />
+                          ) : turn.image ? (
+                            <img
+                              src={turn.image}
+                              alt={turn.text}
+                              className="mt-3 w-full rounded-2xl bg-bg"
+                            />
+                          ) : null}
+                          {when ? (
+                            <p
+                              className={
+                                "mt-2 text-right text-xs tabular-nums " +
+                                (mine ? "text-ink/70" : "text-muted")
+                              }
+                            >
+                              {when}
+                            </p>
+                          ) : null}
+                        </article>
+                      </li>
+                    );
                   })}
                 </ol>
               </li>
@@ -1304,7 +1466,9 @@ export function ReaderApp() {
           </p>
         ) : wake.standby ? (
           <p className="mb-2 text-sm text-muted" role="status">
-            {wakeCall.length > 1 ? `「${wakeCall[0]}」 또는 「${wakeCall[1]}」를 기다립니다` : "페르소나 이름을 정해 주세요."}
+            {wakeCall.length > 1
+              ? `「${wakeCall[0]}」 또는 「${wakeCall[1]}」를 기다립니다`
+              : "페르소나 이름을 정해 주세요."}
           </p>
         ) : null}
         <div className="flex items-end gap-2">
@@ -1330,18 +1494,29 @@ export function ReaderApp() {
 
       <footer className="shrink-0 border-t border-line bg-surface">
         <div className="h-1 bg-raised" aria-hidden="true">
-          <div className="h-full bg-primary transition-[width] duration-300" style={{ width: `${progress}%` }} />
+          <div
+            className="h-full bg-primary transition-[width] duration-300"
+            style={{ width: `${progress}%` }}
+          />
         </div>
         <div className="px-4 pt-3 pb-4">
           <div className="mb-3 flex items-start justify-between gap-3">
-            <p className="line-clamp-2 min-h-11 font-display text-base leading-snug text-fg">{activeLine}</p>
+            <p className="line-clamp-2 min-h-11 font-display text-base leading-snug text-fg">
+              {activeLine}
+            </p>
             <p className="shrink-0 pt-1 text-sm text-muted tabular-nums">
-              {turns.length === 0 ? "0" : `${Math.min(reader.turnIndex + (done ? 0 : 1), turns.length)} / ${turns.length}`}
+              {turns.length === 0
+                ? "0"
+                : `${Math.min(reader.turnIndex + (done ? 0 : 1), turns.length)} / ${turns.length}`}
               <span className="mt-0.5 block text-right">{duration}</span>
             </p>
           </div>
           {reader.error ? <p className="mb-2 text-sm text-primary">{reader.error}</p> : null}
-          {!reader.supported ? <p className="mb-2 text-sm text-muted">이 브라우저에서는 음성 읽기를 지원하지 않아요.</p> : null}
+          {!reader.supported ? (
+            <p className="mb-2 text-sm text-muted">
+              이 브라우저에서는 음성 읽기를 지원하지 않아요.
+            </p>
+          ) : null}
           <div className="grid grid-cols-[1fr_auto_1fr] items-center">
             <div className="flex items-center gap-3">
               <button
@@ -1408,26 +1583,55 @@ export function ReaderApp() {
       </footer>
 
       {sheet ? (
-        <div className="fixed inset-0 z-40 flex items-end bg-bg/70" onClick={cancelSettings}>
+        <div
+          className="fixed inset-0 z-40 flex items-end justify-center bg-bg/70"
+          onClick={cancelSettings}
+        >
           <div
             role="dialog"
             aria-modal="true"
-            aria-label={sheet === "script" ? "대화 가져오기" : "설정"}
-            className="max-h-[85dvh] w-full overflow-y-auto rounded-t-3xl border border-line bg-surface px-4 pt-3 pb-6"
+            aria-label={
+              sheet === "save" ? "대화 저장하기" : sheet === "script" ? "대화 불러오기" : "설정"
+            }
+            className="max-h-[85dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-line bg-surface px-4 pt-3 pb-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-center justify-between">
               <div className="flex gap-2">
                 <button
                   type="button"
-                  className={"h-10 rounded-full px-3 text-sm " + (sheet === "script" ? "bg-primary text-ink" : "text-muted")}
-                  onClick={() => setSheet("script")}
+                  className={
+                    "h-10 rounded-full px-3 text-sm " +
+                    (sheet === "script" ? "bg-primary text-ink" : "text-muted")
+                  }
+                  onClick={() => {
+                    setDraftNote(null);
+                    setExportText(null);
+                    setSheet("script");
+                  }}
                 >
-                  대화
+                  불러오기
                 </button>
                 <button
                   type="button"
-                  className={"h-10 rounded-full px-3 text-sm " + (sheet === "voice" ? "bg-primary text-ink" : "text-muted")}
+                  className={
+                    "h-11 rounded-full px-3 text-sm " +
+                    (sheet === "save" ? "bg-primary text-ink" : "text-muted")
+                  }
+                  onClick={() => {
+                    setDraftNote(null);
+                    setExportText(null);
+                    setSheet("save");
+                  }}
+                >
+                  저장하기
+                </button>
+                <button
+                  type="button"
+                  className={
+                    "h-10 rounded-full px-3 text-sm " +
+                    (sheet === "voice" ? "bg-primary text-ink" : "text-muted")
+                  }
                   onClick={openSettings}
                 >
                   설정
@@ -1443,18 +1647,18 @@ export function ReaderApp() {
               </button>
             </div>
 
-            {sheet === "script" ? (
+            {sheet === "save" ? (
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-3 rounded-2xl border border-line bg-bg px-3 py-3">
-                  <p className="text-sm text-pretty text-fg">대화를 파일로 보관</p>
+                  <p className="text-sm text-pretty text-fg">대화 저장하기</p>
                   <p className="text-sm text-pretty text-muted">
-                    창을 닫아도 이 브라우저에는 남습니다. 클라우드·NAS는 받지 않고, 고른 폴더에 파일을 넣습니다. 드라이브나 NAS와
-                    동기화되는 폴더를 한 번 고르면 다음부터는 그 폴더에 바로 들어갑니다. 휴대폰은 공유 창에서 앱을 고르세요.
-                    미리보기에서는 폴더 창이 막혀 복사만 됩니다. 다시 넣으면 지금 대화가 바뀌고, 삭제용 비밀번호도 파일에 들어 있습니다.
+                    모든 페르소나와 대화를 JSON 파일로 저장합니다. 클라우드·NAS는 컴퓨터에
+                    연결된 동기화 폴더에 저장하고, 휴대폰에서는 공유 앱을 고릅니다. 저장 파일에는
+                    삭제용 비밀번호도 포함됩니다.
                   </p>
                   {cloudFolder ? (
                     <div className="flex items-center justify-between gap-2">
-                      <p className="min-w-0 truncate text-sm text-fg">올리는 곳 · {cloudFolder}</p>
+                      <p className="min-w-0 truncate text-sm text-fg">저장 폴더 · {cloudFolder}</p>
                       <button
                         type="button"
                         className="h-10 shrink-0 rounded-full border border-line px-3 text-sm text-fg disabled:opacity-40"
@@ -1473,7 +1677,7 @@ export function ReaderApp() {
                       onClick={() => void sendBackup("cloud")}
                     >
                       <Share2 className="size-4" aria-hidden="true" />
-                      클라우드·NAS
+                      클라우드·NAS에 저장
                     </button>
                     <button
                       type="button"
@@ -1486,7 +1690,9 @@ export function ReaderApp() {
                   </div>
                   {exportText ? (
                     <div className="flex flex-col gap-2">
-                      {draftNote ? <p className="text-sm text-pretty text-primary">{draftNote}</p> : null}
+                      {draftNote ? (
+                        <p className="text-sm text-pretty text-primary">{draftNote}</p>
+                      ) : null}
                       <textarea
                         readOnly
                         value={exportText}
@@ -1513,9 +1719,72 @@ export function ReaderApp() {
                     </div>
                   ) : null}
                 </div>
+                {draftNote && !exportText ? (
+                  <p role="status" className="text-sm text-primary">
+                    {draftNote}
+                  </p>
+                ) : null}
+              </div>
+            ) : sheet === "script" ? (
+              <div className="flex flex-col gap-3">
+                <h2 className="text-lg font-medium text-fg">대화 불러오기</h2>
+                <p className="text-sm text-muted">
+                  저장한 파일을 선택하세요. 백업을 불러오면 현재 대화와 페르소나를 바꾸기 전에
+                  내용을 확인합니다. 컴퓨터에서는 연결된 동기화·NAS 폴더의 파일을, 휴대폰에서는 파일
+                  앱의 드라이브·NAS 위치를 고르세요.
+                </p>
+                {pendingBackup ? (
+                  <div className="flex flex-col gap-2 rounded-2xl border border-line bg-bg p-3">
+                    <p className="text-sm text-fg">
+                      {pendingBackup.name} · 페르소나 {pendingBackup.backup.personas.length}개 ·
+                      대화{" "}
+                      {Object.values(pendingBackup.backup.threads).reduce(
+                        (sum, list) => sum + list.length,
+                        0,
+                      )}
+                      마디
+                    </p>
+                    <p className="text-sm text-muted">
+                      현재 대화와 페르소나가 이 파일의 내용으로 바뀝니다.
+                    </p>
+                    <button
+                      type="button"
+                      className="h-11 rounded-full bg-primary text-sm text-ink"
+                      onClick={() => {
+                        restoreBackup(pendingBackup.backup);
+                        setPendingBackup(null);
+                      }}
+                    >
+                      이 백업으로 복원
+                    </button>
+                    <button
+                      type="button"
+                      className="h-11 rounded-full border border-line text-sm text-fg"
+                      onClick={() => setPendingBackup(null)}
+                    >
+                      취소
+                    </button>
+                  </div>
+                ) : null}
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    className="h-11 rounded-full bg-primary px-4 text-sm font-medium text-ink"
+                    onClick={() => void loadCloudFile()}
+                  >
+                    클라우드·NAS에서 불러오기
+                  </button>
+                  <button
+                    type="button"
+                    className="h-11 rounded-full border border-line px-4 text-sm text-fg"
+                    onClick={() => fileRef.current?.click()}
+                  >
+                    기기에서 불러오기
+                  </button>
+                </div>
                 <p className="text-sm text-pretty text-muted">
-                  그록닷컴이나 그록봇에서 대화의 공유를 눌러 나온 주소를 붙여넣으세요. 계정에서 받은 JSON 파일도 됩니다. 로그인한
-                  전체 기록은 그록이 이 앱에 열어 주지 않습니다.
+                  그록닷컴이나 그록봇에서 대화의 공유를 눌러 나온 주소를 붙여넣으세요. 계정에서 받은
+                  JSON 파일도 됩니다. 로그인한 전체 기록은 그록이 이 앱에 열어 주지 않습니다.
                 </p>
                 <div className="flex gap-2">
                   <input
@@ -1544,7 +1813,7 @@ export function ReaderApp() {
                         key={`${chat.title}-${index}`}
                         type="button"
                         className="rounded-2xl border border-line px-3 py-2 text-left text-sm text-fg"
-                        onClick={() => useImported(chat)}
+                        onClick={() => applyImported(chat)}
                       >
                         {chat.title}
                         <span className="mt-0.5 block text-muted">{chat.turns.length}마디</span>
@@ -1571,7 +1840,9 @@ export function ReaderApp() {
                         }`
                     : "아직 비어 있음"}
                 </p>
-                {draftNote && !exportText ? <p className="text-sm text-primary">{draftNote}</p> : null}
+                {draftNote && !exportText ? (
+                  <p className="text-sm text-primary">{draftNote}</p>
+                ) : null}
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -1580,51 +1851,15 @@ export function ReaderApp() {
                   >
                     이 대화로 듣기
                   </button>
-                  <button
-                    type="button"
-                    className="inline-flex h-11 items-center gap-2 rounded-full border border-line px-4 text-sm text-fg"
-                    onClick={() => fileRef.current?.click()}
-                  >
-                    <FileUp className="size-4" aria-hidden="true" />
-                    파일
-                  </button>
                   <input
                     ref={fileRef}
                     type="file"
                     accept=".txt,.md,.json,text/plain,application/json"
                     className="hidden"
-                    onChange={async (e) => {
+                    onChange={(e) => {
                       const file = e.target.files?.[0];
                       e.target.value = "";
-                      if (!file) return;
-                      const text = await file.text();
-                      const trimmed = text.trim();
-                      if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-                        try {
-                          const data = JSON.parse(trimmed) as unknown;
-                          const backup = parseNangdokBackup(data);
-                          if (backup) {
-                            restoreBackup(backup);
-                            return;
-                          }
-                          const chats = chatsFromJson(data);
-                          if (chats.length === 1) {
-                            useImported(chats[0]);
-                            return;
-                          }
-                          if (chats.length > 1) {
-                            setImported(chats);
-                            setDraftNote("읽을 대화를 고르세요.");
-                            return;
-                          }
-                        } catch {
-                          setDraftNote("이 JSON에서 그록 대화를 찾지 못했습니다.");
-                          return;
-                        }
-                      }
-                      setImported(null);
-                      setDraft(text);
-                      setDraftNote(null);
+                      if (file) void loadBackupFile(file);
                     }}
                   />
                   <button
@@ -1672,7 +1907,9 @@ export function ReaderApp() {
                       <input
                         value={newPersona.name}
                         maxLength={16}
-                        onChange={(e) => setNewPersona({ ...newPersona, name: e.target.value.slice(0, 16) })}
+                        onChange={(e) =>
+                          setNewPersona({ ...newPersona, name: e.target.value.slice(0, 16) })
+                        }
                         placeholder="이름"
                         aria-label="새 페르소나 이름"
                         className="h-12 rounded-2xl border border-line bg-bg px-3 text-base text-fg"
@@ -1681,7 +1918,9 @@ export function ReaderApp() {
                         value={newPersona.text}
                         maxLength={240}
                         rows={3}
-                        onChange={(e) => setNewPersona({ ...newPersona, text: e.target.value.slice(0, 240) })}
+                        onChange={(e) =>
+                          setNewPersona({ ...newPersona, text: e.target.value.slice(0, 240) })
+                        }
                         placeholder="말투. 예: 운전 중이라 짧게, 반말로 말해."
                         aria-label="새 페르소나 내용"
                         className="w-full resize-none rounded-2xl border border-line bg-bg px-3 py-3 text-base text-fg placeholder:text-faint"
@@ -1691,7 +1930,9 @@ export function ReaderApp() {
                         value={newPersona.password}
                         maxLength={32}
                         autoComplete="new-password"
-                        onChange={(e) => setNewPersona({ ...newPersona, password: e.target.value.slice(0, 32) })}
+                        onChange={(e) =>
+                          setNewPersona({ ...newPersona, password: e.target.value.slice(0, 32) })
+                        }
                         placeholder="삭제용 비밀번호"
                         aria-label="삭제용 비밀번호"
                         className="h-12 rounded-2xl border border-line bg-bg px-3 text-base text-fg"
@@ -1749,8 +1990,8 @@ export function ReaderApp() {
                         </button>
                       </div>
                       <p className="text-sm text-muted">
-                        이름과 내용을 고치면 바로 그 말투로 답합니다. 대화는 페르소나마다 따로 보입니다. 새로 만들 때 정한
-                        비밀번호가 있어야 지울 수 있습니다.
+                        이름과 내용을 고치면 바로 그 말투로 답합니다. 대화는 페르소나마다 따로
+                        보입니다. 새로 만들 때 정한 비밀번호가 있어야 지울 수 있습니다.
                       </p>
                     </div>
                   )}
@@ -1771,8 +2012,24 @@ export function ReaderApp() {
                   onChange={setVoiceGrok}
                   onPreview={() => void previewVoice(voiceGrok)}
                 />
-                <Slider label="속도" value={rate} min={0.7} max={1.5} step={0.05} display={`${rate.toFixed(2)}×`} onChange={setRate} />
-                <Slider label="말 사이 쉼" value={gap} min={0} max={1.5} step={0.05} display={`${gap.toFixed(2)}초`} onChange={setGap} />
+                <Slider
+                  label="속도"
+                  value={rate}
+                  min={0.7}
+                  max={1.5}
+                  step={0.05}
+                  display={`${rate.toFixed(2)}×`}
+                  onChange={setRate}
+                />
+                <Slider
+                  label="말 사이 쉼"
+                  value={gap}
+                  min={0}
+                  max={1.5}
+                  step={0.05}
+                  display={`${gap.toFixed(2)}초`}
+                  onChange={setGap}
+                />
                 <label className="flex items-center justify-between gap-3 text-sm text-fg">
                   이름을 부르면 말하기
                   <input
@@ -1791,15 +2048,27 @@ export function ReaderApp() {
                   {wakeCall.length > 1
                     ? `「${wakeCall[0]}」 또는 「${wakeCall[1]}」라고 하면 대답하고 말하기가 켜집니다.`
                     : "페르소나 이름을 정하면 그 이름으로 부를 수 있습니다."}
-                  {wakeOn && !wake.listening ? " 마이크가 아직 꺼져 있으면 스위치를 다시 켜 주세요." : ""}
+                  {wakeOn && !wake.listening
+                    ? " 브라우저가 듣기를 끝내면 자동으로 다시 켜지 않습니다. 다시 듣고 싶으면 스위치를 껐다 켜 주세요."
+                    : ""}
                 </p>
                 <label className="flex items-center justify-between gap-3 text-sm text-fg">
                   그록이 한 말만 읽기
-                  <input type="checkbox" checked={onlyGrok} onChange={(e) => setOnlyGrok(e.target.checked)} className="size-5 accent-primary" />
+                  <input
+                    type="checkbox"
+                    checked={onlyGrok}
+                    onChange={(e) => setOnlyGrok(e.target.checked)}
+                    className="size-5 accent-primary"
+                  />
                 </label>
                 <label className="flex items-center justify-between gap-3 text-sm text-fg">
                   말이 끊기면 자동으로 답하기
-                  <input type="checkbox" checked={autoReply} onChange={(e) => setAutoReply(e.target.checked)} className="size-5 accent-primary" />
+                  <input
+                    type="checkbox"
+                    checked={autoReply}
+                    onChange={(e) => setAutoReply(e.target.checked)}
+                    className="size-5 accent-primary"
+                  />
                 </label>
                 <Slider
                   label="음성 없이 기다리는 시간"
@@ -1812,24 +2081,43 @@ export function ReaderApp() {
                 />
                 <label className="flex items-center justify-between gap-3 text-sm text-fg">
                   읽는 말로 자동 스크롤
-                  <input type="checkbox" checked={autoScroll} onChange={(e) => setAutoScroll(e.target.checked)} className="size-5 accent-primary" />
+                  <input
+                    type="checkbox"
+                    checked={autoScroll}
+                    onChange={(e) => setAutoScroll(e.target.checked)}
+                    className="size-5 accent-primary"
+                  />
                 </label>
                 <p className="text-sm text-pretty text-muted">
-                  마이크를 켜고 말하면 받아 적습니다. 페르소나 이름 뒤에 야나 아를 붙여 부르면 그 말투로 받고 말하기가 켜집니다. 셀카나 사진을 보내 달라고 하면 그림을, 영상이라고 하면 짧은 영상을 채팅에 넣고 읽어 줍니다. 만들기 전에는 만들었다고 말하지 않습니다.
-                  장소, 가격, 소식 같은 정보는 그록이 인터넷에서 찾아 읽어 줍니다.
-                  설정한 시간 동안 음성이 없으면 대답하고, 읽는 동안에는 마이크를 잠깐 멈춥니다.
+                  마이크를 켜고 말하면 받아 적습니다. 페르소나 이름 뒤에 야나 아를 붙여 부르면 그
+                  말투로 받고 말하기가 켜집니다. 셀카나 사진을 보내 달라고 하면 그림을, 영상이라고
+                  하면 짧은 영상을 채팅에 넣고 읽어 줍니다. 만들기 전에는 만들었다고 말하지
+                  않습니다. 장소, 가격, 소식 같은 정보는 그록이 인터넷에서 찾아 읽어 줍니다. 설정한
+                  시간 동안 음성이 없으면 대답하고, 읽는 동안에는 마이크를 잠깐 멈춥니다.
                 </p>
                 <p className="text-center text-xs text-muted">
                   {APP_NAME} {APP_VERSION}
                 </p>
                 <div className="sticky bottom-0 -mx-4 flex gap-2 border-t border-line bg-surface px-4 py-3">
-                  <button type="button" className="h-11 flex-1 rounded-full bg-primary text-sm font-medium text-ink" onClick={saveSettings}>
+                  <button
+                    type="button"
+                    className="h-11 flex-1 rounded-full bg-primary text-sm font-medium text-ink"
+                    onClick={saveSettings}
+                  >
                     저장
                   </button>
-                  <button type="button" className="h-11 flex-1 rounded-full border border-line text-sm text-fg" onClick={cancelSettings}>
+                  <button
+                    type="button"
+                    className="h-11 flex-1 rounded-full border border-line text-sm text-fg"
+                    onClick={cancelSettings}
+                  >
                     취소
                   </button>
-                  <button type="button" className="h-11 flex-1 rounded-full border border-line text-sm text-fg" onClick={resetSettings}>
+                  <button
+                    type="button"
+                    className="h-11 flex-1 rounded-full border border-line text-sm text-fg"
+                    onClick={resetSettings}
+                  >
                     기본값
                   </button>
                 </div>
@@ -1848,7 +2136,9 @@ export function ReaderApp() {
           >
             {eraseStep === 1 ? (
               <div className="flex flex-col gap-4">
-                <p className="text-base text-pretty text-fg">「{selectedPersona.name}」을 지울까요?</p>
+                <p className="text-base text-pretty text-fg">
+                  「{selectedPersona.name}」을 지울까요?
+                </p>
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -1869,7 +2159,9 @@ export function ReaderApp() {
             ) : null}
             {eraseStep === 2 ? (
               <div className="flex flex-col gap-4">
-                <p className="text-base text-pretty text-fg">한 번 더 확인합니다. 정말 삭제할까요? 되돌릴 수 없습니다.</p>
+                <p className="text-base text-pretty text-fg">
+                  한 번 더 확인합니다. 정말 삭제할까요? 되돌릴 수 없습니다.
+                </p>
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -1907,7 +2199,10 @@ export function ReaderApp() {
                   className="h-12 rounded-2xl border border-line bg-bg px-3 text-base text-fg"
                 />
                 <div className="flex gap-2">
-                  <button type="submit" className="h-11 flex-1 rounded-full bg-primary text-sm font-medium text-ink">
+                  <button
+                    type="submit"
+                    className="h-11 flex-1 rounded-full bg-primary text-sm font-medium text-ink"
+                  >
                     삭제
                   </button>
                   <button
@@ -2009,7 +2304,11 @@ function Slider({
 function wantsVideo(text: string) {
   const compact = text.replace(/\s+/g, "");
   if (/안보|안떠|안뜨|어디|이상|깨져|안나/.test(compact)) return false;
-  if (/(영상|동영상|비디오|클립)/.test(compact) && /(만들|찍어|생성|보여|해봐|해줘|하나)/.test(compact)) return true;
+  if (
+    /(영상|동영상|비디오|클립)/.test(compact) &&
+    /(만들|찍어|생성|보여|해봐|해줘|하나)/.test(compact)
+  )
+    return true;
   return /(영상|동영상|비디오)(로|을|를)?$/.test(compact) && compact.length > 4;
 }
 
@@ -2023,7 +2322,10 @@ function videoPrompt(text: string, history: { role: string; content: string }[])
   const cleaned = text
     .replace(/\d+\s*초(짜리)?/g, " ")
     .replace(/짧은 영상|동영상|비디오|클립|영상/g, " ")
-    .replace(/베이스로|기반으로|만들어\s*봐|만들어봐|만들어\s*줘|만들어줘|해\s*봐|해봐|해\s*줘|하나/g, " ")
+    .replace(
+      /베이스로|기반으로|만들어\s*봐|만들어봐|만들어\s*줘|만들어줘|해\s*봐|해봐|해\s*줘|하나/g,
+      " ",
+    )
     .replace(/\s+/g, " ")
     .trim();
   if (!isVagueSubject(cleaned) && cleaned.length > 1) return cleaned.slice(0, 400);
@@ -2039,18 +2341,24 @@ function wantsImage(text: string) {
   const compact = text.replace(/\s+/g, "");
   if (/안보|안떠|안뜨|어디|이상|깨져|안나|없대|없어/.test(compact)) return false;
   if (/그려(줘|줄|봐|라|주|요)/.test(compact)) return true;
-  if (/(셀카|그림|이미지|사진|일러스트).{0,8}(만들어|그려|생성해|보내|보여|찍어|달라)/.test(compact)) {
+  if (
+    /(셀카|그림|이미지|사진|일러스트).{0,8}(만들어|그려|생성해|보내|보여|찍어|달라)/.test(compact)
+  ) {
     return !/누구|언제|왜|뭐야|맞아/.test(compact);
   }
   if (/(셀카|사진|그림|이미지).{0,4}(줘|봐)$/.test(compact)) return true;
-  if (/(이미지|그림|사진|일러스트|셀카)(로|을|를)?$/.test(compact) && compact.length > 4) return true;
+  if (/(이미지|그림|사진|일러스트|셀카)(로|을|를)?$/.test(compact) && compact.length > 4)
+    return true;
   return /\b(draw|illustrat\w*|generate)\b.{0,24}\b(image|picture|photo)\b/i.test(text);
 }
 
 function imagePrompt(text: string, history: { role: string; content: string }[]) {
   const cleaned = text
     .replace(/^[가-힣]{1,8}[야아]\s+/, " ")
-    .replace(/그려\s*줘|그려줘|그려\s*줄래|그려\s*주라|그려봐|그려\s*봐|그려라|그림으로|이미지로|이미지\s*생성|만들어\s*줘|만들어줘|보내\s*줘|보내줘|보내\s*봐|보내봐|보여\s*줘|보여줘|보여\s*봐|보여봐|찍어\s*줘|찍어줘|찍어\s*봐|찍어봐|찍어/g, " ")
+    .replace(
+      /그려\s*줘|그려줘|그려\s*줄래|그려\s*주라|그려봐|그려\s*봐|그려라|그림으로|이미지로|이미지\s*생성|만들어\s*줘|만들어줘|보내\s*줘|보내줘|보내\s*봐|보내봐|보여\s*줘|보여줘|보여\s*봐|보여봐|찍어\s*줘|찍어줘|찍어\s*봐|찍어봐|찍어/g,
+      " ",
+    )
     .replace(/(이미지|그림|일러스트)(로|을|를)?$/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -2067,11 +2375,15 @@ function imagePrompt(text: string, history: { role: string; content: string }[])
 function isVagueSubject(cleaned: string) {
   const compact = cleaned.replace(/\s+/g, "");
   if (!compact) return true;
-  return /^(그거|이거|저거|방금|방금말한(거|것|장면)?|그것|어떤(이미지|그림|사진)?|이미지|그림|사진|하나|장면)$/.test(compact);
+  return /^(그거|이거|저거|방금|방금말한(거|것|장면)?|그것|어떤(이미지|그림|사진)?|이미지|그림|사진|하나|장면)$/.test(
+    compact,
+  );
 }
 
 function isAside(content: string) {
-  return /이미지를 만들 수 없|글로만 대화|그림을 만들었|이미지를 만들었|화면에서 볼 수|화면에서 바로/.test(content);
+  return /이미지를 만들 수 없|글로만 대화|그림을 만들었|이미지를 만들었|화면에서 볼 수|화면에서 바로/.test(
+    content,
+  );
 }
 
 function fallbackGreet(persona: string) {

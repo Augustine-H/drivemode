@@ -23,7 +23,10 @@ type Options = {
 
 function recognitionCtor() {
   if (typeof window === "undefined") return null;
-  const w = window as Window & { webkitSpeechRecognition?: new () => Rec; SpeechRecognition?: new () => Rec };
+  const w = window as Window & {
+    webkitSpeechRecognition?: new () => Rec;
+    SpeechRecognition?: new () => Rec;
+  };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
@@ -37,19 +40,11 @@ export function useWake({ enabled, paused, name, onWake, onError }: Options) {
   const nameRef = useRef(name);
   const recRef = useRef<Rec | null>(null);
   const callbacks = useRef({ onWake, onError });
-  const retryTimer = useRef(0);
-  const openedAt = useRef(0);
   pausedRef.current = paused;
   nameRef.current = name;
   callbacks.current = { onWake, onError };
 
-  const clearRetry = () => {
-    window.clearTimeout(retryTimer.current);
-    retryTimer.current = 0;
-  };
-
   const close = () => {
-    clearRetry();
     const rec = recRef.current;
     recRef.current = null;
     if (!rec) return;
@@ -90,6 +85,7 @@ export function useWake({ enabled, paused, name, onWake, onError }: Options) {
       tail.current = "";
       close();
       setListening(false);
+      setStandby(false);
       callbacks.current.onWake(rest);
     };
     rec.onerror = (event) => {
@@ -97,7 +93,10 @@ export function useWake({ enabled, paused, name, onWake, onError }: Options) {
       if (code === "no-speech" || code === "aborted") return;
       if (code === "network" || code === "audio-capture") {
         close();
-        if (wanted.current && !pausedRef.current) scheduleOpen(false);
+        wanted.current = false;
+        setListening(false);
+        setStandby(false);
+        setNote("이름 듣기가 멈췄습니다. 설정에서 다시 켜세요.");
         return;
       }
       close();
@@ -119,33 +118,27 @@ export function useWake({ enabled, paused, name, onWake, onError }: Options) {
         setListening(false);
         return;
       }
-      scheduleOpen(Boolean(said));
+      wanted.current = false;
+      setListening(false);
+      setStandby(false);
+      setNote("이름 듣기가 끝났습니다. 설정에서 다시 켜세요.");
     };
     try {
       rec.start();
     } catch {
+      wanted.current = false;
+      setStandby(false);
       setNote("이름 부르기를 시작하지 못했습니다.");
       return;
     }
     recRef.current = rec;
-    openedAt.current = Date.now();
     setListening(true);
     setNote("");
   };
 
-  const scheduleOpen = (heardSomething: boolean) => {
-    clearRetry();
-    const lived = openedAt.current ? Date.now() - openedAt.current : 0;
-    const wait = heardSomething || lived > 20000 ? 800 : 12000;
-    retryTimer.current = window.setTimeout(() => {
-      retryTimer.current = 0;
-      if (!wanted.current || pausedRef.current || recRef.current) return;
-      open();
-    }, wait);
-  };
-
   const kick = () => {
     wanted.current = true;
+    setStandby(true);
     open();
   };
 
@@ -154,20 +147,21 @@ export function useWake({ enabled, paused, name, onWake, onError }: Options) {
     tail.current = "";
     close();
     setListening(false);
+    setStandby(false);
     setNote("");
   };
 
   useEffect(() => {
     if (!enabled || paused) {
+      wanted.current = false;
       setStandby(false);
       close();
       setListening(false);
       return;
     }
-    setStandby(true);
-    wanted.current = true;
-    if (!recRef.current && !retryTimer.current) open();
-    // resume after speaking mode or playback ends
+    setStandby(wanted.current);
+    if (wanted.current && !recRef.current) open();
+    // A stopped session stays stopped until the user explicitly starts it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, paused]);
 

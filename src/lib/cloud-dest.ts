@@ -12,17 +12,28 @@ type DestDir = FileSystemDirectoryHandle & {
 };
 
 type PickerWindow = Window & {
-  showDirectoryPicker?: (options?: { mode?: "readwrite"; id?: string }) => Promise<FileSystemDirectoryHandle>;
+  showDirectoryPicker?: (options?: {
+    mode?: "readwrite";
+    id?: string;
+  }) => Promise<FileSystemDirectoryHandle>;
   showSaveFilePicker?: (options?: {
     suggestedName?: string;
     id?: string;
     types?: { description: string; accept: Record<string, string[]> }[];
   }) => Promise<FileSystemFileHandle>;
+  showOpenFilePicker?: (options?: {
+    multiple?: boolean;
+    startIn?: FileSystemDirectoryHandle;
+    types?: { description: string; accept: Record<string, string[]> }[];
+  }) => Promise<FileSystemFileHandle[]>;
 };
 
 export type CloudPlace =
   | { ok: true; where: string; via: "folder" | "share" | "file"; fresh: boolean }
-  | { ok: false; reason: "cancel" | "preview" | "blocked" | "failed" | "permission" | "activation" };
+  | {
+      ok: false;
+      reason: "cancel" | "preview" | "blocked" | "failed" | "permission" | "activation";
+    };
 
 export function backupFileName(exportedAt: string): string {
   const stamp = exportedAt.replace(/[:T.]/g, "-");
@@ -93,12 +104,18 @@ async function allowed(dir: DestDir): Promise<boolean> {
   }
 }
 
-async function writeNamed(dir: FileSystemDirectoryHandle, name: string, json: string): Promise<void> {
+async function writeNamed(
+  dir: FileSystemDirectoryHandle,
+  name: string,
+  json: string,
+): Promise<void> {
   const file = await dir.getFileHandle(name, { create: true });
   const stream = await file.createWritable();
   try {
     await stream.write(json);
     await stream.close();
+    if ((await (await file.getFile()).text()) !== json)
+      throw new Error("Backup verification failed");
   } catch (error) {
     await stream.abort().catch(() => undefined);
     throw error;
@@ -109,9 +126,12 @@ function cancelled(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
 }
 
-async function shareFile(json: string, name: string): Promise<"shared" | "cancel" | "no"> {
+async function shareFile(
+  json: string,
+  name: string,
+): Promise<"shared" | "cancel" | "no" | "failed"> {
   if (!navigator.share) return "no";
-  for (const type of ["text/plain", "application/json"]) {
+  for (const type of ["application/json", "text/plain"]) {
     const file = new File([json], name, { type });
     if (navigator.canShare && !navigator.canShare({ files: [file] })) continue;
     try {
@@ -119,6 +139,7 @@ async function shareFile(json: string, name: string): Promise<"shared" | "cancel
       return "shared";
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return "cancel";
+      return "failed";
     }
   }
   return "no";
@@ -137,15 +158,17 @@ async function pickFolder(name: string, json: string): Promise<CloudPlace | null
     savedDir = dir;
     handleLoaded = true;
     try {
-      await writeHandle(dir);
+      void writeHandle(dir).catch(() => undefined);
     } catch {
       /* the file is already in the folder */
     }
     return { ok: true, where: dir.name, via: "folder", fresh: true };
   } catch (error) {
     if (cancelled(error)) return { ok: false, reason: "cancel" };
-    if (error instanceof DOMException && error.name === "SecurityError") return { ok: false, reason: "activation" };
-    if (error instanceof DOMException && error.name === "NotAllowedError") return { ok: false, reason: "permission" };
+    if (error instanceof DOMException && error.name === "SecurityError")
+      return { ok: false, reason: "activation" };
+    if (error instanceof DOMException && error.name === "NotAllowedError")
+      return { ok: false, reason: "permission" };
     return { ok: false, reason: "blocked" };
   }
 }
@@ -163,6 +186,8 @@ async function pickFile(name: string, json: string): Promise<CloudPlace | null> 
     try {
       await stream.write(json);
       await stream.close();
+      if ((await (await file.getFile()).text()) !== json)
+        throw new Error("Backup verification failed");
     } catch (error) {
       await stream.abort().catch(() => undefined);
       throw error;
@@ -170,13 +195,36 @@ async function pickFile(name: string, json: string): Promise<CloudPlace | null> 
     return { ok: true, where: file.name, via: "file", fresh: true };
   } catch (error) {
     if (cancelled(error)) return { ok: false, reason: "cancel" };
-    if (error instanceof DOMException && error.name === "SecurityError") return { ok: false, reason: "activation" };
-    if (error instanceof DOMException && error.name === "NotAllowedError") return { ok: false, reason: "permission" };
+    if (error instanceof DOMException && error.name === "SecurityError")
+      return { ok: false, reason: "activation" };
+    if (error instanceof DOMException && error.name === "NotAllowedError")
+      return { ok: false, reason: "permission" };
     return { ok: false, reason: "failed" };
   }
 }
 
-export async function placeInCloud(json: string, name: string, retarget: boolean): Promise<CloudPlace> {
+/** Opens a document provider on phones, or the remembered sync/NAS folder on desktop. */
+export async function openCloudFile(): Promise<File | null> {
+  const picker = pickerWindow().showOpenFilePicker;
+  if (!picker) return null;
+  const [handle] = await picker.call(window, {
+    multiple: false,
+    ...(savedDir ? { startIn: savedDir } : {}),
+    types: [
+      {
+        description: "대화 파일",
+        accept: { "application/json": [".json"], "text/plain": [".txt", ".md"] },
+      },
+    ],
+  });
+  return handle ? handle.getFile() : null;
+}
+
+export async function placeInCloud(
+  json: string,
+  name: string,
+  retarget: boolean,
+): Promise<CloudPlace> {
   if (window.parent !== window) return { ok: false, reason: "preview" };
 
   if (!retarget) {
@@ -197,6 +245,7 @@ export async function placeInCloud(json: string, name: string, retarget: boolean
     const shared = await shareFile(json, name);
     if (shared === "shared") return { ok: true, where: "", via: "share", fresh: false };
     if (shared === "cancel") return { ok: false, reason: "cancel" };
+    if (shared === "failed") return { ok: false, reason: "failed" };
   }
 
   const folder = await pickFolder(name, json);
