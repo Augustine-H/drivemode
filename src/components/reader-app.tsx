@@ -14,6 +14,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { useDropboxImport } from "@/components/dropbox-import";
 import { APP_NAME, APP_VERSION } from "@/lib/app-meta";
 import { askGrok } from "@/lib/ask-grok";
 import { streamAsk } from "@/lib/ask-stream";
@@ -914,6 +915,49 @@ export function ReaderApp() {
       setDraftNote(error instanceof Error ? error.message : "봇 대화를 가져오지 못했습니다.");
     }
   }
+
+  function syncBotBackups(backups: GrokbotBackup[]) {
+    let nextPersonas = personas;
+    let nextThreads = threads;
+    const errors: string[] = [];
+    let changed = 0;
+    for (const backup of backups) {
+      try {
+        const id = grokbotPersonaId(backup.bot);
+        const missing = !nextPersonas.some((item) => item.id === id);
+        if (missing) {
+          if (nextPersonas.length >= 12) throw new Error("페르소나는 최대 12개입니다.");
+        }
+        if (personaId === id && (reader.status === "playing" || editingId || asking)) {
+          throw new Error("읽기·수정·답변 중인 대화입니다. 끝난 뒤 다음 확인 때 가져옵니다.");
+        }
+        const current = nextThreads[id] ?? [];
+        const merged = mergeGrokbotBackup(current, backup);
+        if (missing) {
+          const item = { id, name: backup.bot, text: "", password: "", locked: false };
+          nextPersonas = [...nextPersonas, item];
+          if (
+            settingsBase.current &&
+            !settingsBase.current.personas.some((entry) => entry.id === id)
+          ) {
+            settingsBase.current.personas.push({ ...item });
+          }
+        }
+        if (JSON.stringify(current) !== JSON.stringify(merged)) {
+          nextThreads = { ...nextThreads, [id]: merged };
+          changed++;
+        }
+      } catch (error) {
+        errors.push(
+          `${backup.bot} · ${backup.date}: ${error instanceof Error ? error.message : "반영 실패"}`,
+        );
+      }
+    }
+    if (nextPersonas !== personas) setPersonas(nextPersonas);
+    if (nextThreads !== threads) setThreads(nextThreads);
+    return { changed, errors };
+  }
+  const dropboxPanel = useDropboxImport(syncBotBackups, hydrated);
 
   async function loadCloudFile() {
     try {
@@ -2008,6 +2052,7 @@ export function ReaderApp() {
             ) : sheet === "script" ? (
               <div className="flex flex-col gap-3">
                 <h2 className="text-lg font-medium text-fg">대화 불러오기</h2>
+                {dropboxPanel}
                 <p className="text-sm text-muted">
                   저장한 파일을 선택하세요. 백업을 불러오면 현재 대화와 페르소나를 바꾸기 전에
                   내용을 확인합니다. 컴퓨터에서는 연결된 동기화·NAS 폴더의 파일을, 휴대폰에서는 파일
