@@ -69,6 +69,7 @@ export function useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok }: Op
   const chunkRef = useRef(0);
   const genRef = useRef(0);
   const mountedRef = useRef(true);
+  const singleTurnRef = useRef<number | null>(null);
   const timerRef = useRef<number | null>(null);
   const sleepResolveRef = useRef<((alive: boolean) => void) | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -179,6 +180,7 @@ export function useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok }: Op
     (t: number, c: number) => {
       const next = pieceAt(turnsRef.current, t, c, onlyGrokRef.current);
       if (!next) return;
+      if (singleTurnRef.current !== null && next.t !== singleTurnRef.current) return;
       const voiceId =
         next.voice && API_VOICES.has(next.voice) ? next.voice : voiceFor(next.speaker);
       if (!API_VOICES.has(voiceId)) return;
@@ -271,8 +273,9 @@ export function useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok }: Op
     });
 
   const speakFrom = useCallback(
-    (turn: number, chunk: number) => {
+    (turn: number, chunk: number, single = false) => {
       if (typeof window === "undefined" || !mountedRef.current) return;
+      singleTurnRef.current = single ? turn : null;
       clearTimer();
       haltAudio();
       cancelDevice();
@@ -306,7 +309,7 @@ export function useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok }: Op
           }
           useGap = false;
           const piece = pieceAt(turnsRef.current, t, c, onlyGrokRef.current);
-          if (!piece) {
+          if (!piece || (singleTurnRef.current !== null && piece.t !== singleTurnRef.current)) {
             setPos(turnsRef.current.length, 0);
             setPreparing(false);
             setStatusBoth("idle");
@@ -366,6 +369,12 @@ export function useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok }: Op
           }
 
           const follow = pieceAt(turnsRef.current, t, c + 1, onlyGrokRef.current);
+          if (singleTurnRef.current !== null && (!follow || follow.t !== singleTurnRef.current)) {
+            setPos(t, 0);
+            setPreparing(false);
+            setStatusBoth("idle");
+            return;
+          }
           if (!follow) {
             setPos(turnsRef.current.length, 0);
             setPreparing(false);
@@ -400,7 +409,7 @@ export function useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok }: Op
     const prev = rateRef.current;
     rateRef.current = rate;
     if (prev !== rate && statusRef.current === "playing") {
-      speakFrom(turnRef.current, chunkRef.current);
+      speakFrom(turnRef.current, chunkRef.current, singleTurnRef.current !== null);
     }
   }, [rate, speakFrom]);
 
@@ -413,7 +422,7 @@ export function useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok }: Op
     voiceMeRef.current = voiceMe;
     voiceGrokRef.current = voiceGrok;
     if (changed && statusRef.current === "playing") {
-      speakFrom(turnRef.current, chunkRef.current);
+      speakFrom(turnRef.current, chunkRef.current, singleTurnRef.current !== null);
     }
   }, [voiceMe, voiceGrok, speakFrom]);
 
@@ -462,7 +471,7 @@ export function useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok }: Op
       t = 0;
       c = 0;
     }
-    speakFrom(t, c);
+    speakFrom(t, c, statusRef.current === "paused" && singleTurnRef.current === t);
   }, [speakFrom]);
 
   const toggle = useCallback(() => {
@@ -530,6 +539,13 @@ export function useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok }: Op
     },
     [speakFrom],
   );
+  const playOne = useCallback(
+    (t: number) => {
+      const resume = statusRef.current === "paused" && turnRef.current === t;
+      speakFrom(t, resume ? chunkRef.current : 0, true);
+    },
+    [speakFrom],
+  );
 
   return {
     status,
@@ -545,6 +561,7 @@ export function useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok }: Op
     next,
     prev,
     jump,
+    playOne,
     seek,
     playFrom,
     prime,

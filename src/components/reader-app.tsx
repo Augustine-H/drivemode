@@ -83,6 +83,7 @@ type Saved = {
   voiceGrok: string;
   autoScroll: boolean;
   onlyGrok: boolean;
+  voiceOnly?: boolean;
   autoReply: boolean;
   silence: number;
   wakeOn: boolean;
@@ -102,6 +103,7 @@ type SettingsSnap = {
   voiceGrok: string;
   autoScroll: boolean;
   onlyGrok: boolean;
+  voiceOnly: boolean;
   autoReply: boolean;
   silence: number;
   wakeOn: boolean;
@@ -247,6 +249,7 @@ export function ReaderApp() {
   const [voiceGrok, setVoiceGrok] = useState("ara");
   const [autoScroll, setAutoScroll] = useState(true);
   const [onlyGrok, setOnlyGrok] = useState(true);
+  const [voiceOnly, setVoiceOnly] = useState(true);
   const [autoReply, setAutoReply] = useState(true);
   const [silence, setSilence] = useState(2);
   const [wakeOn, setWakeOn] = useState(false);
@@ -407,6 +410,7 @@ export function ReaderApp() {
       }
       if (typeof saved.autoScroll === "boolean") setAutoScroll(saved.autoScroll);
       if (typeof saved.onlyGrok === "boolean") setOnlyGrok(saved.onlyGrok);
+      if (typeof saved.voiceOnly === "boolean") setVoiceOnly(saved.voiceOnly);
       if (typeof saved.autoReply === "boolean") setAutoReply(saved.autoReply);
       if (typeof saved.silence === "number") setSilence(clamp(saved.silence, 1, 5));
       // Microphone sessions require an explicit action each time the app opens.
@@ -567,6 +571,7 @@ export function ReaderApp() {
       voiceGrok,
       autoScroll,
       onlyGrok,
+      voiceOnly,
       autoReply,
       silence,
       wakeOn,
@@ -589,6 +594,7 @@ export function ReaderApp() {
     voiceGrok,
     autoScroll,
     onlyGrok,
+    voiceOnly,
     autoReply,
     silence,
     wakeOn,
@@ -667,7 +673,9 @@ export function ReaderApp() {
               ? `「${wakeCall[0] ?? personaName}」라고 부르면 말하기가 켜집니다`
               : reader.status === "idle" && reader.turnIndex >= turns.length
                 ? "끝까지 읽었습니다. 재생하면 처음부터 다시 시작합니다."
-                : activeChunks[reader.chunkIndex] ||
+                : (voiceOnly && active?.speaker === "grok"
+                    ? `${active.personaName || personaName || "그록"}의 음성 메시지`
+                    : activeChunks[reader.chunkIndex]) ||
                   (reader.status === "playing"
                     ? "다음 말로 넘어가는 중"
                     : "재생하면 그록의 말을 끝까지 읽습니다.");
@@ -1420,6 +1428,7 @@ export function ReaderApp() {
       voiceGrok,
       autoScroll,
       onlyGrok,
+      voiceOnly,
       autoReply,
       silence,
       wakeOn,
@@ -1450,6 +1459,7 @@ export function ReaderApp() {
     setVoiceGrok(snap.voiceGrok);
     setAutoScroll(snap.autoScroll);
     setOnlyGrok(snap.onlyGrok);
+    setVoiceOnly(snap.voiceOnly);
     setAutoReply(snap.autoReply);
     setSilence(snap.silence);
     setWakeOn(false);
@@ -1474,6 +1484,7 @@ export function ReaderApp() {
     setVoiceGrok("ara");
     setAutoScroll(true);
     setOnlyGrok(true);
+    setVoiceOnly(true);
     setAutoReply(true);
     setSilence(2);
     setWakeOn(false);
@@ -2072,7 +2083,8 @@ export function ReaderApp() {
                               }
                               onClick={(e) => {
                                 e.stopPropagation();
-                                reader.jump(index);
+                                if (voiceOnly && !mine) reader.playOne(index);
+                                else reader.jump(index);
                               }}
                             >
                               {playing && reader.status === "playing" && !reader.preparing ? (
@@ -2089,6 +2101,7 @@ export function ReaderApp() {
                               <button
                                 type="button"
                                 aria-label="이 말 수정"
+                                hidden={voiceOnly && !mine}
                                 className={
                                   "inline-flex size-9 items-center justify-center rounded-full " +
                                   (mine ? "text-ink/80" : "text-muted")
@@ -2116,7 +2129,44 @@ export function ReaderApp() {
                               </button>
                             </span>
                           </div>
-                          {editingId === turn.id ? (
+                          {voiceOnly && !mine ? (
+                            <div className="space-y-2">
+                              <button
+                                type="button"
+                                aria-label={`${turn.personaName || personaName || "그록"} 음성 메시지 ${index + 1} ${playing && reader.status === "playing" ? "일시정지" : "재생"}`}
+                                disabled={!reader.supported || !turn.text.trim()}
+                                className="flex min-h-12 w-full items-center gap-3 rounded-full border border-line bg-surface px-4 text-left text-sm"
+                                onClick={() => {
+                                  reader.prime();
+                                  if (playing && reader.status === "playing") reader.pause();
+                                  else reader.playOne(index);
+                                }}
+                              >
+                                {playing && reader.status === "playing" ? (
+                                  <Pause className="size-5 shrink-0" aria-hidden="true" />
+                                ) : (
+                                  <Play className="size-5 shrink-0" aria-hidden="true" />
+                                )}
+                                <span className="flex-1">
+                                  {playing && reader.preparing
+                                    ? "음성 준비 중"
+                                    : playing && reader.status === "playing"
+                                      ? "음성 재생 중"
+                                      : playing && reader.status === "paused"
+                                        ? "음성 메시지 이어 듣기"
+                                        : "음성 메시지 재생"}
+                                </span>
+                                <span className="shrink-0 text-xs text-muted">
+                                  {formatDuration(readingSeconds([turn], rate))}
+                                </span>
+                              </button>
+                              {playing && reader.error ? (
+                                <p role="status" className="text-xs text-muted">
+                                  {reader.error} 재생 버튼으로 다시 시도하세요.
+                                </p>
+                              ) : null}
+                            </div>
+                          ) : editingId === turn.id ? (
                             <textarea
                               value={turn.text}
                               onChange={(e) => updateTurn(turn.id, e.target.value)}
@@ -2167,7 +2217,7 @@ export function ReaderApp() {
                           ) : turn.image ? (
                             <img
                               src={turn.image}
-                              alt={turn.text}
+                              alt={voiceOnly && !mine ? "페르소나가 보낸 이미지" : turn.text}
                               className="mt-3 w-full rounded-2xl bg-bg"
                             />
                           ) : null}
@@ -3056,6 +3106,21 @@ export function ReaderApp() {
                   {wakeOn && !wake.listening
                     ? " 브라우저가 듣기를 끝내면 자동으로 다시 켜지 않습니다. 다시 듣고 싶으면 스위치를 껐다 켜 주세요."
                     : ""}
+                </p>
+                <label className="flex min-h-11 items-center justify-between gap-3 text-sm text-fg">
+                  페르소나 답변은 글자 없이 음성 메시지로 표시
+                  <input
+                    type="checkbox"
+                    checked={voiceOnly}
+                    onChange={(event) => setVoiceOnly(event.target.checked)}
+                    className="size-5 accent-primary"
+                  />
+                </label>
+                <p className="text-sm text-muted">
+                  켜면 답변 글자는 채팅창과 재생 표시줄에 나오지 않습니다. 음성 버튼으로 해당
+                  메시지만 듣고 일시정지·다시 재생할 수 있습니다. 답변 원문은 대화 기억과 백업을
+                  위해 내부에 보관합니다. 음성 생성에는 API가 사용되며, API 음성을 사용할 수 없으면
+                  기기 기본 음성으로 읽습니다.
                 </p>
                 <label className="flex items-center justify-between gap-3 text-sm text-fg">
                   그록이 한 말만 읽기
