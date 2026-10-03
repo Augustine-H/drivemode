@@ -222,6 +222,10 @@ export class DropboxClient {
       .filter(
         (entry) =>
           entry[".tag"] === "file" &&
+          !entry.path_lower
+            ?.slice(normalized.length + 1)
+            .split("/")
+            .includes("_meta") &&
           (entry.name.toLowerCase().endsWith(".json") || isMemoryFile(entry.name)),
       )
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -251,7 +255,12 @@ export class DropboxClient {
           throw new Error("파일이 10MB를 넘습니다.");
         const parts = file.path_lower.split("/");
         const location = parts.at(-2)!;
-        const category = location === "templates" || location === "memories" ? location : null;
+        const category =
+          location === "template" || location === "templates"
+            ? "templates"
+            : location === "memories"
+              ? "memories"
+              : null;
         const parent = parts.at(category ? -3 : -2)!;
         const botName = (file.path_display ?? file.path_lower).split("/").at(category ? -3 : -2)!;
         const source = `${parent}/${file.name}`;

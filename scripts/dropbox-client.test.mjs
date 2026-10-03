@@ -206,7 +206,7 @@ test("timestamped summaries are retained and only the latest template is applied
         entries: names.map((name) => ({
           ...entry,
           name,
-          path_lower: `/grok/grokbot/아라/${name.endsWith(".md") ? "memories" : "templates"}/${name}`,
+          path_lower: `/grok/grokbot/아라/${name.endsWith(".md") ? "memories" : "template"}/${name}`,
         })),
         has_more: false,
       });
@@ -220,4 +220,41 @@ test("timestamped summaries are retained and only the latest template is applied
   const templates = result.assets.filter((asset) => asset.kind === "template");
   assert.equal(templates.length, 1);
   assert.match(templates[0].content, /최신 말투/);
+});
+
+test("metadata archives are excluded before download and plural template folders still work", async () => {
+  const files = [
+    {
+      ...entry,
+      name: "skill.json",
+      path_lower: "/grok/grokbot/_meta/templates/2026-10-03/shared/skill.json",
+    },
+    {
+      ...entry,
+      name: "아라.json",
+      path_lower: "/grok/grokbot/_meta/templates/2026-10-03/아라.json",
+    },
+    {
+      ...entry,
+      name: "2026-10-03_23-00-00_아라_template.json",
+      path_lower: "/grok/grokbot/아라/templates/2026-10-03_23-00-00_아라_template.json",
+    },
+  ];
+  let downloads = 0;
+  const { client } = await setup((url, options) => {
+    if (url.endsWith("/list_folder")) return json({ entries: files, has_more: false });
+    const path = JSON.parse(options.headers["Dropbox-API-Arg"]).path;
+    assert.ok(!path.includes("/_meta/"));
+    downloads++;
+    return json({
+      format: "grokbot-persona-template-backup",
+      profile: { name: "아라", description: "친절함" },
+      skills: [{ name: "경청", body: "먼저 듣는다" }],
+    });
+  });
+  const result = await client.backups("/Grok/grokbot");
+  assert.equal(downloads, 1);
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.assets[0].bot, "아라");
+  assert.match(result.assets[0].content, /먼저 듣는다/);
 });
