@@ -127,7 +127,7 @@ export const Route = createFileRoute("/api/ask")({
         const message = String(body.message ?? "")
           .replace(/\s+/g, " ")
           .trim()
-          .slice(0, 500);
+          .slice(0, 6000);
         if (!message) return Response.json({ error: "물어볼 말이 없습니다." }, { status: 400 });
         const history = askTurns(
           (Array.isArray(body.history) ? body.history : []).map((item) => {

@@ -14,6 +14,8 @@ import { DEFAULT_PERSONAS, migrateDefaultPersonas } from "@/lib/default-personas
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useVoiceBackup } from "@/components/use-voice-backup";
 import { AppSecuritySettings } from "@/components/app-security";
+import { VoiceMailBox } from "@/components/voice-mail";
+import { deleteVoiceMails } from "@/lib/voice-mail";
 import {
   conversationEnded,
   deleteConversationCommand,
@@ -266,6 +268,8 @@ export function ReaderApp() {
   const [groupSetup, setGroupSetup] = useState(false);
   const [groupDraft, setGroupDraft] = useState<string[]>([]);
   const [deleteAllStage, setDeleteAllStage] = useState<0 | 1 | 2>(0);
+  const [mailboxOpen, setMailboxOpen] = useState(false);
+  const [deletingChats, setDeletingChats] = useState(false);
   const [deleteChat, setDeleteChat] = useState<{ id: string; name: string } | null>(null);
   useEffect(() => {
     const selected = personas.find((item) => item.id === personaId);
@@ -346,6 +350,8 @@ export function ReaderApp() {
   const wake = useWake({
     enabled: wakeOn && hydrated,
     paused:
+      mailboxOpen ||
+      deletingChats ||
       deleteAllStage !== 0 ||
       dictation.armed ||
       asking ||
@@ -361,7 +367,7 @@ export function ReaderApp() {
     personas,
     threads,
     hydrated,
-    asking || painting || filming,
+    asking || painting || filming || deletingChats,
     (id, content) => {
       const update = (items: PersonaItem[]) =>
         items.map((item) =>
@@ -1222,11 +1228,11 @@ export function ReaderApp() {
     }
   }
 
-  async function ask(spoken?: string, target?: string) {
-    if (deleteAllStage) return;
+  async function ask(spoken?: string, target?: string, fromMail = false) {
+    if (deleteAllStage || deletingChats) return;
     let text = (spoken ?? composer).trim();
     if (!text || busyRef.current) return;
-    const hit = takePersonaWake(text, personas);
+    const hit = fromMail ? null : takePersonaWake(text, personas);
     if (hit && !target) {
       target = hit.id;
       selectPersona(target);
@@ -1238,7 +1244,7 @@ export function ReaderApp() {
     }
     const id = target ?? personaIdRef.current;
     const active = personas.find((item) => item.id === id);
-    if (deleteChat) {
+    if (!fromMail && deleteChat) {
       if (
         /^(응|네|예|그래|확인|삭제해|모두삭제|전체삭제|정말모두삭제)[.!]*$/.test(
           text.replace(/\s+/g, ""),
@@ -1255,12 +1261,12 @@ export function ReaderApp() {
       setBanner("전체 대화를 삭제하려면 삭제 확인을 누르거나 '모두 삭제'라고 말하세요.");
       return;
     }
-    if (deleteConversationCommand(text)) {
+    if (!fromMail && deleteConversationCommand(text)) {
       if (active) setDeleteChat({ id, name: active.name });
       setComposer("");
       return;
     }
-    const relay = relayCommand(text, personas);
+    const relay = fromMail ? null : relayCommand(text, personas);
     if (relay) {
       const sender = active?.name ?? personaName;
       selectPersona(relay.id);
@@ -1273,11 +1279,11 @@ export function ReaderApp() {
       return;
     }
     const finishBackup = conversationEnded(text);
-    if (wantsVideo(text)) {
+    if (!fromMail && wantsVideo(text)) {
       await film(text);
       return;
     }
-    if (wantsImage(text)) {
+    if (!fromMail && wantsImage(text)) {
       await paint(text);
       return;
     }
@@ -1510,11 +1516,23 @@ export function ReaderApp() {
     setEditingId(null);
   }
 
-  function confirmDeleteChat() {
-    if (!deleteChat) return;
+  async function confirmDeleteChat() {
+    if (!deleteChat || busyRef.current || voiceBackup.saving) return;
     const id = deleteChat.id;
     reader.stop();
     dictation.stop();
+    busyRef.current = true;
+    setDeletingChats(true);
+    try {
+      await deleteVoiceMails(id);
+    } catch {
+      setBanner(
+        "음성 메일 삭제에 실패했습니다. 대화를 삭제하지 않았습니다. 저장소를 확인하고 다시 시도하세요.",
+      );
+      busyRef.current = false;
+      setDeletingChats(false);
+      return;
+    }
     voiceBackup.forget(id);
     setThreads((prev) =>
       Object.fromEntries(
@@ -1568,8 +1586,10 @@ export function ReaderApp() {
     setEditingId(null);
     setComposer("");
     setBanner(
-      `${deleteChat.name}의 전체 대화를 삭제했습니다. Dropbox에 이미 저장된 파일은 유지됩니다.`,
+      `${deleteChat.name}의 전체 대화와 보이스 메일을 삭제했습니다. Dropbox에 이미 저장된 파일은 유지됩니다.`,
     );
+    busyRef.current = false;
+    setDeletingChats(false);
   }
 
   async function askGroup(text: string, room: string) {
@@ -1674,10 +1694,30 @@ export function ReaderApp() {
     );
   }
 
-  function confirmDeleteAll() {
-    if (deleteAllStage !== 2 || asking || painting || filming || voiceBackup.saving) return;
+  async function confirmDeleteAll() {
+    if (
+      deleteAllStage !== 2 ||
+      busyRef.current ||
+      asking ||
+      painting ||
+      filming ||
+      voiceBackup.saving
+    )
+      return;
     reader.stop();
     dictation.stop();
+    busyRef.current = true;
+    setDeletingChats(true);
+    try {
+      await deleteVoiceMails();
+    } catch {
+      setBanner(
+        "보이스 메일 삭제에 실패했습니다. 대화를 삭제하지 않았습니다. 저장소를 확인하고 다시 시도하세요.",
+      );
+      busyRef.current = false;
+      setDeletingChats(false);
+      return;
+    }
     for (const item of personas) voiceBackup.forget(item.id);
     const clean = personas.map((item) => ({
       ...item,
@@ -1705,11 +1745,13 @@ export function ReaderApp() {
       }
       localStorage.removeItem("voice-grok-summary-receipts");
       setBanner(
-        "이 기기의 모든 페르소나·단체 대화를 삭제했습니다. Dropbox 파일과 외부 기억은 유지됩니다.",
+        "이 기기의 모든 페르소나·단체 대화와 보이스 메일을 삭제했습니다. Dropbox 파일과 외부 기억은 유지됩니다.",
       );
     } catch {
       setBanner("화면의 대화는 삭제했지만 기기 백업 갱신에 실패했습니다. 저장소를 확인하세요.");
     }
+    busyRef.current = false;
+    setDeletingChats(false);
   }
 
   const selectedPersona = personas.find((item) => item.id === personaId) ?? personas[0];
@@ -1759,8 +1801,8 @@ export function ReaderApp() {
     setEraseStep(1);
   }
 
-  function finishDelete() {
-    if (!selectedPersona || selectedPersona.locked) return;
+  async function finishDelete() {
+    if (!selectedPersona || selectedPersona.locked || busyRef.current) return;
     if (erasePassword.trim() !== selectedPersona.password.trim()) {
       setBanner("비밀번호가 맞지 않아 지우지 않았습니다.");
       return;
@@ -1768,6 +1810,16 @@ export function ReaderApp() {
     const next = personas.filter((item) => item.id !== selectedPersona.id);
     const fallback = next[0];
     if (!fallback) return;
+    busyRef.current = true;
+    setDeletingChats(true);
+    try {
+      await deleteVoiceMails(selectedPersona.id);
+    } catch {
+      setBanner("보이스 메일 삭제에 실패해 페르소나를 삭제하지 않았습니다.");
+      busyRef.current = false;
+      setDeletingChats(false);
+      return;
+    }
     setPersonas(next);
     setThreads((prev) => {
       const copy = { ...prev };
@@ -1779,6 +1831,8 @@ export function ReaderApp() {
     setEraseStep(0);
     setErasePassword("");
     setBanner(null);
+    busyRef.current = false;
+    setDeletingChats(false);
   }
 
   async function previewVoice(id: string) {
@@ -1908,6 +1962,18 @@ export function ReaderApp() {
       </header>
 
       <div className="flex flex-wrap gap-2 px-4 pb-2">
+        <button
+          type="button"
+          disabled={asking || painting || filming || deletingChats}
+          onClick={() => {
+            reader.stop();
+            dictation.stop();
+            setMailboxOpen(true);
+          }}
+          className="min-h-11 rounded-full border border-line px-3 text-sm text-fg"
+        >
+          보이스 메일
+        </button>
         <button
           type="button"
           disabled={asking}
@@ -3039,15 +3105,15 @@ export function ReaderApp() {
                 </p>
                 <AppSecuritySettings />
                 <section className="space-y-3 rounded-2xl border border-line p-4">
-                  <h3>모든 대화 삭제</h3>
+                  <h3>모든 대화·보이스 메일 삭제</h3>
                   <p className="text-sm text-muted">
-                    이 기기의 모든 페르소나와 단체 대화, 기기 내부 대화 백업을 삭제합니다. 두 번
-                    확인한 뒤 실행하며 되돌릴 수 없습니다. 템플릿·외부 기억·Dropbox 파일은
-                    유지합니다.
+                    이 기기의 모든 페르소나와 단체 대화, 보이스 메일, 기기 내부 대화 백업을
+                    삭제합니다. 두 번 확인한 뒤 실행하며 되돌릴 수 없습니다. 템플릿·외부
+                    기억·Dropbox 파일은 유지합니다.
                   </p>
                   <button
                     type="button"
-                    disabled={asking || painting || filming || voiceBackup.saving}
+                    disabled={asking || painting || filming || voiceBackup.saving || deletingChats}
                     className="min-h-11 w-full rounded-full border border-line text-fg"
                     onClick={() => {
                       reader.stop();
@@ -3085,6 +3151,19 @@ export function ReaderApp() {
             )}
           </div>
         </div>
+      ) : null}
+      {mailboxOpen ? (
+        <VoiceMailBox
+          personas={personas}
+          initialId={personaId}
+          threads={threads}
+          onClose={() => setMailboxOpen(false)}
+          onReply={(text, id) => {
+            setMailboxOpen(false);
+            selectPersona(id);
+            void ask(`보이스 메일로 남긴 메시지에 답해줘: ${text}`, id, true);
+          }}
+        />
       ) : null}
       {groupSetup ? (
         <div
@@ -3149,8 +3228,8 @@ export function ReaderApp() {
                 : "최종 경고: 모든 대화를 정말 삭제할까요? (2/2)"}
             </h2>
             <p className="text-sm text-muted">
-              모든 페르소나·단체 대화와 이 기기의 대화 백업, 앱이 만든 요약 기억이 삭제됩니다.
-              되돌릴 수 없습니다. Dropbox 파일·외부 기억·템플릿은 유지합니다.
+              모든 페르소나·단체 대화, 보이스 메일과 이 기기의 대화 백업, 앱이 만든 요약 기억이
+              삭제됩니다. 되돌릴 수 없습니다. Dropbox 파일·외부 기억·템플릿은 유지합니다.
             </p>
             <div className="flex gap-2">
               <button
@@ -3162,7 +3241,10 @@ export function ReaderApp() {
               </button>
               <button
                 className="min-h-11 flex-1 rounded-full bg-primary text-ink"
-                onClick={() => (deleteAllStage === 1 ? setDeleteAllStage(2) : confirmDeleteAll())}
+                disabled={deletingChats}
+                onClick={() =>
+                  deleteAllStage === 1 ? setDeleteAllStage(2) : void confirmDeleteAll()
+                }
               >
                 {deleteAllStage === 1 ? "다음 경고 확인" : "모든 대화 영구 삭제"}
               </button>
@@ -3180,8 +3262,8 @@ export function ReaderApp() {
           <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-5 text-fg">
             <h2 className="text-lg">{deleteChat.name}의 대화를 정말 모두 삭제할까요?</h2>
             <p className="my-3 text-sm text-muted">
-              이 기기의 전체 대화와 앱에서 만든 요약 기억을 삭제합니다. 성격 템플릿과 외부에서
-              불러온 기억, Dropbox 파일은 유지합니다. 삭제 후 되돌릴 수 없습니다.
+              이 기기의 전체 대화와 보이스 메일, 앱에서 만든 요약 기억을 삭제합니다. 성격 템플릿과
+              외부에서 불러온 기억, Dropbox 파일은 유지합니다. 삭제 후 되돌릴 수 없습니다.
             </p>
             <p className="mb-3 text-sm text-muted">
               음성 확인은 마이크를 누르고 “모두 삭제” 또는 “취소”라고 말하세요.
@@ -3204,6 +3286,7 @@ export function ReaderApp() {
               </button>
             </div>
             <button
+              disabled={deletingChats}
               className="min-h-11 w-full rounded-full bg-primary text-ink"
               onClick={confirmDeleteChat}
             >

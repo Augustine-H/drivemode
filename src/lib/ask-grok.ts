@@ -51,7 +51,7 @@ export const askGrok = createServerFn({ method: "POST" })
       const message = String(input?.message ?? "")
         .replace(/\s+/g, " ")
         .trim()
-        .slice(0, 500);
+        .slice(0, 6000);
       const history = Array.isArray(input?.history)
         ? input.history.map((item) => ({
             role: item?.role === "assistant" ? ("assistant" as const) : ("user" as const),
