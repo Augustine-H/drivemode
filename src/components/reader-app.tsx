@@ -2127,9 +2127,10 @@ export function ReaderApp() {
                 <details className="rounded-2xl border border-line bg-bg p-3 text-sm text-muted">
                   <summary className="min-h-11 text-fg">요약 기억·성격 템플릿 파일 형식</summary>
                   <p className="mb-2">
-                    MD는 2026-10-03_23-00-00_아라_summary.md처럼 저장하세요. bot은 페르소나 이름과
-                    맞춥니다. 요약은 기존 기억까지 합친 누적 요약으로 memory.md 하나를 갱신하는
-                    방식이 간단합니다.
+                    요약 MD는 봇 폴더의 memories 안에, 템플릿 JSON은 templates 안에 저장하세요.
+                    파일명은 2026-10-03_23-00-00_아라_summary.md와
+                    2026-10-03_23-00-00_아라_template.json처럼 날짜·시·분·초를 넣습니다. bot은
+                    페르소나 이름과 맞춥니다.
                   </p>
                   <pre className="overflow-auto whitespace-pre-wrap break-words">
                     {

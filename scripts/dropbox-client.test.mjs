@@ -206,7 +206,7 @@ test("timestamped summaries are retained and only the latest template is applied
         entries: names.map((name) => ({
           ...entry,
           name,
-          path_lower: `/grok/grokbot/아라/${name}`,
+          path_lower: `/grok/grokbot/아라/${name.endsWith(".md") ? "memories" : "templates"}/${name}`,
         })),
         has_more: false,
       });

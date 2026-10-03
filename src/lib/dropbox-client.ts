@@ -249,13 +249,18 @@ export class DropboxClient {
         const text = await response.text();
         if (new TextEncoder().encode(text).length > 10 * 1024 * 1024)
           throw new Error("파일이 10MB를 넘습니다.");
-        const parent = file.path_lower.split("/").at(-2)!;
-        const botName = (file.path_display ?? file.path_lower).split("/").at(-2)!;
+        const parts = file.path_lower.split("/");
+        const location = parts.at(-2)!;
+        const category = location === "templates" || location === "memories" ? location : null;
+        const parent = parts.at(category ? -3 : -2)!;
+        const botName = (file.path_display ?? file.path_lower).split("/").at(category ? -3 : -2)!;
         const source = `${parent}/${file.name}`;
         const asset = file.name.toLowerCase().endsWith(".md")
           ? parsePersonaMarkdown(text, source, botName)
           : parsePersonaTemplate(JSON.parse(text), source);
         if (asset) {
+          if (category && category !== (asset.kind === "template" ? "templates" : "memories"))
+            throw new Error("템플릿은 templates 폴더, 요약 기억은 memories 폴더에 넣으세요.");
           if (asset.bot.toLowerCase() !== parent)
             throw new Error("폴더 이름과 봇 이름이 다릅니다.");
           if (asset.kind === "template") {
@@ -275,6 +280,7 @@ export class DropboxClient {
           continue;
         }
         const backup = parseGrokbotBackup(JSON.parse(text));
+        if (category) throw new Error("대화 원본 JSON은 봇 폴더에 넣으세요.");
         if (!backup) throw new Error("지원하는 봇 JSON 형식이 아닙니다.");
         if (parent !== backup.bot.toLowerCase()) throw new Error("폴더 이름과 봇 이름이 다릅니다.");
         if (seen.has(backup.source)) {

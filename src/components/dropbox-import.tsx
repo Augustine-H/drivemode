@@ -138,10 +138,12 @@ export function useDropboxImport(
         />
       </label>
       <p className="text-sm text-muted">
-        하위 폴더 이름은 봇 이름입니다. 템플릿: 2026-10-03_23-00-00_아라_template.json · 요약 기억:
-        2026-10-03_23-00-00_아라_summary.md. 시간은 백업한 시각이며 템플릿은 가장 최근 파일을
-        적용합니다.
+        봇 폴더 안에서 저장 위치를 구분하세요. 템플릿은 templates, 요약 기억은 memories에 넣습니다.
+        시간은 백업한 시각이며 템플릿은 가장 최근 파일을 적용합니다.
       </p>
+      <pre className="overflow-auto whitespace-pre-wrap break-words text-sm text-muted">
+        {`${root}/아라/\n  templates/2026-10-03_23-00-00_아라_template.json\n  memories/2026-10-03_23-00-00_아라_summary.md`}
+      </pre>
       {connected ? (
         <>
           <label className="flex min-h-11 items-center justify-between gap-3 text-sm text-fg">
