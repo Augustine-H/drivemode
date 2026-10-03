@@ -10,6 +10,7 @@ import {
   type PersonaKnowledge,
   type PersonaAsset,
 } from "@/lib/persona-memory";
+import { DEFAULT_PERSONAS, migrateDefaultPersonas } from "@/lib/default-personas";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeftRight,
@@ -106,30 +107,7 @@ type PersonaItem = PersonaKnowledge & {
   locked: boolean;
 };
 
-const STARTER_PERSONAS: PersonaItem[] = [
-  { id: "plain", name: "기본", text: "", password: "", locked: true },
-  {
-    id: "friend",
-    name: "친구",
-    text: "오래된 친구처럼 편하게 반말로 말한다.",
-    password: "",
-    locked: true,
-  },
-  {
-    id: "aide",
-    name: "비서",
-    text: "차분한 비서처럼 필요한 것만 또박또박 말한다.",
-    password: "",
-    locked: true,
-  },
-  {
-    id: "teacher",
-    name: "선생님",
-    text: "친절한 선생님처럼 쉽게 풀어서 말한다.",
-    password: "",
-    locked: true,
-  },
-];
+const STARTER_PERSONAS: PersonaItem[] = DEFAULT_PERSONAS;
 
 function turnTime(turn: Turn) {
   if (typeof turn.at === "number") return turn.at;
@@ -262,7 +240,7 @@ export function ReaderApp() {
   const [silence, setSilence] = useState(2);
   const [wakeOn, setWakeOn] = useState(false);
   const [persona, setPersona] = useState("");
-  const [personaId, setPersonaId] = useState("plain");
+  const [personaId, setPersonaId] = useState(STARTER_PERSONAS[0].id);
   const personaIdRef = useRef(personaId);
   personaIdRef.current = personaId;
   const turns = threads[personaId] ?? [];
@@ -401,8 +379,10 @@ export function ReaderApp() {
             ...cleanPersonaKnowledge(item),
           }));
         if (next.length > 0) {
-          setPersonas(next);
-          const picked = next.find((item) => item.id === saved.personaId) ?? next[0];
+          const migrated = migrateDefaultPersonas(next, loaded ?? {}, saved.personaId);
+          setPersonas(migrated.personas);
+          setThreads(migrated.threads);
+          const picked = migrated.personas.find((item) => item.id === migrated.personaId)!;
           setPersonaId(picked.id);
           setPersona(picked.text.slice(0, 240));
         }
@@ -672,6 +652,10 @@ export function ReaderApp() {
   }
 
   function restoreBackup(backup: NangdokBackup) {
+    backup = {
+      ...backup,
+      ...migrateDefaultPersonas(backup.personas, backup.threads, backup.personaId),
+    };
     const picked =
       backup.personas.find((item) => item.id === backup.personaId) ?? backup.personas[0];
     reader.stop();
@@ -1360,7 +1344,7 @@ export function ReaderApp() {
     setSilence(2);
     setWakeOn(false);
     wake.halt();
-    const plain = personas.find((item) => item.id === "plain") ?? STARTER_PERSONAS[0];
+    const plain = personas.find((item) => item.name === "아라") ?? STARTER_PERSONAS[0];
     setPersonaId(plain.id);
     setPersona(plain.text);
   }

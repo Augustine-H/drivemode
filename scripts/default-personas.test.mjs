@@ -1,0 +1,36 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { DEFAULT_PERSONAS, migrateDefaultPersonas } from "../src/lib/default-personas.ts";
+test("defaults replace old personas and preserve an existing Ara and conversations", () => {
+  const ara = {
+    id: "custom-ara",
+    name: "아라",
+    text: "말투",
+    password: "",
+    locked: false,
+    template: "기존 설정",
+    memories: [{ source: "memory.md", content: "기억" }],
+  };
+  const old = { id: "plain", name: "기본", text: "", password: "", locked: true };
+  const result = migrateDefaultPersonas(
+    [old, ara],
+    { plain: [{ id: "old" }], "custom-ara": [{ id: "current" }] },
+    "plain",
+  );
+  assert.deepEqual(
+    result.personas.map((item) => item.name),
+    ["아라", "서연", "혜정", "나경", "알리나"],
+  );
+  assert.equal(result.personas[0], ara);
+  assert.equal(result.personaId, ara.id);
+  assert.deepEqual(
+    result.threads[ara.id].map((turn) => turn.id),
+    ["current", "old"],
+  );
+  assert.equal(result.threads.plain, undefined);
+  assert.deepEqual(
+    migrateDefaultPersonas(result.personas, result.threads, result.personaId),
+    result,
+  );
+  assert.equal(DEFAULT_PERSONAS.length, 5);
+});
