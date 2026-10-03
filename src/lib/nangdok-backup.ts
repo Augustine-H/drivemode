@@ -76,6 +76,9 @@ export function parseNangdokBackup(value: unknown): NangdokBackup | null {
     .slice(0, 12)
     .map((item) => ({
       ...item,
+      photo: undefined,
+      showBackground: undefined,
+      showAvatar: undefined,
       template: undefined,
       memories: undefined,
       ...cleanPersonaKnowledge(item),

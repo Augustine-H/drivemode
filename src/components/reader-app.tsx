@@ -10,6 +10,8 @@ import {
   type PersonaKnowledge,
   type PersonaAsset,
 } from "@/lib/persona-memory";
+import { getDropboxClient } from "@/lib/dropbox-client";
+import { profileImage, personaColor } from "@/lib/persona-profile";
 import { DEFAULT_PERSONAS, migrateDefaultPersonas } from "@/lib/default-personas";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useVoiceBackup } from "@/components/use-voice-backup";
@@ -421,6 +423,9 @@ export function ReaderApp() {
           .slice(0, 12)
           .map((item) => ({
             ...item,
+            photo: undefined,
+            showBackground: undefined,
+            showAvatar: undefined,
             template: undefined,
             memories: undefined,
             ...cleanPersonaKnowledge(item),
@@ -647,13 +652,18 @@ export function ReaderApp() {
       if (e.key === " ") {
         e.preventDefault();
         reader.prime();
-        reader.toggle();
+        if (reader.status === "playing") reader.pause();
+        else {
+          let index = turns.length - 1;
+          while (index >= 0 && turns[index].speaker !== "grok") index--;
+          if (index >= 0) reader.playOne(index);
+        }
       } else if (e.key === "ArrowRight") reader.next();
       else if (e.key === "ArrowLeft") reader.prev();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [reader]);
+  }, [reader, turns]);
 
   const parsedDraft = useMemo(() => parseTranscript(draft, "preview"), [draft]);
   const duration = formatDuration(readingSeconds(turns, rate));
@@ -672,7 +682,7 @@ export function ReaderApp() {
             : wake.standby
               ? `「${wakeCall[0] ?? personaName}」라고 부르면 말하기가 켜집니다`
               : reader.status === "idle" && reader.turnIndex >= turns.length
-                ? "끝까지 읽었습니다. 재생하면 처음부터 다시 시작합니다."
+                ? "재생하면 마지막 페르소나 답변을 다시 듣습니다."
                 : (voiceOnly && active?.speaker === "grok"
                     ? `${active.personaName || personaName || "그록"}의 음성 메시지`
                     : activeChunks[reader.chunkIndex]) ||
@@ -1765,9 +1775,60 @@ export function ReaderApp() {
     setDeletingChats(false);
   }
 
+  function playLatest() {
+    reader.prime();
+    if (reader.status === "playing") {
+      reader.pause();
+      return;
+    }
+    let index = turns.length - 1;
+    while (index >= 0 && turns[index].speaker !== "grok") index--;
+    if (index >= 0) reader.playOne(index);
+  }
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileNote, setProfileNote] = useState("");
+  async function setProfile(file: Blob) {
+    const id = personaId;
+    try {
+      const photo = await profileImage(file);
+      setPersonas((items) =>
+        items.map((item) => (item.id === id ? { ...item, photo, showAvatar: true } : item)),
+      );
+      setProfileNote("프로필 사진을 적용했습니다.");
+    } catch (error) {
+      setProfileNote(error instanceof Error ? error.message : "사진을 읽지 못했습니다.");
+    }
+  }
+  async function profileCloud(upload: boolean) {
+    const item = personas.find((item) => item.id === personaId);
+    if (!item) return;
+    setProfileBusy(true);
+    setProfileNote("");
+    try {
+      const client = getDropboxClient();
+      if (upload) {
+        if (!item.photo) throw new Error("먼저 프로필 사진을 선택하세요.");
+        const blob = await (await fetch(item.photo)).blob();
+        await client.uploadProfile(item.name, blob);
+        setProfileNote("Dropbox 프로필 폴더에 백업했습니다.");
+      } else {
+        const photo = await profileImage(await client.downloadProfile(item.name));
+        setPersonas((items) =>
+          items.map((p) => (p.id === item.id ? { ...p, photo, showAvatar: true } : p)),
+        );
+        setProfileNote("Dropbox 사진을 적용했습니다.");
+      }
+    } catch (error) {
+      setProfileNote(error instanceof Error ? error.message : "Dropbox 사진 처리에 실패했습니다.");
+    } finally {
+      setProfileBusy(false);
+    }
+  }
   const selectedPersona = personas.find((item) => item.id === personaId) ?? personas[0];
 
-  function updatePersona(patch: { name?: string; text?: string }) {
+  function updatePersona(
+    patch: Partial<Pick<PersonaItem, "name" | "text" | "photo" | "showBackground" | "showAvatar">>,
+  ) {
     if (!selectedPersona) return;
     const next = { ...selectedPersona, ...patch };
     if (!next.name.trim()) next.name = selectedPersona.name;
@@ -1918,34 +1979,6 @@ export function ReaderApp() {
             </button>
           </div>
         </div>
-        <div className="mx-4 mt-3 grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-line bg-surface px-3 text-sm text-fg"
-            onClick={() => {
-              setDraftNote(null);
-              setExportText(null);
-              setSheet("save");
-            }}
-          >
-            <Download className="size-4" aria-hidden="true" />
-            대화 저장하기
-          </button>
-          <button
-            type="button"
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-line bg-surface px-3 text-sm text-fg"
-            onClick={() => {
-              setDraft(turnsToText(turns));
-              setDraftNote(null);
-              setExportText(null);
-              setPendingBackup(null);
-              setSheet("script");
-            }}
-          >
-            <ClipboardPaste className="size-4" aria-hidden="true" />
-            대화 불러오기
-          </button>
-        </div>
         <div
           className="mt-3 flex gap-2 overflow-x-auto px-4 pb-3"
           role="tablist"
@@ -1959,6 +1992,9 @@ export function ReaderApp() {
                 type="button"
                 role="tab"
                 aria-selected={on}
+                style={
+                  on ? { backgroundColor: personaColor(item.name), color: "#161310" } : undefined
+                }
                 className={
                   "h-10 shrink-0 rounded-full px-3 text-sm " +
                   (on ? "bg-primary text-ink" : "border border-line text-fg")
@@ -1972,53 +2008,17 @@ export function ReaderApp() {
         </div>
       </header>
 
-      <div className="flex flex-wrap gap-2 px-4 pb-2">
-        <button
-          type="button"
-          disabled={asking || painting || filming || deletingChats}
-          onClick={() => {
-            reader.stop();
-            dictation.stop();
-            setMailboxOpen(true);
-          }}
-          className="min-h-11 rounded-full border border-line px-3 text-sm text-fg"
-        >
-          보이스 메일
-        </button>
-        <button
-          type="button"
-          disabled={asking}
-          onClick={() => {
-            setGroupDraft(personaId.startsWith("group:") ? [...groupMembers] : [personaId]);
-            setGroupSetup(true);
-          }}
-          className="min-h-11 rounded-full border border-line px-3 text-sm text-fg"
-        >
-          참여자 초대·나가기
-        </button>
-        <button
-          type="button"
-          disabled={asking || voiceBackup.saving}
-          onClick={() =>
-            void voiceBackup.backup(personaId.startsWith("group:") ? groupMembers : [personaId])
-          }
-          className="min-h-11 rounded-full border border-line px-3 text-sm text-fg"
-        >
-          대화 종료·기억 백업
-        </button>
-        {!personaId.startsWith("group:") ? (
-          <button
-            type="button"
-            disabled={asking}
-            onClick={() => setDeleteChat({ id: personaId, name: personaName })}
-            className="min-h-11 rounded-full border border-line px-3 text-sm text-muted"
-          >
-            전체 대화 삭제
-          </button>
-        ) : null}
-      </div>
-
-      <main ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+      <main
+        ref={scrollerRef}
+        className="min-h-0 flex-1 overflow-y-auto bg-cover bg-center px-4 py-4"
+        style={
+          selectedPersona?.photo && selectedPersona.showBackground
+            ? {
+                backgroundImage: `linear-gradient(#151310b8,#151310b8),url("${selectedPersona.photo}")`,
+              }
+            : undefined
+        }
+      >
         {voiceBackup.note ? (
           <p role="status" className="mb-3 text-sm text-muted">
             {voiceBackup.note}
@@ -2033,17 +2033,6 @@ export function ReaderApp() {
             <p className="max-w-sm text-pretty text-muted">
               답을 붙이지 않아도, 그록이 말한 뒤 그 목소리로 바로 읽어 줍니다.
             </p>
-            <button
-              type="button"
-              className="inline-flex h-12 items-center rounded-full bg-primary px-5 text-base font-medium text-ink"
-              onClick={() => {
-                setDraftNote(null);
-                setExportText(null);
-                setSheet("script");
-              }}
-            >
-              채팅 불러오기
-            </button>
           </div>
         ) : (
           <ol className="flex flex-col gap-3">
@@ -2057,6 +2046,11 @@ export function ReaderApp() {
                     const playing = reader.status !== "idle" && index === reader.turnIndex && !done;
                     const chunks = chunkText(turn.text);
                     const mine = turn.speaker === "me";
+                    const owner =
+                      personas.find(
+                        (p) => p.id === turn.personaId || p.name === turn.personaName,
+                      ) ?? selectedPersona;
+                    const color = personaColor(owner?.name ?? personaName);
                     const whenAt = turnTime(turn);
                     const when = whenAt === null ? "" : formatWhen(whenAt);
                     return (
@@ -2066,6 +2060,18 @@ export function ReaderApp() {
                         className={mine ? "flex justify-end" : "flex justify-start"}
                       >
                         <article
+                          style={
+                            mine
+                              ? {
+                                  backgroundColor: personaColor(personaName),
+                                  borderColor: personaColor(personaName),
+                                  color: "#161310",
+                                }
+                              : {
+                                  backgroundColor: `color-mix(in srgb, ${color} 20%, #171512)`,
+                                  borderColor: `${color}80`,
+                                }
+                          }
                           className={
                             "w-11/12 rounded-3xl border px-4 py-3 " +
                             (mine
@@ -2081,6 +2087,7 @@ export function ReaderApp() {
                                 "inline-flex items-center gap-2 text-sm font-medium " +
                                 (mine ? "text-ink" : "text-primary")
                               }
+                              style={!mine ? { color } : undefined}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (voiceOnly && !mine) reader.playOne(index);
@@ -2089,6 +2096,13 @@ export function ReaderApp() {
                             >
                               {playing && reader.status === "playing" && !reader.preparing ? (
                                 <Equalizer />
+                              ) : null}
+                              {!mine && owner?.photo && owner.showAvatar !== false ? (
+                                <img
+                                  src={owner.photo}
+                                  alt=""
+                                  className="size-8 rounded-full object-cover"
+                                />
                               ) : null}
                               {turn.speaker === "me"
                                 ? "나"
@@ -2328,13 +2342,13 @@ export function ReaderApp() {
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                aria-label={reader.status === "playing" ? "일시정지" : "자동 재생"}
+                aria-label={reader.status === "playing" ? "일시정지" : "마지막 페르소나 답변 재생"}
                 className="inline-flex size-11 items-center justify-center rounded-full border border-line text-fg disabled:opacity-40"
                 onClick={() => {
                   reader.prime();
-                  reader.toggle();
+                  playLatest();
                 }}
-                disabled={!reader.supported || turns.length === 0}
+                disabled={!reader.supported || !turns.some((turn) => turn.speaker === "grok")}
               >
                 {reader.status === "playing" ? (
                   <Pause className="size-5" aria-hidden="true" />
@@ -2903,6 +2917,161 @@ export function ReaderApp() {
             ) : (
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-2">
+                  <section className="space-y-2">
+                    <h3>대화 관리</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-line bg-surface px-3 text-sm text-fg"
+                        onClick={() => {
+                          setDraftNote(null);
+                          setExportText(null);
+                          setSheet("save");
+                        }}
+                      >
+                        <Download className="size-4" aria-hidden="true" />
+                        대화 저장하기
+                      </button>
+                      <button
+                        type="button"
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-line bg-surface px-3 text-sm text-fg"
+                        onClick={() => {
+                          setDraft(turnsToText(turns));
+                          setDraftNote(null);
+                          setExportText(null);
+                          setPendingBackup(null);
+                          setSheet("script");
+                        }}
+                      >
+                        <ClipboardPaste className="size-4" aria-hidden="true" />
+                        대화 불러오기
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={asking || painting || filming || deletingChats}
+                        onClick={() => {
+                          reader.stop();
+                          dictation.stop();
+                          setSheet(null);
+                          setMailboxOpen(true);
+                        }}
+                        className="min-h-11 rounded-full border border-line px-3 text-sm text-fg"
+                      >
+                        보이스 메일
+                      </button>
+                      <button
+                        type="button"
+                        disabled={asking}
+                        onClick={() => {
+                          setGroupDraft(
+                            personaId.startsWith("group:") ? [...groupMembers] : [personaId],
+                          );
+                          setSheet(null);
+                          setGroupSetup(true);
+                        }}
+                        className="min-h-11 rounded-full border border-line px-3 text-sm text-fg"
+                      >
+                        참여자 초대·나가기
+                      </button>
+                      <button
+                        type="button"
+                        disabled={asking || voiceBackup.saving}
+                        onClick={() =>
+                          void voiceBackup.backup(
+                            personaId.startsWith("group:") ? groupMembers : [personaId],
+                          )
+                        }
+                        className="min-h-11 rounded-full border border-line px-3 text-sm text-fg"
+                      >
+                        대화 종료·기억 백업
+                      </button>
+                      {!personaId.startsWith("group:") ? (
+                        <button
+                          type="button"
+                          disabled={asking}
+                          onClick={() => {
+                            setSheet(null);
+                            setDeleteChat({ id: personaId, name: personaName });
+                          }}
+                          className="min-h-11 rounded-full border border-line px-3 text-sm text-muted"
+                        >
+                          전체 대화 삭제
+                        </button>
+                      ) : null}
+                    </div>
+                  </section>
+                  <section className="space-y-3 rounded-2xl border border-line p-3">
+                    <h3>프로필 사진 · {selectedPersona?.name}</h3>
+                    {selectedPersona?.photo ? (
+                      <img
+                        src={selectedPersona.photo}
+                        alt="선택된 프로필 사진"
+                        className="size-20 rounded-full object-cover"
+                      />
+                    ) : null}
+                    <label className="block text-sm">
+                      사진 선택
+                      <input
+                        aria-label="프로필 사진 선택"
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        disabled={profileBusy}
+                        className="mt-2 block w-full"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = "";
+                          if (file) void setProfile(file);
+                        }}
+                      />
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={selectedPersona?.showBackground === true}
+                        onChange={(e) => updatePersona({ showBackground: e.target.checked })}
+                      />
+                      프로필 사진을 대화 배경으로 표시
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={selectedPersona?.showAvatar !== false}
+                        onChange={(e) => updatePersona({ showAvatar: e.target.checked })}
+                      />
+                      말풍선 이름 옆에 프로필 사진 표시
+                    </label>
+                    <p className="text-xs text-muted">
+                      그록봇 프로필 사진을 저장한 뒤 선택하세요. Dropbox 위치:
+                      /Grok/voicegrok/profiles/{selectedPersona?.name}/profile.png. 같은 이름의
+                      페르소나에 적용됩니다. 백업에는 Dropbox 쓰기 권한이 필요합니다.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {[true, false].map((upload) => (
+                        <button
+                          key={String(upload)}
+                          className="min-h-11 rounded-full border border-line px-3 text-sm"
+                          disabled={profileBusy}
+                          onClick={() => void profileCloud(upload)}
+                        >
+                          {upload ? "사진 Dropbox 백업" : "사진 Dropbox 불러오기"}
+                        </button>
+                      ))}
+                      <button
+                        className="min-h-11 rounded-full border border-line px-3 text-sm"
+                        disabled={profileBusy}
+                        onClick={() => updatePersona({ photo: undefined })}
+                      >
+                        사진 제거
+                      </button>
+                    </div>
+                    {profileNote ? (
+                      <p role="status" className="text-sm text-muted">
+                        {profileNote}
+                      </p>
+                    ) : null}
+                  </section>
                   <span className="text-sm text-muted">페르소나</span>
                   <div className="flex flex-wrap gap-2">
                     {personas.map((item) => {

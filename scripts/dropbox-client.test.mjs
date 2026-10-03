@@ -313,3 +313,33 @@ test("NFD nested Dropbox paths still import the NFC bot conversation", async () 
   assert.equal(result.backups.length, 1);
   assert.equal(result.backups[0].turns[1].speaker, "me");
 });
+
+test("profile PNG backup uses a separate named folder and preserves binary bytes", async () => {
+  const { client, calls } = await setup((url) =>
+    url.endsWith("/create_folder_v2")
+      ? json({})
+      : url.endsWith("/files/download")
+        ? new Response(new Uint8Array([137, 80, 78, 71]))
+        : json({ name: "profile.png" }),
+  );
+  const auth = new URL(await client.authorizationUrl("https://example.com/", true));
+  await client.finishAuthorization(
+    `https://example.com/?code=profile&state=${auth.searchParams.get("state")}`,
+  );
+  const photo = new Blob([new Uint8Array([137, 80, 78, 71])], { type: "image/png" });
+  await client.uploadProfile("혜정", photo);
+  const upload = calls.find((call) => call.url.endsWith("/files/upload"));
+  assert.equal(
+    JSON.parse(upload.options.headers["Dropbox-API-Arg"]).path,
+    "/Grok/voicegrok/profiles/혜정/profile.png",
+  );
+  assert.equal(upload.options.body, photo);
+  assert.equal(calls.filter((call) => call.url.endsWith("/create_folder_v2")).length, 4);
+  const loaded = await client.downloadProfile("혜정");
+  assert.deepEqual([...new Uint8Array(await loaded.arrayBuffer())], [137, 80, 78, 71]);
+  await assert.rejects(client.downloadProfile("../혜정"), /이름/);
+  await assert.rejects(
+    client.uploadProfile("혜정", new Blob(["bad"], { type: "image/svg+xml" })),
+    /PNG/,
+  );
+});

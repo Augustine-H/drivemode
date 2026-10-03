@@ -215,7 +215,7 @@ export class DropboxClient {
   canWrite() {
     return (this.grant() as (Grant & { write?: boolean }) | null)?.write === true;
   }
-  async uploadMemory(name: string, filename: string, content: string) {
+  async uploadMemory(name: string, filename: string, content: string, profile?: Blob) {
     if (!this.canWrite())
       throw new Error(
         "Dropbox 쓰기 권한으로 다시 연결하세요. 콘솔 Permissions의 files.content.write를 활성화해야 합니다.",
@@ -230,7 +230,8 @@ export class DropboxClient {
     if (new TextEncoder().encode(content).length > 1024 * 1024)
       throw new Error("요약 파일이 너무 큽니다.");
     const token = await this.accessToken();
-    for (const path of ["/Grok", "/Grok/voicegrok", `/Grok/voicegrok/${name}`]) {
+    const parent = profile ? "/Grok/voicegrok/profiles" : "/Grok/voicegrok";
+    for (const path of [...new Set(["/Grok", "/Grok/voicegrok", parent, `${parent}/${name}`])]) {
       const folder = await this.request("https://api.dropboxapi.com/2/files/create_folder_v2", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -247,7 +248,7 @@ export class DropboxClient {
       }
     }
     const arg = JSON.stringify({
-      path: `/Grok/voicegrok/${name}/${filename}`,
+      path: `${parent}/${name}/${filename}`,
       mode: "overwrite",
       autorename: false,
       mute: true,
@@ -262,7 +263,7 @@ export class DropboxClient {
         "Content-Type": "application/octet-stream",
         "Dropbox-API-Arg": arg,
       },
-      body: new TextEncoder().encode(content),
+      body: profile ?? new TextEncoder().encode(content),
       signal: AbortSignal.timeout(30000),
     });
     if (!response.ok)
@@ -272,6 +273,34 @@ export class DropboxClient {
           : "Dropbox 기억 업로드에 실패했습니다.",
       );
     return response.json();
+  }
+  async uploadProfile(name: string, photo: Blob) {
+    if (photo.type !== "image/png" || photo.size > 150000 || !photo.size)
+      throw new Error("프로필 PNG 사진 크기를 확인하세요.");
+    return this.uploadMemory(name, "profile.png", "", photo);
+  }
+  async downloadProfile(name: string) {
+    if (
+      !name ||
+      Array.from(name).some((char) => char.charCodeAt(0) < 32 || char === "/" || char === "\\")
+    )
+      throw new Error("페르소나 이름을 확인하세요.");
+    const arg = JSON.stringify({ path: `/Grok/voicegrok/profiles/${name}/profile.png` }).replace(
+      /[\u007f-\uffff]/g,
+      (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
+    );
+    const response = await this.request("https://content.dropboxapi.com/2/files/download", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${await this.accessToken()}`, "Dropbox-API-Arg": arg },
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!response.ok)
+      throw new Error(
+        "Dropbox 프로필 사진을 불러오지 못했습니다. 폴더와 profile.png 파일을 확인하세요.",
+      );
+    const bytes = await response.arrayBuffer();
+    if (bytes.byteLength > 8 * 1024 * 1024) throw new Error("사진은 8MB 이내여야 합니다.");
+    return new Blob([bytes], { type: "image/png" });
   }
   async backups(root: string): Promise<DropboxBatch> {
     const normalized = root.trim().replace(/\/+$/, "").normalize("NFC");
