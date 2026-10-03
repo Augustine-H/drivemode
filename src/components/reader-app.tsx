@@ -22,6 +22,12 @@ import { buildBackup, parseNangdokBackup, type NangdokBackup } from "@/lib/nangd
 import { backupFileName, cloudFolderName, placeInCloud, openCloudFile } from "@/lib/cloud-dest";
 import { autoSaveInCloud } from "@/lib/cloud-dest";
 import { saveLocalBackup, readLocalBackup } from "@/lib/local-backup";
+import {
+  parseGrokbotBackup,
+  mergeGrokbotBackup,
+  grokbotPersonaId,
+  type GrokbotBackup,
+} from "@/lib/grokbot-backup";
 import { AutoBackupQueue } from "@/lib/auto-backup";
 import { importGrokShare } from "@/lib/grok-share";
 import { imagineImage, startVideo, videoStatus } from "@/lib/imagine";
@@ -272,6 +278,7 @@ export function ReaderApp() {
   const [draft, setDraft] = useState("");
   const [draftNote, setDraftNote] = useState<string | null>(null);
   const [exportText, setExportText] = useState<string | null>(null);
+  const [pendingBotBackup, setPendingBotBackup] = useState<GrokbotBackup | null>(null);
   const [pendingBackup, setPendingBackup] = useState<{
     backup: NangdokBackup;
     name: string;
@@ -840,12 +847,19 @@ export function ReaderApp() {
 
   async function loadBackupFile(file: File) {
     setPendingBackup(null);
+    setPendingBotBackup(null);
     try {
       if (file.size > 10 * 1024 * 1024) throw new Error("대화 파일은 10MB 이하로 선택하세요.");
       const text = await file.text();
       const trimmed = text.trim();
       if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
         const data: unknown = JSON.parse(trimmed);
+        const botBackup = parseGrokbotBackup(data);
+        if (botBackup) {
+          setPendingBotBackup(botBackup);
+          setDraftNote(null);
+          return;
+        }
         const backup = parseNangdokBackup(data);
         if (backup) {
           setPendingBackup({ backup, name: file.name });
@@ -871,6 +885,33 @@ export function ReaderApp() {
       );
     } catch (error) {
       setDraftNote(error instanceof Error ? error.message : "파일을 읽지 못했습니다.");
+    }
+  }
+
+  function importBotBackup() {
+    if (!pendingBotBackup) return;
+    try {
+      const backup = pendingBotBackup;
+      const id = grokbotPersonaId(backup.bot);
+      const existing = personas.find((item) => item.id === id);
+      if (!existing && personas.length >= 12) throw new Error("페르소나는 최대 12개입니다.");
+      const next = mergeGrokbotBackup(threads[id] ?? [], backup);
+      if (!existing)
+        setPersonas((previous) => [
+          ...previous,
+          { id, name: backup.bot, text: "", password: "", locked: false },
+        ]);
+      setThreads((previous) => ({ ...previous, [id]: next }));
+      reader.stop();
+      setPersonaId(id);
+      setPersona(existing?.text ?? "");
+      setEditingId(null);
+      settingsBase.current = null;
+      setPendingBotBackup(null);
+      setSheet(null);
+      setBanner(`${backup.bot} · ${backup.date} 대화 ${backup.turns.length}개를 가져왔습니다.`);
+    } catch (error) {
+      setDraftNote(error instanceof Error ? error.message : "봇 대화를 가져오지 못했습니다.");
     }
   }
 
@@ -1992,6 +2033,32 @@ export function ReaderApp() {
                 >
                   기기 내부 자동 백업 불러오기
                 </button>
+                {pendingBotBackup ? (
+                  <div className="flex flex-col gap-2 rounded-2xl border border-line bg-bg p-3">
+                    <p className="text-sm text-fg">
+                      {pendingBotBackup.bot} · {pendingBotBackup.date} · 대화{" "}
+                      {pendingBotBackup.turns.length}개
+                    </p>
+                    <p className="text-sm text-muted">
+                      봇 전용 페르소나로 가져옵니다. 같은 날짜의 봇 백업은 갱신하고, 다른 날짜와
+                      앱에서 나눈 대화는 유지합니다.
+                    </p>
+                    <button
+                      type="button"
+                      className="h-11 rounded-full bg-primary text-sm text-ink"
+                      onClick={importBotBackup}
+                    >
+                      이 봇의 페르소나로 가져오기
+                    </button>
+                    <button
+                      type="button"
+                      className="h-11 rounded-full border border-line text-sm text-fg"
+                      onClick={() => setPendingBotBackup(null)}
+                    >
+                      취소
+                    </button>
+                  </div>
+                ) : null}
                 {pendingBackup ? (
                   <div className="flex flex-col gap-2 rounded-2xl border border-line bg-bg p-3">
                     <p className="text-sm text-fg">
