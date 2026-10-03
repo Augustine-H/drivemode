@@ -8,11 +8,29 @@ import {
   personaInstructions,
   findPersonaByName,
   isMemoryFile,
+  PERSONA_INSTRUCTIONS_LIMIT,
 } from "../src/lib/persona-memory.ts";
 import { buildBackup, parseNangdokBackup } from "../src/lib/nangdok-backup.ts";
 import { askInstructions } from "../src/lib/ask-prompt.ts";
 
 const persona = { id: "custom-ara", name: "아라", text: "짧게 답해", password: "", locked: false };
+test("long templates survive importing, backup restoration and request instructions", () => {
+  const content = "가".repeat(59000) + "마지막 설정";
+  const asset = parsePersonaTemplate(
+    { name: "아라", system_prompt: content, type: "persona_template" },
+    "persona.json",
+  );
+  const applied = applyPersonaAsset(persona, asset);
+  const restored = parseNangdokBackup(
+    buildBackup({ personaId: persona.id, personas: [applied], threads: {} }),
+  ).personas[0];
+  assert.equal(restored.template, content);
+  const transmitted = personaInstructions(restored)
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, PERSONA_INSTRUCTIONS_LIMIT);
+  assert.ok(askInstructions(transmitted, false, false).includes("마지막 설정"));
+});
 test("profile, rules, skills and routines templates work without a system prompt", () => {
   const asset = parsePersonaTemplate(
     {
@@ -96,7 +114,7 @@ test("related older memories are selected within a bounded request context", () 
 test("oversized assets reject instead of silently losing content; transcript MD is not auto-memory", () => {
   assert.throws(() =>
     parsePersonaTemplate(
-      { type: "persona_template", name: "아라", system_prompt: "가".repeat(8001) },
+      { type: "persona_template", name: "아라", system_prompt: "가".repeat(60001) },
       "persona.json",
     ),
   );

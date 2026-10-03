@@ -2140,7 +2140,8 @@ export function ReaderApp() {
                   <p className="mt-3">
                     JSON은 name(이름), description(설명), profile(프로필), rules(룰), skills(스킬),
                     routines(루틴)을 지원합니다. 이름은 profile 안에 넣어도 됩니다. system_prompt가
-                    있으면 함께 적용합니다. 스킬과 루틴은 답변 지침이며 자동 실행 예약은 아닙니다.
+                    있으면 함께 적용합니다. 템플릿은 60,000자까지 지원합니다. 스킬과 루틴은 답변
+                    지침이며 자동 실행 예약은 아닙니다.
                   </p>
                   <a
                     className="mt-2 flex min-h-11 items-center text-primary underline"

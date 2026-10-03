@@ -1,4 +1,6 @@
 export type PersonaMemory = { source: string; content: string };
+export const PERSONA_TEMPLATE_LIMIT = 60000;
+export const PERSONA_INSTRUCTIONS_LIMIT = PERSONA_TEMPLATE_LIMIT + 1000;
 export type PersonaKnowledge = { template?: string; memories?: PersonaMemory[] };
 export type PersonaAsset =
   | { kind: "template"; bot: string; content: string; source: string }
@@ -43,7 +45,8 @@ export function parsePersonaTemplate(value: unknown, source: string): PersonaAss
     .filter(Boolean)
     .join("\n\n");
   if (!content.trim()) throw new Error("템플릿에 프로필·설명·룰·스킬·루틴 중 하나가 필요합니다.");
-  if (content.length > 8000) throw new Error("페르소나 템플릿은 8000자 이내로 만들어 주세요.");
+  if (content.length > PERSONA_TEMPLATE_LIMIT)
+    throw new Error("페르소나 템플릿은 60000자 이내로 만들어 주세요.");
   return { kind: "template", bot, content, source };
 }
 
@@ -100,7 +103,7 @@ export function cleanPersonaKnowledge(value: unknown): PersonaKnowledge {
   if (!value || typeof value !== "object") return {};
   const row = value as Record<string, unknown>;
   const result: PersonaKnowledge = {};
-  if (typeof row.template === "string" && row.template.length <= 8000)
+  if (typeof row.template === "string" && row.template.length <= PERSONA_TEMPLATE_LIMIT)
     result.template = row.template;
   if (Array.isArray(row.memories)) {
     const memories = row.memories.filter(

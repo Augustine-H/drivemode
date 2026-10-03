@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { PERSONA_INSTRUCTIONS_LIMIT } from "@/lib/persona-memory";
 import { askInstructions, askTurns, needsFacts, type AskTurn } from "@/lib/ask-prompt";
 
 export type AskResult = { ok: true; text: string } | { ok: false; error: string };
@@ -60,7 +61,7 @@ export const askGrok = createServerFn({ method: "POST" })
       const persona = String(input?.persona ?? "")
         .replace(/\s+/g, " ")
         .trim()
-        .slice(0, 9000);
+        .slice(0, PERSONA_INSTRUCTIONS_LIMIT);
       const memory = String(input?.memory ?? "")
         .trim()
         .slice(0, 12000);

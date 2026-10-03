@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { PERSONA_INSTRUCTIONS_LIMIT } from "@/lib/persona-memory";
 import { askInstructions, askTurns, needsFacts } from "@/lib/ask-prompt";
 
 function spoken(text: string) {
@@ -140,7 +141,7 @@ export const Route = createFileRoute("/api/ask")({
         const persona = String(body.persona ?? "")
           .replace(/\s+/g, " ")
           .trim()
-          .slice(0, 9000);
+          .slice(0, PERSONA_INSTRUCTIONS_LIMIT);
         try {
           return await streamAnswer(
             message,
