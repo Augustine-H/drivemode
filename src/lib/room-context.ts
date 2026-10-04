@@ -1,5 +1,20 @@
 import type { Turn } from "./transcript";
-import { rememberRelays } from "./persona-relay.ts";
+import { rememberRelays, relayMemoryKey } from "./persona-relay.ts";
+
+export function erasePersonaConversations(threads: Record<string, Turn[]>, id: string) {
+  return Object.fromEntries(
+    Object.entries(threads).map(([room, list]) => [
+      room,
+      room === id || room === relayMemoryKey(id)
+        ? []
+        : list
+            .filter((t) => t.personaId !== id)
+            .map((t) =>
+              t.audience?.includes(id) ? { ...t, audience: t.audience.filter((p) => p !== id) } : t,
+            ),
+    ]),
+  );
+}
 
 export function participantCommand(text: string, personas: { id: string; name: string }[]) {
   const compact = text.replace(/\s+/g, "");

@@ -29,7 +29,8 @@ function pieceAt(turns: Turn[], t: number, c: number, onlyGrok: boolean): Piece 
       ci = 0;
       continue;
     }
-    const chunks = turns[ti]?.speechParts ?? chunkText(turns[ti]?.text ?? "");
+    const chunks =
+      turns[ti]?.speechParts ?? chunkText(turns[ti]?.voiceText ?? turns[ti]?.text ?? "");
     if (ci < chunks.length) {
       return { t: ti, c: ci, text: chunks[ci], speaker: turns[ti].speaker, voice: turns[ti].voice };
     }

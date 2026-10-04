@@ -1,21 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PERSONA_INSTRUCTIONS_LIMIT } from "@/lib/persona-memory";
-import { imageInput, askInstructions, askTurns, needsFacts } from "@/lib/ask-prompt";
+import { imageInput } from "@/lib/ask-prompt";
 
-function spoken(text: string) {
-  return text
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/!\[[^\]]*]\([^)]*\)/g, " ")
-    .replace(/\[[^\]]*]\([^)]*\)/g, " ")
-    .replace(/[#>*_`[\]]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 700);
-}
-
-function canSpeak(text: string) {
-  return /[.!?。！？…]$/.test(text) || (text.length >= 28 && /[,，、]$/.test(text));
-}
+import { buildGrokContext } from "@/lib/grok-context";
+import { voiceResponse } from "@/lib/voice-formatter";
 
 function deltaOf(event: unknown) {
   if (!event || typeof event !== "object") return "";
@@ -37,10 +25,22 @@ async function streamAnswer(
   image?: string,
   signal?: AbortSignal,
   frames?: string[],
+  summary = "",
+  recentBudget = 6000,
+  memoriesRetrieved = 0,
 ) {
   const apiKey = process.env.XAI_API_KEY;
   if (!apiKey) return Response.json({ error: "그록에게 물어볼 수 없습니다." }, { status: 503 });
-  const facts = needsFacts(message);
+  const context = buildGrokContext({
+    message,
+    history,
+    persona,
+    memory,
+    summary,
+    memoriesRetrieved,
+    budgets: { recent: recentBudget },
+  });
+  const facts = context.facts;
   const upstream = await fetch("https://api.x.ai/v1/responses", {
     method: "POST",
     headers: {
@@ -48,18 +48,17 @@ async function streamAnswer(
       "Content-Type": "application/json",
     },
     signal: signal
-      ? AbortSignal.any([signal, AbortSignal.timeout(20000)])
-      : AbortSignal.timeout(20000),
+      ? AbortSignal.any([signal, AbortSignal.timeout(35000)])
+      : AbortSignal.timeout(35000),
     body: JSON.stringify({
       model: "grok-4.5",
       store: false,
       stream: true,
-      max_output_tokens: facts ? 140 : 90,
+      max_output_tokens: context.maxOutputTokens,
       ...(facts ? { max_tool_calls: 1, tools: [{ type: "web_search" }] } : {}),
       input: [
-        { role: "system", content: askInstructions(persona, false, facts, memory) },
-        ...history.map((item) => ({ role: item.role, content: item.content })),
-        { role: "user", content: imageInput(message, image, frames) },
+        ...context.input.slice(0, -1),
+        { role: "user", content: imageInput(context.input.at(-1)!.content, image, frames) },
       ],
     }),
   });
@@ -78,6 +77,7 @@ async function streamAnswer(
       let buf = "";
       let raw = "";
       let sent = "";
+      let responseTokens: number | undefined;
       try {
         while (true) {
           const step = await reader.read();
@@ -91,19 +91,32 @@ async function streamAnswer(
             const payload = trimmed.slice(5).trim();
             if (!payload || payload === "[DONE]") continue;
             try {
-              raw += deltaOf(JSON.parse(payload));
+              const event = JSON.parse(payload);
+              raw += deltaOf(event);
+              if (typeof event.response?.usage?.output_tokens === "number")
+                responseTokens = event.response.usage.output_tokens;
             } catch {
               continue;
             }
-            const text = spoken(raw);
-            if (text && text !== sent && canSpeak(text)) {
+            const text = raw.trim();
+            if (text && text !== sent) {
               sent = text;
-              send({ text });
+              send({ text, voiceText: voiceResponse(text, false) });
             }
           }
         }
-        const text = spoken(raw);
-        send({ text, done: true });
+        const text = raw.trim();
+        send({
+          text,
+          voiceText: voiceResponse(text, true),
+          done: true,
+          metrics: {
+            ...context.metrics,
+            responseTokens,
+            fullLength: text.length,
+            voiceLength: voiceResponse(text, true).length,
+          },
+        });
       } catch {
         send({ error: "그록에게 연결하지 못했습니다." });
       } finally {
@@ -129,6 +142,9 @@ export const Route = createFileRoute("/api/ask")({
           history?: unknown;
           persona?: unknown;
           memory?: unknown;
+          summary?: unknown;
+          recentBudget?: unknown;
+          memoriesRetrieved?: unknown;
           image?: unknown;
           frames?: unknown;
         };
@@ -142,15 +158,15 @@ export const Route = createFileRoute("/api/ask")({
           .trim()
           .slice(0, 6000);
         if (!message) return Response.json({ error: "물어볼 말이 없습니다." }, { status: 400 });
-        const history = askTurns(
-          (Array.isArray(body.history) ? body.history : []).map((item) => {
+        const history = (Array.isArray(body.history) ? body.history : [])
+          .map((item) => {
             const row = item as { role?: unknown; content?: unknown };
             return {
               role: row?.role === "assistant" ? ("assistant" as const) : ("user" as const),
               content: String(row?.content ?? ""),
             };
-          }),
-        ).filter((item) => item.content);
+          })
+          .filter((item) => item.content);
         const persona = String(body.persona ?? "")
           .replace(/\s+/g, " ")
           .trim()
@@ -170,6 +186,9 @@ export const Route = createFileRoute("/api/ask")({
                   .filter((f): f is string => typeof f === "string" && f.length <= 500000)
                   .slice(0, 3)
               : undefined,
+            String(body.summary ?? "").slice(0, 16000),
+            typeof body.recentBudget === "number" ? body.recentBudget : 6000,
+            typeof body.memoriesRetrieved === "number" ? body.memoriesRetrieved : 0,
           );
         } catch {
           return Response.json({ error: "그록에게 연결하지 못했습니다." }, { status: 502 });

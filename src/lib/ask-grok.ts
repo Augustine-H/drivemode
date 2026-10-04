@@ -1,19 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { PERSONA_INSTRUCTIONS_LIMIT } from "@/lib/persona-memory";
-import { imageInput, askInstructions, askTurns, needsFacts, type AskTurn } from "@/lib/ask-prompt";
+import { imageInput, type AskTurn } from "@/lib/ask-prompt";
 
-export type AskResult = { ok: true; text: string } | { ok: false; error: string };
-
-function spoken(text: string) {
-  return text
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/!\[[^\]]*]\([^)]*\)/g, " ")
-    .replace(/\[[^\]]*]\([^)]*\)/g, " ")
-    .replace(/[#>*_`[\]]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 700);
-}
+import { buildGrokContext, type ContextMetrics } from "./grok-context";
+import { voiceResponse } from "./voice-formatter";
+export type AskResult =
+  | { ok: true; text: string; voiceText?: string; metrics?: ContextMetrics }
+  | { ok: false; error: string };
 
 function answerText(body: unknown) {
   if (!body || typeof body !== "object") return "";
@@ -46,6 +39,9 @@ export const askGrok = createServerFn({ method: "POST" })
       history: AskTurn[];
       persona?: string;
       memory?: string;
+      summary?: string;
+      recentBudget?: number;
+      memoriesRetrieved?: number;
       ack?: boolean;
       image?: string;
       frames?: string[];
@@ -74,7 +70,11 @@ export const askGrok = createServerFn({ method: "POST" })
           ? input.frames.filter((f) => typeof f === "string" && f.length <= 500000).slice(0, 3)
           : undefined,
         memory,
-        history: askTurns(history.filter((item) => item.content.trim())),
+        summary: String(input.summary ?? "").slice(0, 16000),
+        recentBudget: input.recentBudget,
+        memoriesRetrieved:
+          typeof input.memoriesRetrieved === "number" ? input.memoriesRetrieved : 0,
+        history: history.filter((item) => item.content.trim()),
         persona,
         ack: input?.ack === true,
       };
@@ -84,7 +84,8 @@ export const askGrok = createServerFn({ method: "POST" })
     if (!data.message) return { ok: false, error: "물어볼 말이 없습니다." };
     const apiKey = process.env.XAI_API_KEY;
     if (!apiKey) return { ok: false, error: "그록에게 물어볼 수 없습니다." };
-    const facts = !data.ack && needsFacts(data.message);
+    const context = buildGrokContext({ ...data, budgets: { recent: data.recentBudget ?? 6000 } });
+    const facts = context.facts;
 
     try {
       const res = await fetch("https://api.x.ai/v1/responses", {
@@ -93,28 +94,36 @@ export const askGrok = createServerFn({ method: "POST" })
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.timeout(35000),
         body: JSON.stringify({
           model: "grok-4.5",
           store: false,
-          max_output_tokens: data.ack ? 40 : facts ? 140 : 90,
+          max_output_tokens: context.maxOutputTokens,
           ...(facts ? { max_tool_calls: 1, tools: [{ type: "web_search" }] } : {}),
           input: [
+            ...context.input.slice(0, -1),
             {
-              role: "system",
-              content: askInstructions(data.persona, data.ack, facts, data.memory),
+              role: "user",
+              content: imageInput(context.input.at(-1)!.content, data.image, data.frames),
             },
-            ...(data.ack
-              ? []
-              : data.history.map((item) => ({ role: item.role, content: item.content }))),
-            { role: "user", content: imageInput(data.message, data.image, data.frames) },
           ],
         }),
       });
       if (!res.ok) return { ok: false, error: "그록이 대답하지 못했습니다." };
-      const text = spoken(answerText(await res.json()));
+      const body = await res.json();
+      const text = answerText(body).trim();
       if (!text) return { ok: false, error: "그록이 빈 답을 보냈습니다." };
-      return { ok: true, text };
+      return {
+        ok: true,
+        text,
+        voiceText: voiceResponse(text),
+        metrics: {
+          ...context.metrics,
+          responseTokens: body.usage?.output_tokens,
+          fullLength: text.length,
+          voiceLength: voiceResponse(text).length,
+        },
+      };
     } catch {
       return { ok: false, error: "그록에게 연결하지 못했습니다." };
     }

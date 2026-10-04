@@ -1,5 +1,28 @@
+import { cleanMemoryState, emptyMemoryState, type MemoryState } from "./memory-engine.ts";
 import type { Turn } from "@/lib/transcript";
 import { cleanPersonaKnowledge, type PersonaKnowledge } from "./persona-memory.ts";
+
+const SETTING_KEYS = [
+  "rate",
+  "gap",
+  "voiceMe",
+  "voiceGrok",
+  "autoScroll",
+  "onlyGrok",
+  "voiceOnly",
+  "requireVoiceName",
+  "filterAnnouncements",
+  "announcementLines",
+  "autoReply",
+  "silence",
+  "wakeOn",
+  "wakeIdleSeconds",
+  "audio",
+];
+function backupSettings(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  return Object.fromEntries(Object.entries(value).filter(([key]) => SETTING_KEYS.includes(key)));
+}
 
 export type BackupPersona = PersonaKnowledge & {
   id: string;
@@ -12,6 +35,9 @@ export type BackupPersona = PersonaKnowledge & {
 export type NangdokBackup = {
   app: "nangdok";
   version: 1;
+  schemaVersion?: 2;
+  memoryV2?: MemoryState;
+  settings?: Record<string, unknown>;
   exportedAt: string;
   personaId: string;
   personas: BackupPersona[];
@@ -53,10 +79,15 @@ export function buildBackup(input: {
   personas: BackupPersona[];
   threads: Record<string, Turn[]>;
   roomMembers?: Record<string, string[]>;
+  memoryV2?: MemoryState;
+  settings?: Record<string, unknown>;
 }): NangdokBackup {
   return {
     app: "nangdok",
     version: 1,
+    schemaVersion: 2,
+    memoryV2: cleanMemoryState(input.memoryV2 ?? emptyMemoryState()),
+    settings: backupSettings(input.settings),
     exportedAt: new Date().toISOString(),
     personaId: input.personaId,
     roomMembers: input.roomMembers,
@@ -73,7 +104,12 @@ export function buildBackup(input: {
 export function parseNangdokBackup(value: unknown): NangdokBackup | null {
   if (!value || typeof value !== "object") return null;
   const row = value as Record<string, unknown>;
-  if (row.app !== "nangdok" || row.version !== 1 || !Array.isArray(row.personas)) return null;
+  if (
+    row.app !== "nangdok" ||
+    (row.version !== 1 && row.version !== 2) ||
+    !Array.isArray(row.personas)
+  )
+    return null;
   const personas = row.personas
     .filter(isPersona)
     .slice(0, 12)
@@ -94,7 +130,7 @@ export function parseNangdokBackup(value: unknown): NangdokBackup | null {
   if (row.threads && typeof row.threads === "object") {
     for (const [key, list] of Object.entries(row.threads as Record<string, unknown>)) {
       if (!Array.isArray(list)) continue;
-      const turns = list.filter(isTurn).slice(-2000);
+      const turns = list.filter(isTurn);
       threads[key] = turns;
     }
   }
@@ -104,6 +140,9 @@ export function parseNangdokBackup(value: unknown): NangdokBackup | null {
   return {
     app: "nangdok",
     version: 1,
+    schemaVersion: 2,
+    memoryV2: cleanMemoryState(row.memoryV2),
+    settings: backupSettings(row.settings),
     exportedAt: typeof row.exportedAt === "string" ? row.exportedAt : new Date().toISOString(),
     personaId,
     personas,

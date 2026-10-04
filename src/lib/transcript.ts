@@ -5,6 +5,7 @@ export type Turn = {
   speaker: Speaker;
   text: string;
   speechParts?: string[];
+  voiceText?: string;
   streaming?: boolean;
   image?: string;
   video?: string;

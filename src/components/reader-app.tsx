@@ -1,8 +1,16 @@
+import { erasePersonaConversations } from "@/lib/room-context";
+import { selectRecent } from "@/lib/context-budget";
+import { MemorySettings } from "@/components/memory-settings";
+import type { ContextMetrics } from "@/lib/grok-context";
+import { readAppState, writeAppState } from "@/lib/app-storage";
+import { useMemoryV2 } from "@/lib/use-memory-v2";
+import { voiceResponse } from "@/lib/voice-formatter";
+import { eraseConversationMemory, type MemoryState } from "@/lib/memory-engine";
+import type { AskResult } from "@/lib/ask-grok";
 import { wantsVideo, wantsImage, videoSeconds, videoPrompt, imagePrompt } from "@/lib/media-intent";
 import {
   participantCommand,
   roomChanges,
-  conversationMemory,
   knownTurns,
   findQuestionMedia,
   turnRecord,
@@ -28,7 +36,6 @@ import {
   cleanPersonaKnowledge,
   findPersonaByName,
   personaInstructions,
-  memoryForQuestion,
   personaTemplateFilename,
   type PersonaKnowledge,
   type PersonaAsset,
@@ -106,6 +113,7 @@ const AUTO_BACKUP_KEY = "voice-grok-auto-backup";
 const AUTO_BACKUP_FILE = "voice-grok-autobackup.json";
 
 type Saved = {
+  memoryV2?: MemoryState;
   turns: Turn[];
   rate: number;
   gap: number;
@@ -133,6 +141,7 @@ type Saved = {
 };
 
 type SettingsSnap = {
+  memoryV2: MemoryState;
   audio: AudioSettings;
   wakeIdleSeconds: number;
   rate: number;
@@ -345,6 +354,9 @@ export function ReaderApp() {
   const [painting, setPainting] = useState(false);
   const [filming, setFilming] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const memoryEngine = useMemoryV2(threads, personas, hydrated);
+  const { restore: restoreMemory } = memoryEngine;
+  const [memoryMetrics, setMemoryMetrics] = useState<ContextMetrics | null>(null);
   const [sheet, setSheet] = useState<"script" | "save" | "voice" | null>(null);
   const [draft, setDraft] = useState("");
   const [draftNote, setDraftNote] = useState<string | null>(null);
@@ -366,8 +378,51 @@ export function ReaderApp() {
   const autoBackupQueue = useRef<AutoBackupQueue | null>(null);
   const autoBackupSaved = useRef<string | null>(null);
   const backupSnapshot = useMemo(
-    () => JSON.stringify({ personaId, personas, threads, roomMembers }),
-    [personaId, personas, threads, roomMembers],
+    () =>
+      JSON.stringify({
+        personaId,
+        personas,
+        threads,
+        roomMembers,
+        memoryV2: memoryEngine.state,
+        settings: {
+          rate,
+          gap,
+          voiceMe,
+          voiceGrok,
+          autoScroll,
+          onlyGrok,
+          voiceOnly,
+          requireVoiceName,
+          filterAnnouncements,
+          announcementLines,
+          autoReply,
+          silence,
+          wakeOn,
+          wakeIdleSeconds,
+        },
+      }),
+    [
+      personaId,
+      personas,
+      threads,
+      roomMembers,
+      memoryEngine.state,
+      rate,
+      gap,
+      voiceMe,
+      voiceGrok,
+      autoScroll,
+      onlyGrok,
+      voiceOnly,
+      requireVoiceName,
+      filterAnnouncements,
+      announcementLines,
+      autoReply,
+      silence,
+      wakeOn,
+      wakeIdleSeconds,
+    ],
   );
   const [shareUrl, setShareUrl] = useState("");
   const [shareBusy, setShareBusy] = useState(false);
@@ -400,7 +455,12 @@ export function ReaderApp() {
           key,
           list.map((turn) =>
             turn.streaming
-              ? { ...turn, streaming: false, speechParts: speechParts(turn.text, true) }
+              ? {
+                  ...turn,
+                  streaming: false,
+                  voiceText: voiceResponse(turn.text, true),
+                  speechParts: speechParts(voiceResponse(turn.text, true), true),
+                }
               : turn,
           ),
         ]),
@@ -418,6 +478,7 @@ export function ReaderApp() {
   const wakeOnRef = useRef(false);
   const settingsBase = useRef<SettingsSnap | null>(null);
   useMailReplies({
+    memoryContext: memoryEngine.context,
     enabled: hydrated,
     busy: asking || deletingChats || deleteAllStage !== 0,
     personas,
@@ -580,113 +641,121 @@ export function ReaderApp() {
   );
 
   useEffect(() => {
-    const saved = loadSaved();
-    if (saved) {
-      const loaded = readThreads(saved);
-      setThreads(loaded ?? {});
-      if (typeof saved.rate === "number") setRate(clamp(saved.rate, 0.7, 1.5));
-      if (typeof saved.gap === "number") setGap(clamp(saved.gap, 0, 1.5));
-      if (typeof saved.voiceMe === "string" && isMaleVoice(saved.voiceMe))
-        setVoiceMe(saved.voiceMe);
-      if (typeof saved.voiceGrok === "string" && isFemaleVoice(saved.voiceGrok)) {
-        setVoiceGrok(saved.voiceGrok);
-      }
-      if (typeof saved.autoScroll === "boolean") setAutoScroll(saved.autoScroll);
-      if (typeof saved.onlyGrok === "boolean") setOnlyGrok(saved.onlyGrok);
-      if (typeof saved.voiceOnly === "boolean") setVoiceOnly(saved.voiceOnly);
-      setRequireVoiceName(saved.requireVoiceName === true);
-      setFilterAnnouncements(saved.filterAnnouncements !== false);
-      if (Array.isArray(saved.announcementLines))
-        setAnnouncementLines(
-          migrateAnnouncementLines(
-            saved.announcementLines
-              .filter((line): line is string => typeof line === "string")
-              .slice(0, 100),
-            saved.announcementDefaultsVersion,
-          ),
-        );
-      if (typeof saved.autoReply === "boolean") setAutoReply(saved.autoReply);
-      if (typeof saved.silence === "number") setSilence(clamp(saved.silence, 1, 5));
-      setWakeOn(saved.wakeOn === true);
-      setWakeIdleSeconds(clamp(saved.wakeIdleSeconds ?? 10, 1, 15));
-      // Persist the preference; recording still requires a long press.
-      if (typeof saved.persona === "string") setPersona(saved.persona.slice(0, 240));
-      if (Array.isArray(saved.personas)) {
-        const next = saved.personas
-          .filter(isPersona)
-          .slice(0, 12)
-          .map((item) => ({
-            ...item,
-            photo: undefined,
-            showBackground: undefined,
-            showAvatar: undefined,
-            template: undefined,
-            memories: undefined,
-            ...cleanPersonaKnowledge(item),
-          }));
-        if (next.length > 0) {
-          const migrated = migrateDefaultPersonas(next, loaded ?? {}, saved.personaId);
-          setPersonas(migrated.personas);
-          setThreads(rememberRoomEvents(migrated.threads, migrated.personas));
-          const picked = migrated.personas.find((item) => item.id === migrated.personaId)!;
-          setPersonaId(picked.id);
-          setPersona(picked.text.slice(0, 240));
-          if (saved.roomMembers && typeof saved.roomMembers === "object") {
-            const valid = new Set(migrated.personas.map((p) => p.id));
-            setRoomMembers(
-              Object.fromEntries(
-                Object.entries(saved.roomMembers)
-                  .filter(([host, ids]) => valid.has(host) && Array.isArray(ids))
-                  .map(([host, ids]) => [
-                    host,
-                    roomChanges(
-                      host,
-                      [],
-                      ids.filter((id) => valid.has(id)),
-                    ).members,
-                  ]),
-              ),
-            );
-          }
-          if (
-            typeof saved.personaId === "string" &&
-            saved.personaId.startsWith("group:") &&
-            Array.isArray(saved.groupMembers)
-          ) {
-            const members = [...new Set(saved.groupMembers)]
-              .filter((id) => migrated.personas.some((item) => item.id === id))
-              .slice(0, 6);
-            if (members.length >= 2) {
-              setGroupMembers(members);
-              setPersonaId(saved.personaId);
-              setPersona("");
-            }
-          }
-          if (picked.name.trim().normalize("NFC") === "아라") bootIndex.current = 0;
+    let active = true;
+    void (async () => {
+      const saved = await readAppState(loadSaved());
+      if (!active) return;
+      restoreMemory(saved?.memoryV2);
+      if (saved) {
+        const loaded = readThreads(saved);
+        setThreads(loaded ?? {});
+        if (typeof saved.rate === "number") setRate(clamp(saved.rate, 0.7, 1.5));
+        if (typeof saved.gap === "number") setGap(clamp(saved.gap, 0, 1.5));
+        if (typeof saved.voiceMe === "string" && isMaleVoice(saved.voiceMe))
+          setVoiceMe(saved.voiceMe);
+        if (typeof saved.voiceGrok === "string" && isFemaleVoice(saved.voiceGrok)) {
+          setVoiceGrok(saved.voiceGrok);
         }
+        if (typeof saved.autoScroll === "boolean") setAutoScroll(saved.autoScroll);
+        if (typeof saved.onlyGrok === "boolean") setOnlyGrok(saved.onlyGrok);
+        if (typeof saved.voiceOnly === "boolean") setVoiceOnly(saved.voiceOnly);
+        setRequireVoiceName(saved.requireVoiceName === true);
+        setFilterAnnouncements(saved.filterAnnouncements !== false);
+        if (Array.isArray(saved.announcementLines))
+          setAnnouncementLines(
+            migrateAnnouncementLines(
+              saved.announcementLines
+                .filter((line): line is string => typeof line === "string")
+                .slice(0, 100),
+              saved.announcementDefaultsVersion,
+            ),
+          );
+        if (typeof saved.autoReply === "boolean") setAutoReply(saved.autoReply);
+        if (typeof saved.silence === "number") setSilence(clamp(saved.silence, 1, 5));
+        setWakeOn(saved.wakeOn === true);
+        setWakeIdleSeconds(clamp(saved.wakeIdleSeconds ?? 10, 1, 15));
+        // Persist the preference; recording still requires a long press.
+        if (typeof saved.persona === "string") setPersona(saved.persona.slice(0, 240));
+        if (Array.isArray(saved.personas)) {
+          const next = saved.personas
+            .filter(isPersona)
+            .slice(0, 12)
+            .map((item) => ({
+              ...item,
+              photo: undefined,
+              showBackground: undefined,
+              showAvatar: undefined,
+              template: undefined,
+              memories: undefined,
+              ...cleanPersonaKnowledge(item),
+            }));
+          if (next.length > 0) {
+            const migrated = migrateDefaultPersonas(next, loaded ?? {}, saved.personaId);
+            setPersonas(migrated.personas);
+            setThreads(rememberRoomEvents(migrated.threads, migrated.personas));
+            const picked = migrated.personas.find((item) => item.id === migrated.personaId)!;
+            setPersonaId(picked.id);
+            setPersona(picked.text.slice(0, 240));
+            if (saved.roomMembers && typeof saved.roomMembers === "object") {
+              const valid = new Set(migrated.personas.map((p) => p.id));
+              setRoomMembers(
+                Object.fromEntries(
+                  Object.entries(saved.roomMembers)
+                    .filter(([host, ids]) => valid.has(host) && Array.isArray(ids))
+                    .map(([host, ids]) => [
+                      host,
+                      roomChanges(
+                        host,
+                        [],
+                        ids.filter((id) => valid.has(id)),
+                      ).members,
+                    ]),
+                ),
+              );
+            }
+            if (
+              typeof saved.personaId === "string" &&
+              saved.personaId.startsWith("group:") &&
+              Array.isArray(saved.groupMembers)
+            ) {
+              const members = [...new Set(saved.groupMembers)]
+                .filter((id) => migrated.personas.some((item) => item.id === id))
+                .slice(0, 6);
+              if (members.length >= 2) {
+                setGroupMembers(members);
+                setPersonaId(saved.personaId);
+                setPersona("");
+              }
+            }
+            if (picked.name.trim().normalize("NFC") === "아라") bootIndex.current = 0;
+          }
+        }
+        if (typeof saved.index === "number") bootIndex.current = saved.index;
       }
-      if (typeof saved.index === "number") bootIndex.current = saved.index;
-    }
-    setHydrated(true);
-    void cloudFolderName().then((name) => {
-      if (name) setCloudFolder(name);
-      try {
-        const savedAuto = JSON.parse(localStorage.getItem(AUTO_BACKUP_KEY) ?? "null");
-        setAutoBackupTarget(
-          savedAuto?.target === "local"
-            ? "local"
-            : savedAuto?.target === "folder" || savedAuto?.enabled
-              ? "folder"
-              : "local",
-        );
-        setAutoBackupOn(savedAuto?.enabled === true);
-        if (typeof savedAuto?.lastSaved === "string") setAutoBackupAt(savedAuto.lastSaved);
-      } catch {
-        /* the setting is optional */
-      }
-      setAutoBackupReady(true);
-    });
-  }, []);
+      setHydrated(true);
+      void cloudFolderName().then((name) => {
+        if (name) setCloudFolder(name);
+        try {
+          const savedAuto = JSON.parse(localStorage.getItem(AUTO_BACKUP_KEY) ?? "null");
+          setAutoBackupTarget(
+            savedAuto?.target === "local"
+              ? "local"
+              : savedAuto?.target === "folder" || savedAuto?.enabled
+                ? "folder"
+                : "local",
+          );
+          setAutoBackupOn(savedAuto?.enabled === true);
+          if (typeof savedAuto?.lastSaved === "string") setAutoBackupAt(savedAuto.lastSaved);
+        } catch {
+          /* the setting is optional */
+        }
+        setAutoBackupReady(true);
+      });
+    })();
+    return () => {
+      active = false;
+    };
+  }, [restoreMemory]);
 
   useEffect(() => {
     if (!autoBackupReady) return;
@@ -780,6 +849,7 @@ export function ReaderApp() {
   useEffect(() => {
     if (!hydrated) return;
     const payload: Saved = {
+      memoryV2: memoryEngine.state,
       turns,
       rate,
       gap,
@@ -805,9 +875,28 @@ export function ReaderApp() {
       roomMembers,
       index: reader.turnIndex,
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    const save = () => {
+      void writeAppState(payload).then((saved) => {
+        if (!saved)
+          setBanner(
+            "기억 저장 공간이 부족합니다. 대화는 계속할 수 있습니다. 파일로 백업해 주세요.",
+          );
+      });
+    };
+    const timer = window.setTimeout(save, 250);
+    const saveHidden = () => {
+      if (document.hidden) save();
+    };
+    window.addEventListener("pagehide", save);
+    document.addEventListener("visibilitychange", saveHidden);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("pagehide", save);
+      document.removeEventListener("visibilitychange", saveHidden);
+    };
   }, [
     hydrated,
+    memoryEngine.state,
     groupMembers,
     roomMembers,
     turns,
@@ -890,7 +979,9 @@ export function ReaderApp() {
   const parsedDraft = useMemo(() => parseTranscript(draft, "preview"), [draft]);
   const duration = formatDuration(readingSeconds(turns, rate));
   const active = turns[reader.turnIndex];
-  const activeChunks = active ? (active.speechParts ?? chunkText(active.text)) : [];
+  const activeChunks = active
+    ? (active.speechParts ?? chunkText(active.voiceText ?? active.text))
+    : [];
   const activeLine = filming
     ? "영상 만드는 중"
     : painting
@@ -959,6 +1050,36 @@ export function ReaderApp() {
     const picked =
       backup.personas.find((item) => item.id === backup.personaId) ?? backup.personas[0];
     reader.stop();
+    memoryEngine.restore(backup.memoryV2);
+    const restored = backup.settings;
+    if (restored) {
+      if (restored.audio && typeof restored.audio === "object")
+        audioAwareness.configure({ ...audioAwareness.settings, ...restored.audio });
+      if (typeof restored.rate === "number") setRate(clamp(restored.rate, 0.7, 1.5));
+      if (typeof restored.gap === "number") setGap(clamp(restored.gap, 0, 1.5));
+      if (typeof restored.voiceOnly === "boolean") setVoiceOnly(restored.voiceOnly);
+      if (typeof restored.onlyGrok === "boolean") setOnlyGrok(restored.onlyGrok);
+      if (typeof restored.autoScroll === "boolean") setAutoScroll(restored.autoScroll);
+      if (typeof restored.autoReply === "boolean") setAutoReply(restored.autoReply);
+      if (typeof restored.requireVoiceName === "boolean")
+        setRequireVoiceName(restored.requireVoiceName);
+      if (typeof restored.filterAnnouncements === "boolean")
+        setFilterAnnouncements(restored.filterAnnouncements);
+      if (typeof restored.wakeOn === "boolean") setWakeOn(restored.wakeOn);
+      if (typeof restored.wakeIdleSeconds === "number")
+        setWakeIdleSeconds(clamp(restored.wakeIdleSeconds, 1, 15));
+      if (typeof restored.silence === "number") setSilence(clamp(restored.silence, 1, 5));
+      if (typeof restored.voiceMe === "string" && isMaleVoice(restored.voiceMe))
+        setVoiceMe(restored.voiceMe);
+      if (typeof restored.voiceGrok === "string" && isFemaleVoice(restored.voiceGrok))
+        setVoiceGrok(restored.voiceGrok);
+      if (Array.isArray(restored.announcementLines))
+        setAnnouncementLines(
+          restored.announcementLines
+            .filter((x): x is string => typeof x === "string")
+            .slice(0, 100),
+        );
+    }
     setPersonas(backup.personas);
     setThreads(rememberRoomEvents(backup.threads, backup.personas));
     setRoomMembers(backup.roomMembers ?? {});
@@ -1012,7 +1133,14 @@ export function ReaderApp() {
   }
 
   async function sendBackup(mode: "cloud" | "download" | "retarget") {
-    const backup = buildBackup({ personaId, personas, threads, roomMembers });
+    const backup = buildBackup({
+      personaId,
+      personas,
+      threads,
+      roomMembers,
+      memoryV2: memoryEngine.state,
+      settings: captureSettings(),
+    });
     const json = JSON.stringify(backup, null, 2);
     const name = backupFileName(backup.exportedAt);
     const framed = window.parent !== window;
@@ -1104,7 +1232,14 @@ export function ReaderApp() {
     if (cloudBusy) return;
     if (autoBackupTarget === "local") {
       try {
-        const backup = buildBackup({ personaId, personas, threads, roomMembers });
+        const backup = buildBackup({
+          personaId,
+          personas,
+          threads,
+          roomMembers,
+          memoryV2: memoryEngine.state,
+          settings: captureSettings(),
+        });
         saveLocalBackup(localStorage, JSON.stringify(backup));
         autoBackupSaved.current = backupSnapshot;
         setAutoBackupAt(backup.exportedAt);
@@ -1128,7 +1263,14 @@ export function ReaderApp() {
     autoBackupQueue.current?.stop();
     setCloudBusy(true);
     try {
-      const backup = buildBackup({ personaId, personas, threads, roomMembers });
+      const backup = buildBackup({
+        personaId,
+        personas,
+        threads,
+        roomMembers,
+        memoryV2: memoryEngine.state,
+        settings: captureSettings(),
+      });
       const result = await placeInCloud(JSON.stringify(backup, null, 2), AUTO_BACKUP_FILE, false);
       if (!result.ok || result.via !== "folder") {
         if (!result.ok && result.reason === "cancel") return;
@@ -1601,20 +1743,14 @@ export function ReaderApp() {
       if (job !== jobEpoch.current) return;
       const history = withUser
         .filter((turn) => turn !== mine && !turn.event && !turn.id.startsWith("s"))
-        .slice(-4)
         .map((turn) => ({
           role: turn.speaker === "me" ? ("user" as const) : ("assistant" as const),
           content: `${turn.relay ? "[" + turn.relay.fromName + "가 " + turn.relay.toName + "에게 전달한 메시지] " : ""}${turn.text}${turn.image ? " [사진을 보낸 기록]" : ""}${turn.video ? " [영상을 보낸 기록]" : ""}`,
         }));
+      const recalled = memoryEngine.context(id, text);
       const activePersona = personas.find((item) => item.id === id);
       const role = activePersona ? personaInstructions(activePersona) : persona;
-      const memory = [
-        audioMemory,
-        memoryForQuestion(activePersona?.memories, text, 4000),
-        conversationMemory(threads, id, text),
-      ]
-        .filter(Boolean)
-        .join("\n");
+      const memory = [audioMemory, recalled.memory].filter(Boolean).join("\n");
       const media = findQuestionMedia(
         [...knownTurns(threads, id), ...withUser],
         text,
@@ -1630,7 +1766,7 @@ export function ReaderApp() {
       const grokId = `gk-${sentAt.toString(36)}`;
       let latestReply: Turn[] = [];
       let speechStarted = false;
-      const show = (said: string, done = false) => {
+      const show = (said: string, done = false, voiceText = voiceResponse(said, done)) => {
         if (job !== jobEpoch.current) return;
         const next = [
           ...withUser.filter((turn) => turn.id !== mine.id && turn.id !== grokId),
@@ -1639,7 +1775,8 @@ export function ReaderApp() {
             id: grokId,
             speaker: "grok" as const,
             text: said,
-            speechParts: speechParts(said, done),
+            voiceText,
+            speechParts: speechParts(voiceText, true),
             streaming: !done,
             at: sentAt,
             personaId: id,
@@ -1655,18 +1792,21 @@ export function ReaderApp() {
           reader.playFrom(next, next.length - 1);
         }
       };
-      let result: { ok: true; text: string } | { ok: false; error: string };
+      let result: AskResult;
       try {
         result = await streamAsk(
           {
             message: text,
-            history,
+            history: selectRecent(history, recalled.recentBudget).recent,
+            summary: recalled.summary,
+            recentBudget: recalled.recentBudget,
+            memoriesRetrieved: recalled.memoriesRetrieved,
             persona: role,
             memory: [memory, mediaMemory].filter(Boolean).join("\n"),
             image,
             frames,
           },
-          (said) => show(said),
+          (said, voiceText) => show(said, false, voiceText),
           abort.signal,
         );
       } catch {
@@ -1684,6 +1824,9 @@ export function ReaderApp() {
           data: {
             message: text,
             history,
+            summary: recalled.summary,
+            recentBudget: recalled.recentBudget,
+            memoriesRetrieved: recalled.memoriesRetrieved,
             persona: role,
             memory: [memory, mediaMemory].filter(Boolean).join("\n"),
             image,
@@ -1695,9 +1838,11 @@ export function ReaderApp() {
           setBanner(again.error);
           return;
         }
-        show(again.text, true);
+        setMemoryMetrics(again.metrics ?? null);
+        show(again.text, true, again.voiceText);
       } else {
-        show(result.text, true);
+        setMemoryMetrics(result.metrics ?? null);
+        show(result.text, true, result.voiceText);
       }
     } catch (error) {
       if (job === jobEpoch.current)
@@ -1778,6 +1923,7 @@ export function ReaderApp() {
 
   function captureSettings(): SettingsSnap {
     return {
+      memoryV2: memoryEngine.state,
       audio: { ...audioAwareness.settings },
       rate,
       gap,
@@ -1814,6 +1960,7 @@ export function ReaderApp() {
     settingsBase.current = null;
     setSheet(null);
     if (!snap) return;
+    memoryEngine.setState(snap.memoryV2);
     audioAwareness.configure(snap.audio);
     setRate(snap.rate);
     setGap(snap.gap);
@@ -1844,6 +1991,13 @@ export function ReaderApp() {
   }
 
   function resetSettings() {
+    memoryEngine.setState((previous) => ({
+      ...previous,
+      enabled: true,
+      longTermEnabled: true,
+      summaryEnabled: true,
+      recentBudget: 6000,
+    }));
     audioAwareness.configure({ enabled: false, music: true, environment: true, remember: true });
     setRate(1);
     setGap(0.45);
@@ -1867,7 +2021,11 @@ export function ReaderApp() {
 
   function updateTurn(id: string, text: string) {
     setTurns((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, text, streaming: false, speechParts: undefined } : t)),
+      prev.map((t) =>
+        t.id === id
+          ? { ...t, text, streaming: false, voiceText: undefined, speechParts: undefined }
+          : t,
+      ),
     );
   }
 
@@ -1919,31 +2077,21 @@ export function ReaderApp() {
       return;
     }
     voiceBackup.forget(id);
-    setThreads((prev) =>
-      Object.fromEntries(
-        Object.entries(prev).map(([key, list]) => [
-          key,
-          key === id || key === relayMemoryKey(id)
-            ? []
-            : list.filter((turn) => turn.personaId !== id),
-        ]),
-      ),
-    );
+    const clearedMemory = eraseConversationMemory(memoryEngine.state, id);
+    memoryEngine.setState(clearedMemory);
+    if (settingsBase.current) settingsBase.current.memoryV2 = clearedMemory;
+    setThreads((prev) => erasePersonaConversations(prev, id));
     if (personaIdRef.current === id) turnsNow.current = [];
     try {
       for (const key of [STORAGE_KEY, LOCAL_BACKUP_KEY]) {
         const raw = localStorage.getItem(key);
         if (!raw) continue;
         const saved = JSON.parse(raw);
-        if (saved.threads)
-          saved.threads = Object.fromEntries(
-            Object.entries(saved.threads).map(([thread, list]) => [
-              thread,
-              thread === id || thread === relayMemoryKey(id)
-                ? []
-                : (list as Turn[]).filter((turn) => turn.personaId !== id),
-            ]),
-          );
+        if (saved.threads) saved.threads = erasePersonaConversations(saved.threads, id);
+        if (saved.memoryV2) {
+          delete saved.memoryV2.longTerm?.[id];
+          delete saved.memoryV2.summaries?.[id];
+        }
         if (saved.personaId === id) saved.turns = [];
         if (Array.isArray(saved.personas))
           saved.personas = saved.personas.map((item: PersonaItem) =>
@@ -2050,11 +2198,13 @@ export function ReaderApp() {
       publish();
       const replies = await Promise.all(
         speakers.map(async (member, index) => {
-          const update = (text: string, done = false) => {
+          const recalled = memoryEngine.context(member.id, text);
+          const update = (text: string, done = false, voiceText = voiceResponse(text, done)) => {
             answers[index] = {
               ...answers[index],
               text,
-              speechParts: speechParts(text, done),
+              voiceText,
+              speechParts: speechParts(voiceText, true),
               streaming: !done,
             };
             publish();
@@ -2062,19 +2212,26 @@ export function ReaderApp() {
           const result = await streamAsk(
             {
               message: text,
-              history: [],
+              history: current
+                .filter((t) => !t.event && t.id !== mine.id)
+                .map((t) => ({
+                  role: t.speaker === "me" ? ("user" as const) : ("assistant" as const),
+                  content: turnRecord(t),
+                })),
+              summary: recalled.summary,
+              recentBudget: recalled.recentBudget,
               persona: `${personaInstructions(member)}\n함께 대화하는 사람: ${members.map((item) => item.name).join(", ")}. 반드시 ${member.name} 한 사람의 입장에서만 답한다.`,
-              memory:
-                `${audioMemory}\n${memoryForQuestion(member.memories, text, 3000)}\n본인이 나눈 과거 대화:\n${conversationMemory(threads, member.id, text)}\n현재 방 대화:\n${shared}`.slice(
-                  0,
-                  12000,
-                ),
+              memory: `${audioMemory}\n${recalled.memory}\n현재 방 대화:\n${shared}`.slice(
+                0,
+                12000,
+              ),
               image: media?.image,
               frames,
             },
-            (said) => update(said),
+            (said, voiceText) => update(said, false, voiceText),
             abort.signal,
           ).catch(() => ({ ok: false as const, error: "그록에게 연결하지 못했습니다." }));
+          if (result.ok) setMemoryMetrics(result.metrics ?? null);
           if (job === jobEpoch.current) update(result.ok ? result.text : answers[index].text, true);
           return { member, result };
         }),
@@ -2142,13 +2299,17 @@ export function ReaderApp() {
     };
     setThreads((prev) => ({ ...prev, [room]: [...(prev[room] ?? []), mine] }));
     try {
+      const recalled = memoryEngine.context(from.id, command.message);
       const result = await streamAsk(
         {
           message: `사용자가 ${to.name}에게 내용을 전해 달라고 요청했다. 실제로 전달될 말만 네 성격·말투로 작성해라. 수신인 ${to.name}에게 직접 말하는 형식이다. '전달했어' 같은 완료 보고는 쓰지 않는다. 이름, 날짜, 숫자, 부정 표현과 핵심 의미를 바꾸거나 사실을 덧붙이지 않는다. 기록을 참고해야 하는 요청이면 관련 기록을 먼저 참고한다. 요청: ${command.message || "선택한 미디어를 전달해줘"}${media ? "\n함께 전달하는 미디어: " + (media.mediaDescription || (media.video ? "선택한 영상" : "선택한 사진")) + ". 화면을 직접 분석한 것처럼 묘사하지 말고 함께 보낸다고 짧게 말한다." : ""}`,
           history: [],
           persona: personaInstructions(from),
+          summary: recalled.summary,
+          recentBudget: recalled.recentBudget,
+          memoriesRetrieved: recalled.memoriesRetrieved,
           memory: [
-            conversationMemory(threads, from.id, command.message),
+            recalled.memory,
             "현재 방의 최근 대화:\n" +
               (threads[room] ?? [])
                 .filter((t) => !t.event)
@@ -2317,6 +2478,9 @@ export function ReaderApp() {
       ...item,
       memories: item.memories?.filter((memory) => memory.source !== "voicegrok/memory.md"),
     }));
+    const clearedMemory = eraseConversationMemory(memoryEngine.state);
+    memoryEngine.setState(clearedMemory);
+    if (settingsBase.current) settingsBase.current.memoryV2 = clearedMemory;
     setThreads({});
     setRoomMembers({});
     setPersonas(clean);
@@ -2333,6 +2497,7 @@ export function ReaderApp() {
         const raw = localStorage.getItem(key);
         if (!raw) continue;
         const saved = JSON.parse(raw);
+        saved.memoryV2 = { ...memoryEngine.state, longTerm: {}, summaries: {} };
         saved.threads = {};
         saved.turns = [];
         saved.personas = clean;
@@ -2531,6 +2696,19 @@ export function ReaderApp() {
   }
 
   const done = reader.turnIndex >= turns.length && turns.length > 0;
+
+  if (!hydrated) {
+    return (
+      <div
+        className="mx-auto flex h-full w-full max-w-lg flex-col items-center justify-center gap-3 bg-bg px-6 text-fg"
+        role="status"
+        aria-live="polite"
+      >
+        <h1 className="font-display text-xl">{APP_NAME}</h1>
+        <p className="text-sm text-muted">대화와 기억을 불러오는 중…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto flex h-full w-full max-w-lg flex-col bg-bg text-fg">
@@ -4106,6 +4284,11 @@ export function ReaderApp() {
                     </p>
                   </div>
                 </details>{" "}
+                <MemorySettings
+                  state={memoryEngine.state}
+                  onChange={memoryEngine.setState}
+                  metrics={memoryMetrics}
+                />
                 <AudioAwarenessSettings audio={audioAwareness} />
                 <VoiceIdentitySettings
                   identity={voiceIdentity.identity}

@@ -1,3 +1,5 @@
+import { selectRecent } from "./context-budget";
+import { voiceResponse } from "./voice-formatter";
 import { useEffect, useRef } from "react";
 import { askGrok } from "@/lib/ask-grok";
 import { transcribeSpeech } from "@/lib/stt";
@@ -29,6 +31,10 @@ type Options = {
   threads: Record<string, Turn[]>;
   onChat: (mail: VoiceMail, text: string) => void;
   onError: (error: string) => void;
+  memoryContext?: (
+    id: string,
+    question: string,
+  ) => { memory: string; summary: string; recentBudget: number; memoriesRetrieved?: number };
 };
 
 function base64(blob: Blob): Promise<string> {
@@ -101,15 +107,24 @@ export function useMailReplies(options: Options) {
             await updateVoiceMailText(pending.id, text);
           }
           if (!reply.text) {
+            const context = current.current.memoryContext?.(persona.id, text);
             const result = await askGrok({
               data: {
                 message: `보이스 메일로 남긴 메시지에 짧게 답해줘: ${text}`,
                 persona: personaInstructions(persona),
-                memory: memoryForQuestion(persona.memories, text),
-                history: (current.current.threads[persona.id] ?? []).slice(-4).map((turn) => ({
-                  role: turn.speaker === "me" ? ("user" as const) : ("assistant" as const),
-                  content: turn.text,
-                })),
+                memory: context?.memory ?? memoryForQuestion(persona.memories, text),
+                summary: context?.summary,
+                recentBudget: context?.recentBudget,
+                memoriesRetrieved: context?.memoriesRetrieved,
+                history: selectRecent(
+                  (current.current.threads[persona.id] ?? [])
+                    .filter((t) => !t.event && !t.streaming)
+                    .map((turn) => ({
+                      role: turn.speaker === "me" ? ("user" as const) : ("assistant" as const),
+                      content: turn.text,
+                    })),
+                  context?.recentBudget ?? 6000,
+                ).recent,
               },
             });
             if (!result.ok) throw new Error(result.error);
@@ -129,7 +144,7 @@ export function useMailReplies(options: Options) {
           if (reply.channel === "voice") {
             try {
               const parts: Blob[] = [];
-              for (const chunk of mailSpeechChunks(answer)) {
+              for (const chunk of mailSpeechChunks(voiceResponse(answer))) {
                 if (!(await stillPending(pending.id))) return;
                 const audio = await speakLine({
                   data: { text: chunk, voiceId: persona.voice ?? "ara", speed: 1 },

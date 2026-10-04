@@ -7,10 +7,13 @@ export async function streamAsk(
     history: AskTurn[];
     persona?: string;
     memory?: string;
+    summary?: string;
+    recentBudget?: number;
+    memoriesRetrieved?: number;
     image?: string;
     frames?: string[];
   },
-  onText: (text: string) => void,
+  onText: (text: string, voiceText?: string) => void,
   signal?: AbortSignal,
 ): Promise<AskResult> {
   const res = await fetch("/api/ask", {
@@ -24,6 +27,8 @@ export async function streamAsk(
   const decoder = new TextDecoder();
   let buf = "";
   let text = "";
+  let voiceText: string | undefined;
+  let metrics: import("./grok-context").ContextMetrics | undefined;
   while (true) {
     const step = await reader.read();
     if (step.done) break;
@@ -36,7 +41,13 @@ export async function streamAsk(
         .map((row) => row.trim())
         .find((row) => row.startsWith("data:"));
       if (!line) continue;
-      let event: { text?: unknown; error?: unknown; done?: unknown };
+      let event: {
+        text?: unknown;
+        error?: unknown;
+        done?: unknown;
+        voiceText?: string;
+        metrics?: typeof metrics;
+      };
       try {
         event = JSON.parse(line.slice(5).trim()) as typeof event;
       } catch {
@@ -45,10 +56,12 @@ export async function streamAsk(
       if (typeof event.error === "string" && event.error) return { ok: false, error: event.error };
       if (typeof event.text === "string" && event.text.trim()) {
         text = event.text.trim();
-        onText(text);
+        voiceText = event.voiceText;
+        metrics = event.metrics ?? metrics;
+        onText(text, voiceText);
       }
     }
   }
   if (!text) return { ok: false, error: "그록이 빈 답을 보냈습니다." };
-  return { ok: true, text };
+  return { ok: true, text, voiceText, metrics };
 }

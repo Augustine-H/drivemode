@@ -1,0 +1,20 @@
+import { sentences } from "./sentences.ts";
+export function voiceResponse(full: string, done = true) {
+  const clean = full
+    .replace(/```[\s\S]*?(?:```|$)/g, " ")
+    .replace(/!\[[^\]]*]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]*)]\([^)]*\)/g, "$1")
+    .replace(/!?\[[^\]]*]\([^)]*$/g, " ")
+    .replace(/!?\[[^\]]*$/g, " ")
+    .replace(/^[ \t#>*-]+/gm, "")
+    .replace(/[*_`]/g, "")
+    .trim();
+  const parts = sentences(clean, done);
+  // Reserve the third sentence for a late warning; emitted prefixes never change.
+  const first = parts.slice(0, 2);
+  if (done && parts.length > 2)
+    first.push(
+      parts.slice(2).find((p) => /주의|경고|위험|금지|반드시|하지 마|안전/.test(p)) ?? parts[2],
+    );
+  return first.join(" ");
+}

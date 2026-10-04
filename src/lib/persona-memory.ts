@@ -1,5 +1,5 @@
 import { isFemaleVoice } from "./voices.ts";
-export type PersonaMemory = { source: string; content: string };
+export type PersonaMemory = { source: string; content: string; importance?: number; createdAt?: number; lastUsedAt?: number };
 export const PERSONA_TEMPLATE_LIMIT = 60000;
 export const PERSONA_INSTRUCTIONS_LIMIT = PERSONA_TEMPLATE_LIMIT + 1000;
 export type PersonaKnowledge = {
