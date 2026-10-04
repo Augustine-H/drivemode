@@ -8,8 +8,8 @@ import {
   turnRecord,
   rememberRoomEvents,
 } from "@/lib/room-context";
-import { MusicListener } from "@/components/music-listener";
-import { musicCommand } from "@/lib/music-analysis";
+import { AudioAwarenessSettings } from "@/components/audio-awareness-settings";
+import { useAudioAwareness, type AudioSettings } from "@/lib/use-audio-awareness";
 import { relayDelivery, storeRelay, relayMemoryKey } from "@/lib/persona-relay";
 import { videoFrames } from "@/lib/video-frames";
 import { useMailReplies } from "@/lib/use-mail-replies";
@@ -133,6 +133,7 @@ type Saved = {
 };
 
 type SettingsSnap = {
+  audio: AudioSettings;
   wakeIdleSeconds: number;
   rate: number;
   gap: number;
@@ -385,12 +386,9 @@ export function ReaderApp() {
   const busyRef = useRef(false);
   const jobEpoch = useRef(0);
   const answerAbort = useRef<AbortController | null>(null);
-  const [musicRequest, setMusicRequest] = useState(0);
-  const musicStop = useRef<() => void>(() => {});
-  const musicRoom = useRef("");
-  const musicBusy = useRef(false);
+  const audioAwareness = useAudioAwareness(reader.status === "playing" || reader.preparing);
   function stopActivity() {
-    musicStop.current();
+    audioAwareness.cancel();
     jobEpoch.current++;
     answerAbort.current?.abort();
     answerAbort.current = null;
@@ -1562,12 +1560,7 @@ export function ReaderApp() {
       await askGroup(text, id, hit?.id);
       return;
     }
-    if (!fromMail && musicCommand(text)) {
-      setComposer("");
-      setSheet("voice");
-      setMusicRequest((value) => value + 1);
-      return;
-    }
+
     const finishBackup = conversationEnded(text);
     if (!fromMail && !selectedMediaId && wantsVideo(text)) {
       await film(text);
@@ -1604,6 +1597,8 @@ export function ReaderApp() {
     };
     commit(withUser);
     try {
+      const audioMemory = fromMail ? "" : await audioAwareness.forQuestion(text, abort.signal);
+      if (job !== jobEpoch.current) return;
       const history = withUser
         .filter((turn) => turn !== mine && !turn.event && !turn.id.startsWith("s"))
         .slice(-4)
@@ -1614,6 +1609,7 @@ export function ReaderApp() {
       const activePersona = personas.find((item) => item.id === id);
       const role = activePersona ? personaInstructions(activePersona) : persona;
       const memory = [
+        audioMemory,
         memoryForQuestion(activePersona?.memories, text, 4000),
         conversationMemory(threads, id, text),
       ]
@@ -1782,6 +1778,7 @@ export function ReaderApp() {
 
   function captureSettings(): SettingsSnap {
     return {
+      audio: { ...audioAwareness.settings },
       rate,
       gap,
       voiceMe,
@@ -1817,6 +1814,7 @@ export function ReaderApp() {
     settingsBase.current = null;
     setSheet(null);
     if (!snap) return;
+    audioAwareness.configure(snap.audio);
     setRate(snap.rate);
     setGap(snap.gap);
     setVoiceMe(snap.voiceMe);
@@ -1846,6 +1844,7 @@ export function ReaderApp() {
   }
 
   function resetSettings() {
+    audioAwareness.configure({ enabled: false, music: true, environment: true, remember: true });
     setRate(1);
     setGap(0.45);
     setVoiceMe("leo");
@@ -2006,6 +2005,8 @@ export function ReaderApp() {
     const current = [...(threads[room] ?? []), mine];
     setThreads((prev) => ({ ...prev, [room]: current }));
     try {
+      const audioMemory = await audioAwareness.forQuestion(text, abort.signal);
+      if (job !== jobEpoch.current) return;
       const shared = current
         .filter((turn) => !turn.event)
         .slice(-12)
@@ -2064,7 +2065,7 @@ export function ReaderApp() {
               history: [],
               persona: `${personaInstructions(member)}\n함께 대화하는 사람: ${members.map((item) => item.name).join(", ")}. 반드시 ${member.name} 한 사람의 입장에서만 답한다.`,
               memory:
-                `${memoryForQuestion(member.memories, text, 3000)}\n본인이 나눈 과거 대화:\n${conversationMemory(threads, member.id, text)}\n현재 방 대화:\n${shared}`.slice(
+                `${audioMemory}\n${memoryForQuestion(member.memories, text, 3000)}\n본인이 나눈 과거 대화:\n${conversationMemory(threads, member.id, text)}\n현재 방 대화:\n${shared}`.slice(
                   0,
                   12000,
                 ),
@@ -4105,46 +4106,7 @@ export function ReaderApp() {
                     </p>
                   </div>
                 </details>{" "}
-                <MusicListener
-                  request={musicRequest}
-                  blocked={asking || painting || filming || deletingChats}
-                  stopRef={musicStop}
-                  onPrepare={() => {
-                    setMusicRequest(0);
-                    musicBusy.current = true;
-                    musicRoom.current = personaIdRef.current;
-                    reader.stop();
-                    dictation.stop();
-                    busyRef.current = true;
-                    setAsking(true);
-                  }}
-                  onFinished={() => {
-                    if (musicBusy.current) {
-                      musicBusy.current = false;
-                      busyRef.current = false;
-                      setAsking(false);
-                    }
-                  }}
-                  onResult={(text) => {
-                    const room = musicRoom.current;
-                    const at = Date.now();
-                    setThreads((prev) => ({
-                      ...prev,
-                      [room]: [
-                        ...(prev[room] ?? []),
-                        {
-                          id: `music-${at}`,
-                          speaker: "grok",
-                          text,
-                          textOnly: true,
-                          at,
-                          audience: roomMembers[room] ?? [room],
-                        },
-                      ],
-                    }));
-                    setBanner(text);
-                  }}
-                />
+                <AudioAwarenessSettings audio={audioAwareness} />
                 <VoiceIdentitySettings
                   identity={voiceIdentity.identity}
                   error={voiceIdentity.error}
