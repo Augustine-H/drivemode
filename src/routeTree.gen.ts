@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiAskRouteImport } from './routes/api/ask'
+import { Route as ApiMediaSourceRouteImport } from './routes/api/media-source'
 import { Route as ApiVideoSourceRouteImport } from './routes/api/video-source'
 
 const IndexRoute = IndexRouteImport.update({
@@ -23,6 +24,11 @@ const ApiAskRoute = ApiAskRouteImport.update({
   path: '/api/ask',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMediaSourceRoute = ApiMediaSourceRouteImport.update({
+  id: '/api/media-source',
+  path: '/api/media-source',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiVideoSourceRoute = ApiVideoSourceRouteImport.update({
   id: '/api/video-source',
   path: '/api/video-source',
@@ -32,30 +38,34 @@ const ApiVideoSourceRoute = ApiVideoSourceRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/ask': typeof ApiAskRoute
+  '/api/media-source': typeof ApiMediaSourceRoute
   '/api/video-source': typeof ApiVideoSourceRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/ask': typeof ApiAskRoute
+  '/api/media-source': typeof ApiMediaSourceRoute
   '/api/video-source': typeof ApiVideoSourceRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/ask': typeof ApiAskRoute
+  '/api/media-source': typeof ApiMediaSourceRoute
   '/api/video-source': typeof ApiVideoSourceRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/ask' | '/api/video-source'
+  fullPaths: '/' | '/api/ask' | '/api/media-source' | '/api/video-source'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/ask' | '/api/video-source'
-  id: '__root__' | '/' | '/api/ask' | '/api/video-source'
+  to: '/' | '/api/ask' | '/api/media-source' | '/api/video-source'
+  id: '__root__' | '/' | '/api/ask' | '/api/media-source' | '/api/video-source'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiAskRoute: typeof ApiAskRoute
+  ApiMediaSourceRoute: typeof ApiMediaSourceRoute
   ApiVideoSourceRoute: typeof ApiVideoSourceRoute
 }
 
@@ -75,6 +85,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAskRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/media-source': {
+      id: '/api/media-source'
+      path: '/api/media-source'
+      fullPath: '/api/media-source'
+      preLoaderRoute: typeof ApiMediaSourceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/video-source': {
       id: '/api/video-source'
       path: '/api/video-source'
@@ -88,6 +105,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiAskRoute: ApiAskRoute,
+  ApiMediaSourceRoute: ApiMediaSourceRoute,
   ApiVideoSourceRoute: ApiVideoSourceRoute,
 }
 export const routeTree = rootRouteImport
