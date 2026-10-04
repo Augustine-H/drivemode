@@ -15,6 +15,10 @@ import { profileImage, personaColor } from "@/lib/persona-profile";
 import { DEFAULT_PERSONAS, migrateDefaultPersonas } from "@/lib/default-personas";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useVoiceBackup } from "@/components/use-voice-backup";
+import { VoiceIdentitySettings } from "@/components/voice-identity";
+import { useVoiceIdentity } from "@/lib/use-voice-identity";
+import { speakerEmbedding } from "@/lib/speaker-client";
+import { matchVoice } from "@/lib/speaker-identity";
 import { AppSecuritySettings } from "@/components/app-security";
 import { VoiceMailBox } from "@/components/voice-mail";
 import { deleteVoiceMails } from "@/lib/voice-mail";
@@ -336,7 +340,18 @@ export function ReaderApp() {
   const personaRef = useRef("");
   const wakeOnRef = useRef(false);
   const settingsBase = useRef<SettingsSnap | null>(null);
+  const voiceIdentity = useVoiceIdentity();
   const dictation = useDictation({
+    verifyAudio:
+      voiceIdentity.blocked || voiceIdentity.identity?.enabled
+        ? async (audio) => {
+            if (voiceIdentity.blocked)
+              throw new Error("등록한 목소리를 확인할 수 없습니다. 설정에서 다시 등록하세요.");
+            const identity = voiceIdentity.identity!;
+            return matchVoice(identity.samples, await speakerEmbedding(audio), identity.threshold)
+              .accepted;
+          }
+        : undefined,
     paused: asking || reader.status === "playing" || reader.preparing,
     silenceMs: Math.round(silence * 1000),
     autoSend: autoReply,
@@ -353,7 +368,7 @@ export function ReaderApp() {
   wakeOnRef.current = wakeOn;
   const wakeHandler = useRef<(rest: string, id: string) => void>(() => {});
   const wake = useWake({
-    enabled: wakeOn && hydrated,
+    enabled: wakeOn && hydrated && !voiceIdentity.identity?.enabled && !voiceIdentity.blocked,
     paused:
       mailboxOpen ||
       deletingChats ||
@@ -3259,7 +3274,8 @@ export function ReaderApp() {
                   이름을 부르면 말하기
                   <input
                     type="checkbox"
-                    checked={wakeOn}
+                    checked={wakeOn && !voiceIdentity.identity?.enabled && !voiceIdentity.blocked}
+                    disabled={voiceIdentity.identity?.enabled || voiceIdentity.blocked}
                     onChange={(e) => {
                       const on = e.target.checked;
                       setWakeOn(on);
@@ -3337,6 +3353,15 @@ export function ReaderApp() {
                 <p className="text-center text-xs text-muted">
                   {APP_NAME} {APP_VERSION}
                 </p>
+                <VoiceIdentitySettings
+                  identity={voiceIdentity.identity}
+                  error={voiceIdentity.error}
+                  onChange={voiceIdentity.save}
+                  onStart={() => {
+                    reader.stop();
+                    dictation.stop();
+                  }}
+                />
                 <AppSecuritySettings />
                 <section className="space-y-3 rounded-2xl border border-line p-4">
                   <h3>모든 대화·보이스 메일 삭제</h3>

@@ -4,6 +4,7 @@ import { collapseStutter, mergeUtterance, sessionTranscript } from "@/lib/speech
 
 type Options = {
   paused: boolean;
+  verifyAudio?: (audio: Blob) => Promise<boolean>;
   silenceMs: number;
   autoSend: boolean;
   onText: (text: string) => void;
@@ -137,6 +138,7 @@ function stopRecorder(item: Live) {
 
 export function useDictation({
   paused,
+  verifyAudio,
   silenceMs,
   autoSend,
   onText,
@@ -159,9 +161,9 @@ export function useDictation({
   const sendTimer = useRef(0);
   const genRef = useRef(0);
   const modeRef = useRef<"speech" | "record">("speech");
-  const callbacks = useRef({ silenceMs, autoSend, onText, onUtterance, onError });
+  const callbacks = useRef({ silenceMs, autoSend, onText, onUtterance, onError, verifyAudio });
   pausedRef.current = paused;
-  callbacks.current = { silenceMs, autoSend, onText, onUtterance, onError };
+  callbacks.current = { silenceMs, autoSend, onText, onUtterance, onError, verifyAudio };
 
   const clearSend = () => {
     window.clearTimeout(sendTimer.current);
@@ -215,6 +217,7 @@ export function useDictation({
   };
 
   const startSpeech = () => {
+    if (callbacks.current.verifyAudio) return false;
     closeSpeech();
     const Ctor = recognitionCtor();
     if (!Ctor) return false;
@@ -316,6 +319,15 @@ export function useDictation({
     setHearing(false);
     setNote("받아쓰는 중");
     try {
+      if (callbacks.current.verifyAudio) {
+        setNote("내 목소리인지 확인하는 중");
+        const accepted = await callbacks.current.verifyAudio(blob);
+        if (session.current !== item.id) return;
+        if (!accepted) {
+          setNote("등록된 목소리와 달라 무시했습니다. 다시 말하려면 마이크를 누르세요.");
+          return;
+        }
+      }
       let audio = "";
       let mime = "audio/wav";
       try {
@@ -326,15 +338,26 @@ export function useDictation({
         audio = bytesToBase64(new Uint8Array(await blob.arrayBuffer()));
         mime = (blob.type || "audio/webm").split(";")[0];
       }
+      if (session.current !== item.id) return;
       const result = await transcribeSpeech({ data: { audio, mime } });
       if (!result.ok) {
         setNote(result.error);
         callbacks.current.onError(result.error);
         return;
       }
+      if (session.current !== item.id) return;
       callbacks.current.onText(result.text);
       setNote(result.text);
       if (send) callbacks.current.onUtterance(result.text);
+    } catch (error) {
+      if (session.current === item.id) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "목소리를 확인하지 못했습니다. 음성을 보내지 않았습니다.";
+        setNote(message);
+        callbacks.current.onError(message);
+      }
     } finally {
       busy.current = false;
       setHearing(false);
@@ -436,7 +459,7 @@ export function useDictation({
     wanted.current = true;
     setBlocked(false);
     setArmed(true);
-    modeRef.current = recognitionCtor() ? "speech" : "record";
+    modeRef.current = !callbacks.current.verifyAudio && recognitionCtor() ? "speech" : "record";
     setNote("말하기를 켭니다");
     if (!pausedRef.current) {
       if (modeRef.current === "speech" && startSpeech()) return;
@@ -461,10 +484,20 @@ export function useDictation({
   };
 
   const fromFile = async (file: File) => {
+    const id = ++session.current;
     busy.current = true;
     setBlocked(false);
     setNote("받아쓰는 중");
     try {
+      if (callbacks.current.verifyAudio) {
+        setNote("내 목소리인지 확인하는 중");
+        const accepted = await callbacks.current.verifyAudio(file);
+        if (session.current !== id) return;
+        if (!accepted) {
+          setNote("등록된 목소리와 달라 무시했습니다.");
+          return;
+        }
+      }
       let audio = "";
       let mime = "audio/wav";
       try {
@@ -475,6 +508,7 @@ export function useDictation({
         audio = bytesToBase64(new Uint8Array(await file.arrayBuffer()));
         mime = (file.type || "audio/webm").split(";")[0];
       }
+      if (session.current !== id) return;
       const result = await transcribeSpeech({ data: { audio, mime } });
       if (!result.ok) {
         setNote(result.error);
@@ -482,9 +516,16 @@ export function useDictation({
         callbacks.current.onError(result.error);
         return;
       }
+      if (session.current !== id) return;
       callbacks.current.onText(result.text);
       setNote(result.text);
       if (callbacks.current.autoSend) callbacks.current.onUtterance(result.text);
+    } catch (error) {
+      if (session.current === id) {
+        const message = error instanceof Error ? error.message : "목소리를 확인하지 못했습니다.";
+        setNote(message);
+        callbacks.current.onError(message);
+      }
     } finally {
       busy.current = false;
     }
@@ -509,6 +550,7 @@ export function useDictation({
         setNote(said);
         if (callbacks.current.autoSend) callbacks.current.onUtterance(said);
       } else if (item) {
+        item.id = session.current;
         void finish(item, send, send && callbacks.current.autoSend);
         setNote(send ? "받아쓰는 중" : "");
       } else setNote("");
@@ -518,7 +560,7 @@ export function useDictation({
       setNote("그록이 말하는 동안에는 마이크가 기다립니다.");
       setArmed(true);
       wanted.current = true;
-      modeRef.current = recognitionCtor() ? "speech" : "record";
+      modeRef.current = !callbacks.current.verifyAudio && recognitionCtor() ? "speech" : "record";
       return;
     }
     session.current += 1;
@@ -530,7 +572,7 @@ export function useDictation({
     setArmed(true);
     setHearing(true);
     setNote("마이크를 켜는 중");
-    if (recognitionCtor() && startSpeech()) return;
+    if (!callbacks.current.verifyAudio && recognitionCtor() && startSpeech()) return;
     if (!navigator.mediaDevices?.getUserMedia) {
       disarm("이 브라우저에서는 마이크를 쓸 수 없습니다. 음성 파일을 올려 주세요.");
       return;
