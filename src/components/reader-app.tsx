@@ -280,28 +280,9 @@ export function ReaderApp() {
   const [autoReply, setAutoReply] = useState(true);
   const [silence, setSilence] = useState(2);
   const [wakeOn, setWakeOn] = useState(false);
+  const [wakeSession, setWakeSession] = useState(false);
+  const wakeSessionRef = useRef(false);
   const [wakeIdleSeconds, setWakeIdleSeconds] = useState(10);
-  const micHeld = useRef(false);
-  const micHoldTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cancelMicHold = () => {
-    if (micHoldTimer.current) clearTimeout(micHoldTimer.current);
-    micHoldTimer.current = null;
-  };
-  useEffect(() => {
-    const cancel = () => {
-      if (micHoldTimer.current) clearTimeout(micHoldTimer.current);
-      micHoldTimer.current = null;
-    };
-    const hidden = () => {
-      if (document.hidden) cancel();
-    };
-    document.addEventListener("visibilitychange", hidden);
-    return () => {
-      cancel();
-      document.removeEventListener("visibilitychange", hidden);
-    };
-  }, []);
-
   const [persona, setPersona] = useState("");
   const [personaId, setPersonaId] = useState(STARTER_PERSONAS[0].id);
   const personaIdRef = useRef(personaId);
@@ -428,10 +409,10 @@ export function ReaderApp() {
           }
         : undefined,
     paused: asking || reader.status === "playing" || reader.preparing,
-    forceRecord: wakeOn,
-    idleMs: wakeOn ? wakeIdleSeconds * 1000 : undefined,
+    keepListening: wakeOn,
+    idleMs: wakeOn && wakeSession ? wakeIdleSeconds * 1000 : undefined,
     silenceMs: Math.round(silence * 1000),
-    autoSend: autoReply,
+    autoSend: wakeOn || autoReply,
     acceptText:
       requireVoiceName || wakeOn || filterAnnouncements
         ? (text) => {
@@ -441,13 +422,17 @@ export function ReaderApp() {
             )
               return "안내 문장을 무시했습니다.";
             if (
-              (requireVoiceName || wakeOn) &&
+              (wakeOn ? !wakeSessionRef.current : requireVoiceName) &&
               !startsWithPersonaName(
                 text,
                 personas.map((p) => p.name),
               )
             )
               return "페르소나 이름을 부른 뒤 질문해 주세요.";
+            if (wakeOn && takePersonaWake(text, personas)) {
+              wakeSessionRef.current = true;
+              setWakeSession(true);
+            }
             return null;
           }
         : undefined,
@@ -455,6 +440,27 @@ export function ReaderApp() {
     onUtterance: (text) => askRef.current(text),
     onError: setBanner,
   });
+  useEffect(() => {
+    if (!hydrated) return;
+    wakeSessionRef.current = false;
+    setWakeSession(false);
+    if (wakeOn) dictation.arm();
+    else dictation.stop();
+    // Start standby only when the option changes, never after an idle stop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wakeOn, hydrated]);
+  useEffect(() => {
+    if (!dictation.armed) {
+      wakeSessionRef.current = false;
+      setWakeSession(false);
+    }
+  }, [dictation.armed]);
+  const voiceInputNote =
+    wakeOn && dictation.hearing
+      ? wakeSession
+        ? "계속 듣는 중 · 이름 없이 질문하세요"
+        : "페르소나 이름을 기다리는 중"
+      : dictation.note;
   const personaName = personaId.startsWith("group:")
     ? "함께 대화"
     : ((personas.find((item) => item.id === personaId) ?? personas[0])?.name ?? "");
@@ -818,8 +824,8 @@ export function ReaderApp() {
         ? "그록이 대답하는 중"
         : reader.preparing
           ? "목소리 준비 중"
-          : dictation.hearing || dictation.note
-            ? dictation.note || "듣는 중"
+          : dictation.hearing || voiceInputNote
+            ? voiceInputNote || "듣는 중"
             : wake.standby
               ? `「${wakeCall[0] ?? personaName}」라고 부르면 말하기가 켜집니다`
               : reader.status === "idle" && reader.turnIndex >= turns.length
@@ -2450,9 +2456,9 @@ export function ReaderApp() {
             />
           </label>
         ) : null}
-        {dictation.note ? (
+        {voiceInputNote ? (
           <p className="mb-2 text-sm text-primary" role="status">
-            {dictation.note}
+            {voiceInputNote}
           </p>
         ) : wake.standby ? (
           <p className="mb-2 text-sm text-muted" role="status">
@@ -2541,55 +2547,18 @@ export function ReaderApp() {
                 dictation.armed
                   ? "받아쓰기 끄기"
                   : wakeOn
-                    ? "이름 호출 시작 · 길게 누르기"
+                    ? "이름 호출 대기 시작"
                     : "음성으로 말하기"
               }
               aria-pressed={dictation.armed}
-              onPointerDown={() => {
-                micHeld.current = false;
-                if (!wakeOn) return;
-                cancelMicHold();
-                micHoldTimer.current = setTimeout(() => {
-                  reader.stop();
-                  micHeld.current = true;
-                  dictation.arm();
-                  micHoldTimer.current = null;
-                }, 500);
-              }}
-              style={{ touchAction: "none", userSelect: "none" }}
-              onBlur={cancelMicHold}
-              onPointerUp={cancelMicHold}
-              onPointerCancel={cancelMicHold}
-              onPointerLeave={cancelMicHold}
-              onKeyDown={(event) => {
-                if (wakeOn && !event.repeat && (event.key === " " || event.key === "Enter")) {
-                  event.preventDefault();
-                  micHeld.current = false;
-                  cancelMicHold();
-                  micHoldTimer.current = setTimeout(() => {
-                    reader.stop();
-                    micHeld.current = true;
-                    dictation.arm();
-                    micHoldTimer.current = null;
-                  }, 500);
-                }
-              }}
-              onKeyUp={cancelMicHold}
-              onContextMenu={(event) => {
-                if (wakeOn) event.preventDefault();
-              }}
               onClick={() => {
-                if (wakeOn) {
-                  if (micHeld.current) {
-                    micHeld.current = false;
-                    return;
-                  }
-                  if (dictation.armed) dictation.toggle();
-                  else setBanner("마이크를 0.5초 이상 꾹 누른 뒤 이름과 질문을 말하세요.");
-                  return;
-                }
                 reader.prime();
-                dictation.toggle();
+                if (dictation.armed && wakeOn) dictation.stop();
+                else {
+                  wakeSessionRef.current = false;
+                  setWakeSession(false);
+                  dictation.toggle();
+                }
               }}
               className={`inline-flex size-16 items-center justify-center rounded-full bg-primary text-ink ${
                 dictation.armed ? "ring-2 ring-fg ring-offset-2 ring-offset-surface" : ""
@@ -3517,9 +3486,11 @@ export function ReaderApp() {
                       />
                     </label>
                     <p className="text-sm text-pretty text-muted">
-                      켜면 메인 마이크를 0.5초 이상 꾹 눌러 시작합니다. 이름과 질문을 함께 말하세요.
-                      손을 떼어도 듣다가 {wakeIdleSeconds}초 동안 말이 없으면 한 번 종료합니다.
-                      자동으로 다시 켜지지 않습니다. 음성은 녹음 후 API로 변환합니다.
+                      켜면 페르소나 이름을 기다립니다. “아라야”라고 부르면 호출되고, 그 뒤에는 이름
+                      없이 계속 질문할 수 있습니다. 답변 재생 중에는 질문을 받지 않습니다. 마지막 말
+                      이후 {wakeIdleSeconds}초 동안 조용하면 마이크를 끕니다. 다시 시작하려면 마이크
+                      버튼을 누르세요. 브라우저가 듣기를 종료해도 자동 재시작하지 않습니다. 내
+                      목소리 비교 또는 브라우저 음성인식 미지원 시 녹음·받아쓰기 API를 사용합니다.
                     </p>
                     <Slider
                       label="이름 호출 무음 종료 대기"
@@ -3535,13 +3506,14 @@ export function ReaderApp() {
                       <input
                         type="checkbox"
                         checked={requireVoiceName}
+                        disabled={wakeOn}
                         onChange={(e) => setRequireVoiceName(e.target.checked)}
                         className="size-5 accent-primary"
                       />
                     </label>
                     <p className="text-sm text-muted">
-                      음성 질문마다 “아라야 오늘 날씨 알려줘”처럼 이름을 먼저 말하세요. 직접 입력한
-                      채팅에는 적용하지 않습니다.
+                      이름 호출 모드가 꺼져 있을 때 음성 질문마다 “아라야 오늘 날씨 알려줘”처럼
+                      이름을 먼저 말하세요. 직접 입력한 채팅에는 적용하지 않습니다.
                     </p>
                     <label className="flex min-h-11 items-center justify-between gap-3 text-sm text-fg">
                       내비 안내 문장 걸러내기

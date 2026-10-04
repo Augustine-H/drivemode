@@ -5,6 +5,7 @@ import { collapseStutter, mergeUtterance, sessionTranscript } from "@/lib/speech
 type Options = {
   paused: boolean;
   forceRecord?: boolean;
+  keepListening?: boolean;
   idleMs?: number;
   acceptText?: (text: string) => string | null;
   verifyAudio?: (audio: Blob) => Promise<boolean>;
@@ -142,6 +143,7 @@ function stopRecorder(item: Live) {
 export function useDictation({
   paused,
   forceRecord,
+  keepListening,
   idleMs,
   acceptText,
   verifyAudio,
@@ -165,6 +167,9 @@ export function useDictation({
   const speechText = useRef("");
   const bufferRef = useRef("");
   const sendTimer = useRef(0);
+  const speechIdleAt = useRef(Date.now());
+  const speechCursor = useRef(0);
+  const speechRows = useRef(0);
   const genRef = useRef(0);
   const modeRef = useRef<"speech" | "record">("speech");
   const callbacks = useRef({
@@ -175,6 +180,7 @@ export function useDictation({
     onError,
     verifyAudio,
     forceRecord,
+    keepListening,
     idleMs,
     acceptText,
   });
@@ -187,6 +193,7 @@ export function useDictation({
     onError,
     verifyAudio,
     forceRecord,
+    keepListening,
     idleMs,
     acceptText,
   };
@@ -213,13 +220,15 @@ export function useDictation({
       sendTimer.current = 0;
       const said = bufferRef.current.trim();
       if (!said || !wanted.current) return;
-      genRef.current += 1;
+      if (!callbacks.current.keepListening) {
+        genRef.current += 1;
+        wanted.current = false;
+        setArmed(false);
+        closeSpeech();
+        setHearing(false);
+      } else speechCursor.current = speechRows.current;
       bufferRef.current = "";
       speechText.current = "";
-      wanted.current = false;
-      setArmed(false);
-      closeSpeech();
-      setHearing(false);
       setNote(said);
       deliverText(said, true);
     }, callbacks.current.silenceMs);
@@ -262,16 +271,28 @@ export function useDictation({
     rec.continuous = true;
     rec.interimResults = true;
     const carried = bufferRef.current;
+    speechCursor.current = 0;
+    speechRows.current = 0;
+    speechIdleAt.current = Date.now();
     const gen = ++genRef.current;
     rec.onresult = (event) => {
       if (gen !== genRef.current) return;
-      const incoming = sessionTranscript(event);
+      speechRows.current = event.results.length;
+      if (pausedRef.current && callbacks.current.keepListening) {
+        speechCursor.current = event.results.length;
+        return;
+      }
+      const rows = Array.from(event.results).slice(
+        callbacks.current.keepListening ? speechCursor.current : 0,
+      );
+      const incoming = sessionTranscript({ results: rows });
       if (!incoming) return;
       const text = collapseStutter(mergeUtterance(carried, incoming));
       if (!text || text === bufferRef.current) {
         if (text && !sendTimer.current) scheduleSend();
         return;
       }
+      speechIdleAt.current = Date.now();
       bufferRef.current = text;
       speechText.current = text;
       if (!callbacks.current.acceptText) callbacks.current.onText(text);
@@ -341,13 +362,17 @@ export function useDictation({
 
   const finish = async (item: Live, commit: boolean, send: boolean) => {
     if (item.done) return;
-    wanted.current = false;
-    setArmed(false);
+    const keep = Boolean(callbacks.current.keepListening && commit && wanted.current);
+    if (!keep) {
+      wanted.current = false;
+      setArmed(false);
+      window.clearInterval(item.timer);
+    }
     item.done = true;
-    window.clearInterval(item.timer);
     const blob = await stopRecorder(item);
-    release(item);
+    if (!keep) release(item);
     if (!commit || !item.heard || blob.size < 400) {
+      if (keep) restartCapture(item);
       setHearing(false);
       if (commit && wanted.current)
         setNote("목소리가 들리지 않았습니다. 마이크를 가까이 해 주세요.");
@@ -399,8 +424,24 @@ export function useDictation({
       }
     } finally {
       busy.current = false;
-      setHearing(false);
+      if (keep && session.current === item.id && wanted.current) restartCapture(item);
+      else setHearing(false);
     }
+  };
+
+  const restartCapture = (item: Live) => {
+    if (!wanted.current || live.current !== item) return;
+    item.chunks = [];
+    item.heard = false;
+    item.started = Date.now();
+    item.done = false;
+    item.recorder = new MediaRecorder(item.stream);
+    item.recorder.ondataavailable = (event) => {
+      if (event.data.size) item.chunks.push(event.data);
+    };
+    item.recorder.start();
+    if (pausedRef.current) item.recorder.pause();
+    setHearing(!pausedRef.current);
   };
 
   const begin = async () => {
@@ -453,7 +494,7 @@ export function useDictation({
       recorder,
       chunks: [],
       heard: false,
-      quietSince: 0,
+      quietSince: Date.now(),
       started: Date.now(),
       timer: 0,
       done: false,
@@ -472,6 +513,15 @@ export function useDictation({
     );
     item.timer = window.setInterval(() => {
       if (item.done) return;
+      if (
+        callbacks.current.keepListening &&
+        callbacks.current.idleMs &&
+        Date.now() - item.quietSince >= callbacks.current.idleMs
+      ) {
+        void finish(item, false, false);
+        return;
+      }
+      if (pausedRef.current || busy.current) return;
       const level = rmsOf(analyser, buf);
       const now = Date.now();
       const tooLong = now - item.started > 29000;
@@ -480,8 +530,26 @@ export function useDictation({
         item.quietSince = now;
         if (!tooLong) return;
       }
+      if (
+        callbacks.current.keepListening &&
+        callbacks.current.idleMs &&
+        now - item.quietSince >= callbacks.current.idleMs
+      ) {
+        void finish(item, false, false);
+        return;
+      }
       if (!item.heard) {
-        if (callbacks.current.idleMs && now - item.started >= callbacks.current.idleMs)
+        if (tooLong && callbacks.current.keepListening) {
+          item.recorder.ondataavailable = null;
+          item.recorder.stop();
+          restartCapture(item);
+          return;
+        }
+        if (
+          !callbacks.current.keepListening &&
+          callbacks.current.idleMs &&
+          now - item.started >= callbacks.current.idleMs
+        )
           void finish(item, false, false);
         return;
       }
@@ -489,7 +557,10 @@ export function useDictation({
       if (
         tooLong ||
         ((callbacks.current.autoSend || callbacks.current.idleMs) &&
-          quietFor >= (callbacks.current.idleMs ?? callbacks.current.silenceMs))
+          quietFor >=
+            (callbacks.current.keepListening
+              ? callbacks.current.silenceMs
+              : (callbacks.current.idleMs ?? callbacks.current.silenceMs)))
       ) {
         if (!callbacks.current.autoSend) {
           wanted.current = false;
@@ -530,7 +601,8 @@ export function useDictation({
     setHearing(false);
     setNote("");
     speechText.current = "";
-    if (item) void finish(item, false, false);
+    if (item?.done) release(item);
+    else if (item) void finish(item, false, false);
   };
 
   const fromFile = async (file: File) => {
@@ -633,6 +705,21 @@ export function useDictation({
 
   useEffect(() => {
     if (!wanted.current) return;
+    if (callbacks.current.keepListening) {
+      speechCursor.current = speechRows.current;
+      bufferRef.current = "";
+      speechText.current = "";
+      clearSend();
+      const item = live.current;
+      if (item && !item.done) {
+        item.heard = false;
+        item.started = Date.now();
+        if (paused && item.recorder.state === "recording") item.recorder.pause();
+        if (!paused && item.recorder.state === "paused") item.recorder.resume();
+      }
+      setHearing(!paused);
+      return;
+    }
     if (paused) {
       const item = live.current;
       wanted.current = false;
@@ -650,6 +737,22 @@ export function useDictation({
     // resume after Grok finishes speaking
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paused]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (
+        !wanted.current ||
+        !callbacks.current.keepListening ||
+        !callbacks.current.idleMs ||
+        !recRef.current
+      )
+        return;
+      if (Date.now() - speechIdleAt.current >= callbacks.current.idleMs) stop();
+    }, 100);
+    return () => window.clearInterval(timer);
+    // The timer reads current callbacks and session refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(
     () => () => {
