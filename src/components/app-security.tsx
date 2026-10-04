@@ -171,8 +171,8 @@ export function AppSecuritySettings() {
     }
   }
   return (
-    <section className="space-y-3 rounded-2xl border border-line p-4">
-      <h3>화면 보호·앱 잠금</h3>
+    <details className="space-y-3 rounded-2xl border border-line p-4">
+      <summary className="min-h-11 cursor-pointer py-3 font-medium">화면 보호·앱 잠금</summary>
       <label className="flex min-h-11 items-center gap-3">
         <input
           type="checkbox"
@@ -201,7 +201,7 @@ export function AppSecuritySettings() {
         type="password"
         autoComplete={security.enabled ? "current-password" : "new-password"}
         aria-label={security.enabled ? "현재 앱 비밀번호" : "새 앱 비밀번호"}
-        placeholder={security.enabled ? "현재 비밀번호" : "새 비밀번호 (6글자 이상)"}
+        placeholder={security.enabled ? "현재 비밀번호" : "새 비밀번호 (4글자 이상)"}
         className="min-h-11 w-full rounded-xl border border-line bg-bg px-3"
         value={password}
         onChange={(event) => setPassword(event.target.value)}
@@ -242,6 +242,6 @@ export function AppSecuritySettings() {
           {note}
         </p>
       ) : null}
-    </section>
+    </details>
   );
 }

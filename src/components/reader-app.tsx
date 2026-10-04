@@ -106,6 +106,7 @@ type Saved = {
   autoReply: boolean;
   silence: number;
   wakeOn: boolean;
+  wakeIdleSeconds: number;
   persona: string;
   personaId: string;
   personas: PersonaItem[];
@@ -116,6 +117,7 @@ type Saved = {
 };
 
 type SettingsSnap = {
+  wakeIdleSeconds: number;
   rate: number;
   gap: number;
   voiceMe: string;
@@ -278,6 +280,28 @@ export function ReaderApp() {
   const [autoReply, setAutoReply] = useState(true);
   const [silence, setSilence] = useState(2);
   const [wakeOn, setWakeOn] = useState(false);
+  const [wakeIdleSeconds, setWakeIdleSeconds] = useState(10);
+  const micHeld = useRef(false);
+  const micHoldTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelMicHold = () => {
+    if (micHoldTimer.current) clearTimeout(micHoldTimer.current);
+    micHoldTimer.current = null;
+  };
+  useEffect(() => {
+    const cancel = () => {
+      if (micHoldTimer.current) clearTimeout(micHoldTimer.current);
+      micHoldTimer.current = null;
+    };
+    const hidden = () => {
+      if (document.hidden) cancel();
+    };
+    document.addEventListener("visibilitychange", hidden);
+    return () => {
+      cancel();
+      document.removeEventListener("visibilitychange", hidden);
+    };
+  }, []);
+
   const [persona, setPersona] = useState("");
   const [personaId, setPersonaId] = useState(STARTER_PERSONAS[0].id);
   const personaIdRef = useRef(personaId);
@@ -404,10 +428,12 @@ export function ReaderApp() {
           }
         : undefined,
     paused: asking || reader.status === "playing" || reader.preparing,
+    forceRecord: wakeOn,
+    idleMs: wakeOn ? wakeIdleSeconds * 1000 : undefined,
     silenceMs: Math.round(silence * 1000),
     autoSend: autoReply,
     acceptText:
-      requireVoiceName || filterAnnouncements
+      requireVoiceName || wakeOn || filterAnnouncements
         ? (text) => {
             if (
               filterAnnouncements &&
@@ -415,7 +441,7 @@ export function ReaderApp() {
             )
               return "안내 문장을 무시했습니다.";
             if (
-              requireVoiceName &&
+              (requireVoiceName || wakeOn) &&
               !startsWithPersonaName(
                 text,
                 personas.map((p) => p.name),
@@ -438,7 +464,7 @@ export function ReaderApp() {
   wakeOnRef.current = wakeOn;
   const wakeHandler = useRef<(rest: string, id: string) => void>(() => {});
   const wake = useWake({
-    enabled: wakeOn && hydrated && !voiceIdentity.identity?.enabled && !voiceIdentity.blocked,
+    enabled: false,
     paused:
       mailboxOpen ||
       deletingChats ||
@@ -519,7 +545,9 @@ export function ReaderApp() {
         );
       if (typeof saved.autoReply === "boolean") setAutoReply(saved.autoReply);
       if (typeof saved.silence === "number") setSilence(clamp(saved.silence, 1, 5));
-      // Microphone sessions require an explicit action each time the app opens.
+      setWakeOn(saved.wakeOn === true);
+      setWakeIdleSeconds(clamp(saved.wakeIdleSeconds ?? 10, 1, 15));
+      // Persist the preference; recording still requires a long press.
       if (typeof saved.persona === "string") setPersona(saved.persona.slice(0, 240));
       if (Array.isArray(saved.personas)) {
         const next = saved.personas
@@ -688,6 +716,7 @@ export function ReaderApp() {
       autoReply,
       silence,
       wakeOn,
+      wakeIdleSeconds,
       persona,
       personaId,
       personas,
@@ -714,6 +743,7 @@ export function ReaderApp() {
     autoReply,
     silence,
     wakeOn,
+    wakeIdleSeconds,
     persona,
     personaId,
     personas,
@@ -1560,6 +1590,7 @@ export function ReaderApp() {
       autoReply,
       silence,
       wakeOn,
+      wakeIdleSeconds,
       persona,
       personaId,
       personas: personas.map((item) => ({ ...item })),
@@ -1593,7 +1624,8 @@ export function ReaderApp() {
     setAnnouncementLines(snap.announcementLines);
     setAutoReply(snap.autoReply);
     setSilence(snap.silence);
-    setWakeOn(false);
+    setWakeOn(snap.wakeOn);
+    setWakeIdleSeconds(snap.wakeIdleSeconds);
     wake.halt();
     if (!snap.wakeOn) wake.halt();
     const restored = snap.personas.map((item) => ({ ...item }));
@@ -1622,6 +1654,7 @@ export function ReaderApp() {
     setAutoReply(true);
     setSilence(2);
     setWakeOn(false);
+    setWakeIdleSeconds(10);
     wake.halt();
     const plain = personas.find((item) => item.name === "아라") ?? STARTER_PERSONAS[0];
     setPersonaId(plain.id);
@@ -2504,9 +2537,57 @@ export function ReaderApp() {
             </div>
             <button
               type="button"
-              aria-label={dictation.armed ? "받아쓰기 끄기" : "음성으로 말하기"}
+              aria-label={
+                dictation.armed
+                  ? "받아쓰기 끄기"
+                  : wakeOn
+                    ? "이름 호출 시작 · 길게 누르기"
+                    : "음성으로 말하기"
+              }
               aria-pressed={dictation.armed}
+              onPointerDown={() => {
+                micHeld.current = false;
+                if (!wakeOn) return;
+                cancelMicHold();
+                micHoldTimer.current = setTimeout(() => {
+                  reader.stop();
+                  micHeld.current = true;
+                  dictation.arm();
+                  micHoldTimer.current = null;
+                }, 500);
+              }}
+              style={{ touchAction: "none", userSelect: "none" }}
+              onBlur={cancelMicHold}
+              onPointerUp={cancelMicHold}
+              onPointerCancel={cancelMicHold}
+              onPointerLeave={cancelMicHold}
+              onKeyDown={(event) => {
+                if (wakeOn && !event.repeat && (event.key === " " || event.key === "Enter")) {
+                  event.preventDefault();
+                  micHeld.current = false;
+                  cancelMicHold();
+                  micHoldTimer.current = setTimeout(() => {
+                    reader.stop();
+                    micHeld.current = true;
+                    dictation.arm();
+                    micHoldTimer.current = null;
+                  }, 500);
+                }
+              }}
+              onKeyUp={cancelMicHold}
+              onContextMenu={(event) => {
+                if (wakeOn) event.preventDefault();
+              }}
               onClick={() => {
+                if (wakeOn) {
+                  if (micHeld.current) {
+                    micHeld.current = false;
+                    return;
+                  }
+                  if (dictation.armed) dictation.toggle();
+                  else setBanner("마이크를 0.5초 이상 꾹 누른 뒤 이름과 질문을 말하세요.");
+                  return;
+                }
                 reader.prime();
                 dictation.toggle();
               }}
@@ -3053,471 +3134,520 @@ export function ReaderApp() {
             ) : (
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-2">
-                  <section className="space-y-2">
-                    <h3>대화 관리</h3>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-line bg-surface px-3 text-sm text-fg"
-                        onClick={() => {
-                          setDraftNote(null);
-                          setExportText(null);
-                          setSheet("save");
-                        }}
-                      >
-                        <Download className="size-4" aria-hidden="true" />
-                        대화 저장하기
-                      </button>
-                      <button
-                        type="button"
-                        className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-line bg-surface px-3 text-sm text-fg"
-                        onClick={() => {
-                          setDraft(turnsToText(turns));
-                          setDraftNote(null);
-                          setExportText(null);
-                          setPendingBackup(null);
-                          setSheet("script");
-                        }}
-                      >
-                        <ClipboardPaste className="size-4" aria-hidden="true" />
-                        대화 불러오기
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        disabled={asking || painting || filming || deletingChats}
-                        onClick={() => {
-                          reader.stop();
-                          dictation.stop();
-                          setSheet(null);
-                          setMailboxOpen(true);
-                        }}
-                        className="min-h-11 rounded-full border border-line px-3 text-sm text-fg"
-                      >
-                        보이스 메일
-                      </button>
-                      <button
-                        type="button"
-                        disabled={asking}
-                        onClick={() => {
-                          setGroupDraft(
-                            personaId.startsWith("group:") ? [...groupMembers] : [personaId],
-                          );
-                          setSheet(null);
-                          setGroupSetup(true);
-                        }}
-                        className="min-h-11 rounded-full border border-line px-3 text-sm text-fg"
-                      >
-                        참여자 초대·나가기
-                      </button>
-                      <button
-                        type="button"
-                        disabled={asking || voiceBackup.saving}
-                        onClick={() =>
-                          void voiceBackup.backup(
-                            personaId.startsWith("group:") ? groupMembers : [personaId],
-                          )
-                        }
-                        className="min-h-11 rounded-full border border-line px-3 text-sm text-fg"
-                      >
-                        대화 종료·기억 백업
-                      </button>
-                      {!personaId.startsWith("group:") ? (
+                  <details className="rounded-2xl border border-line p-3">
+                    <summary className="min-h-11 cursor-pointer py-3 font-medium">
+                      대화 관리
+                    </summary>
+                    <div className="space-y-3 pt-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-line bg-surface px-3 text-sm text-fg"
+                          onClick={() => {
+                            setDraftNote(null);
+                            setExportText(null);
+                            setSheet("save");
+                          }}
+                        >
+                          <Download className="size-4" aria-hidden="true" />
+                          대화 저장하기
+                        </button>
+                        <button
+                          type="button"
+                          className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-line bg-surface px-3 text-sm text-fg"
+                          onClick={() => {
+                            setDraft(turnsToText(turns));
+                            setDraftNote(null);
+                            setExportText(null);
+                            setPendingBackup(null);
+                            setSheet("script");
+                          }}
+                        >
+                          <ClipboardPaste className="size-4" aria-hidden="true" />
+                          대화 불러오기
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={asking || painting || filming || deletingChats}
+                          onClick={() => {
+                            reader.stop();
+                            dictation.stop();
+                            setSheet(null);
+                            setMailboxOpen(true);
+                          }}
+                          className="min-h-11 rounded-full border border-line px-3 text-sm text-fg"
+                        >
+                          보이스 메일
+                        </button>
                         <button
                           type="button"
                           disabled={asking}
                           onClick={() => {
+                            setGroupDraft(
+                              personaId.startsWith("group:") ? [...groupMembers] : [personaId],
+                            );
                             setSheet(null);
-                            setDeleteChat({ id: personaId, name: personaName });
+                            setGroupSetup(true);
                           }}
-                          className="min-h-11 rounded-full border border-line px-3 text-sm text-muted"
+                          className="min-h-11 rounded-full border border-line px-3 text-sm text-fg"
                         >
-                          전체 대화 삭제
+                          참여자 초대·나가기
                         </button>
-                      ) : null}
-                    </div>
-                  </section>
-                  <section className="space-y-3 rounded-2xl border border-line p-3">
-                    <h3>프로필 사진 · {selectedPersona?.name}</h3>
-                    {selectedPersona?.photo ? (
-                      <img
-                        src={selectedPersona.photo}
-                        alt="선택된 프로필 사진"
-                        className="size-20 rounded-full object-cover"
-                      />
-                    ) : null}
-                    <label className="block text-sm">
-                      사진 선택
-                      <input
-                        aria-label="프로필 사진 선택"
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp"
-                        disabled={profileBusy}
-                        className="mt-2 block w-full"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          e.target.value = "";
-                          if (file) void setProfile(file);
-                        }}
-                      />
-                    </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={selectedPersona?.showBackground === true}
-                        onChange={(e) => updatePersona({ showBackground: e.target.checked })}
-                      />
-                      프로필 사진을 대화 배경으로 표시
-                    </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={selectedPersona?.showAvatar !== false}
-                        onChange={(e) => updatePersona({ showAvatar: e.target.checked })}
-                      />
-                      말풍선 이름 옆에 프로필 사진 표시
-                    </label>
-                    <p className="text-xs text-muted">
-                      그록봇 프로필 사진을 저장한 뒤 선택하세요. Dropbox 위치:
-                      /Grok/voicegrok/profiles/{selectedPersona?.name}/profile.png. 같은 이름의
-                      페르소나에 적용됩니다. 백업에는 Dropbox 쓰기 권한이 필요합니다.
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {[true, false].map((upload) => (
                         <button
-                          key={String(upload)}
+                          type="button"
+                          disabled={asking || voiceBackup.saving}
+                          onClick={() =>
+                            void voiceBackup.backup(
+                              personaId.startsWith("group:") ? groupMembers : [personaId],
+                            )
+                          }
+                          className="min-h-11 rounded-full border border-line px-3 text-sm text-fg"
+                        >
+                          대화 종료·기억 백업
+                        </button>
+                        {!personaId.startsWith("group:") ? (
+                          <button
+                            type="button"
+                            disabled={asking}
+                            onClick={() => {
+                              setSheet(null);
+                              setDeleteChat({ id: personaId, name: personaName });
+                            }}
+                            className="min-h-11 rounded-full border border-line px-3 text-sm text-muted"
+                          >
+                            전체 대화 삭제
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  </details>
+                  <details className="rounded-2xl border border-line p-3">
+                    <summary className="min-h-11 cursor-pointer py-3 font-medium">
+                      프로필 사진 · {selectedPersona?.name}
+                    </summary>
+                    <div className="space-y-3 pt-2">
+                      {selectedPersona?.photo ? (
+                        <img
+                          src={selectedPersona.photo}
+                          alt="선택된 프로필 사진"
+                          className="size-20 rounded-full object-cover"
+                        />
+                      ) : null}
+                      <label className="block text-sm">
+                        사진 선택
+                        <input
+                          aria-label="프로필 사진 선택"
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          disabled={profileBusy}
+                          className="mt-2 block w-full"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            e.target.value = "";
+                            if (file) void setProfile(file);
+                          }}
+                        />
+                      </label>
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={selectedPersona?.showBackground === true}
+                          onChange={(e) => updatePersona({ showBackground: e.target.checked })}
+                        />
+                        프로필 사진을 대화 배경으로 표시
+                      </label>
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={selectedPersona?.showAvatar !== false}
+                          onChange={(e) => updatePersona({ showAvatar: e.target.checked })}
+                        />
+                        말풍선 이름 옆에 프로필 사진 표시
+                      </label>
+                      <p className="text-xs text-muted">
+                        그록봇 프로필 사진을 저장한 뒤 선택하세요. Dropbox 위치:
+                        /Grok/voicegrok/profiles/{selectedPersona?.name}/profile.png. 같은 이름의
+                        페르소나에 적용됩니다. 백업에는 Dropbox 쓰기 권한이 필요합니다.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {[true, false].map((upload) => (
+                          <button
+                            key={String(upload)}
+                            className="min-h-11 rounded-full border border-line px-3 text-sm"
+                            disabled={profileBusy}
+                            onClick={() => void profileCloud(upload)}
+                          >
+                            {upload ? "사진 Dropbox 백업" : "사진 Dropbox 불러오기"}
+                          </button>
+                        ))}
+                        <button
                           className="min-h-11 rounded-full border border-line px-3 text-sm"
                           disabled={profileBusy}
-                          onClick={() => void profileCloud(upload)}
+                          onClick={() => updatePersona({ photo: undefined })}
                         >
-                          {upload ? "사진 Dropbox 백업" : "사진 Dropbox 불러오기"}
-                        </button>
-                      ))}
-                      <button
-                        className="min-h-11 rounded-full border border-line px-3 text-sm"
-                        disabled={profileBusy}
-                        onClick={() => updatePersona({ photo: undefined })}
-                      >
-                        사진 제거
-                      </button>
-                    </div>
-                    {profileNote ? (
-                      <p role="status" className="text-sm text-muted">
-                        {profileNote}
-                      </p>
-                    ) : null}
-                  </section>
-                  <span className="text-sm text-muted">페르소나</span>
-                  <div className="flex flex-wrap gap-2">
-                    {personas.map((item) => {
-                      const on = item.id === personaId;
-                      return (
-                        <button
-                          key={item.id}
-                          type="button"
-                          aria-pressed={on}
-                          className={
-                            "h-10 rounded-full px-3 text-sm " +
-                            (on ? "bg-primary text-ink" : "border border-line text-fg")
-                          }
-                          onClick={() => selectPersona(item.id)}
-                        >
-                          {item.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {newPersona ? (
-                    <div className="flex flex-col gap-2">
-                      <input
-                        value={newPersona.name}
-                        maxLength={16}
-                        onChange={(e) =>
-                          setNewPersona({ ...newPersona, name: e.target.value.slice(0, 16) })
-                        }
-                        placeholder="이름"
-                        aria-label="새 페르소나 이름"
-                        className="h-12 rounded-2xl border border-line bg-bg px-3 text-base text-fg"
-                      />
-                      <textarea
-                        value={newPersona.text}
-                        maxLength={240}
-                        rows={3}
-                        onChange={(e) =>
-                          setNewPersona({ ...newPersona, text: e.target.value.slice(0, 240) })
-                        }
-                        placeholder="말투. 예: 운전 중이라 짧게, 반말로 말해."
-                        aria-label="새 페르소나 내용"
-                        className="w-full resize-none rounded-2xl border border-line bg-bg px-3 py-3 text-base text-fg placeholder:text-faint"
-                      />
-                      <input
-                        type="password"
-                        value={newPersona.password}
-                        maxLength={32}
-                        autoComplete="new-password"
-                        onChange={(e) =>
-                          setNewPersona({ ...newPersona, password: e.target.value.slice(0, 32) })
-                        }
-                        placeholder="삭제용 비밀번호"
-                        aria-label="삭제용 비밀번호"
-                        className="h-12 rounded-2xl border border-line bg-bg px-3 text-base text-fg"
-                      />
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          className="h-11 rounded-full bg-primary px-4 text-sm font-medium text-ink"
-                          onClick={addPersona}
-                        >
-                          추가
-                        </button>
-                        <button
-                          type="button"
-                          className="h-11 rounded-full border border-line px-4 text-sm text-fg"
-                          onClick={() => setNewPersona(null)}
-                        >
-                          취소
+                          사진 제거
                         </button>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      <input
-                        value={selectedPersona?.name ?? ""}
-                        maxLength={16}
-                        onChange={(e) => updatePersona({ name: e.target.value.slice(0, 16) })}
-                        aria-label="페르소나 이름"
-                        className="h-12 rounded-2xl border border-line bg-bg px-3 text-base text-fg"
-                      />
-                      <textarea
-                        value={selectedPersona?.text ?? ""}
-                        maxLength={240}
-                        rows={3}
-                        onChange={(e) => updatePersona({ text: e.target.value.slice(0, 240) })}
-                        placeholder="직접 적어도 됩니다. 예: 운전 중이라 짧게, 반말로 말해."
-                        aria-label="페르소나 내용"
-                        className="w-full resize-none rounded-2xl border border-line bg-bg px-3 py-3 text-base text-fg placeholder:text-faint"
-                      />
-                      <div className="flex flex-col gap-2 rounded-2xl border border-line bg-bg p-3">
-                        <p className="text-sm text-fg">{selectedPersona?.name}의 기억·템플릿</p>
-                        <p className="text-sm text-muted">
-                          요약 기억 {selectedPersona?.memories?.length ?? 0}개 · 템플릿{" "}
-                          {selectedPersona?.template
-                            ? `${selectedPersona.template.length}자`
-                            : "없음"}
+                      {profileNote ? (
+                        <p role="status" className="text-sm text-muted">
+                          {profileNote}
                         </p>
-                        <p className="text-sm text-muted">
-                          불러오기에서 MD 요약이나 페르소나 JSON을 선택하세요. Dropbox 자동 연결도
-                          같은 이름에 적용합니다. 답변 요청에는 선택된 기억 일부와 성격 템플릿이
-                          전달됩니다.
-                        </p>
-                        {selectedPersona?.template ? (
-                          <details className="text-sm text-muted">
-                            <summary>성격 템플릿 보기</summary>
-                            <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words">
-                              {selectedPersona.template}
-                            </pre>
-                          </details>
-                        ) : null}
-                        {(selectedPersona?.memories ?? []).map((memory) => (
-                          <details key={memory.source} className="text-sm text-muted">
-                            <summary>{memory.source}</summary>
-                            <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words">
-                              {memory.content}
-                            </pre>
-                          </details>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          className="h-11 rounded-full border border-line px-4 text-sm text-fg"
-                          onClick={() => setNewPersona({ name: "", text: "", password: "" })}
-                        >
-                          새 페르소나
-                        </button>
-                        <button
-                          type="button"
-                          className="h-11 rounded-full border border-line px-4 text-sm text-muted disabled:opacity-40"
-                          onClick={deletePersona}
-                          disabled={!selectedPersona || selectedPersona.locked}
-                        >
-                          삭제
-                        </button>
-                      </div>
-                      <p className="text-sm text-muted">
-                        이름과 내용을 고치면 바로 그 말투로 답합니다. 대화는 페르소나마다 따로
-                        보입니다. 새로 만들 때 정한 비밀번호가 있어야 지울 수 있습니다.
-                      </p>
+                      ) : null}
                     </div>
-                  )}
+                  </details>
+                  <details className="rounded-2xl border border-line p-3">
+                    <summary className="min-h-11 cursor-pointer py-3 font-medium">페르소나</summary>
+                    <div className="space-y-3 pt-2">
+                      <div className="flex flex-wrap gap-2">
+                        {personas.map((item) => {
+                          const on = item.id === personaId;
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              aria-pressed={on}
+                              className={
+                                "h-10 rounded-full px-3 text-sm " +
+                                (on ? "bg-primary text-ink" : "border border-line text-fg")
+                              }
+                              onClick={() => selectPersona(item.id)}
+                            >
+                              {item.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {newPersona ? (
+                        <div className="flex flex-col gap-2">
+                          <input
+                            value={newPersona.name}
+                            maxLength={16}
+                            onChange={(e) =>
+                              setNewPersona({ ...newPersona, name: e.target.value.slice(0, 16) })
+                            }
+                            placeholder="이름"
+                            aria-label="새 페르소나 이름"
+                            className="h-12 rounded-2xl border border-line bg-bg px-3 text-base text-fg"
+                          />
+                          <textarea
+                            value={newPersona.text}
+                            maxLength={240}
+                            rows={3}
+                            onChange={(e) =>
+                              setNewPersona({ ...newPersona, text: e.target.value.slice(0, 240) })
+                            }
+                            placeholder="말투. 예: 운전 중이라 짧게, 반말로 말해."
+                            aria-label="새 페르소나 내용"
+                            className="w-full resize-none rounded-2xl border border-line bg-bg px-3 py-3 text-base text-fg placeholder:text-faint"
+                          />
+                          <input
+                            type="password"
+                            value={newPersona.password}
+                            maxLength={32}
+                            autoComplete="new-password"
+                            onChange={(e) =>
+                              setNewPersona({
+                                ...newPersona,
+                                password: e.target.value.slice(0, 32),
+                              })
+                            }
+                            placeholder="삭제용 비밀번호"
+                            aria-label="삭제용 비밀번호"
+                            className="h-12 rounded-2xl border border-line bg-bg px-3 text-base text-fg"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              className="h-11 rounded-full bg-primary px-4 text-sm font-medium text-ink"
+                              onClick={addPersona}
+                            >
+                              추가
+                            </button>
+                            <button
+                              type="button"
+                              className="h-11 rounded-full border border-line px-4 text-sm text-fg"
+                              onClick={() => setNewPersona(null)}
+                            >
+                              취소
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-2">
+                          <input
+                            value={selectedPersona?.name ?? ""}
+                            maxLength={16}
+                            onChange={(e) => updatePersona({ name: e.target.value.slice(0, 16) })}
+                            aria-label="페르소나 이름"
+                            className="h-12 rounded-2xl border border-line bg-bg px-3 text-base text-fg"
+                          />
+                          <textarea
+                            value={selectedPersona?.text ?? ""}
+                            maxLength={240}
+                            rows={3}
+                            onChange={(e) => updatePersona({ text: e.target.value.slice(0, 240) })}
+                            placeholder="직접 적어도 됩니다. 예: 운전 중이라 짧게, 반말로 말해."
+                            aria-label="페르소나 내용"
+                            className="w-full resize-none rounded-2xl border border-line bg-bg px-3 py-3 text-base text-fg placeholder:text-faint"
+                          />
+                          <div className="flex flex-col gap-2 rounded-2xl border border-line bg-bg p-3">
+                            <p className="text-sm text-fg">{selectedPersona?.name}의 기억·템플릿</p>
+                            <p className="text-sm text-muted">
+                              요약 기억 {selectedPersona?.memories?.length ?? 0}개 · 템플릿{" "}
+                              {selectedPersona?.template
+                                ? `${selectedPersona.template.length}자`
+                                : "없음"}
+                            </p>
+                            <p className="text-sm text-muted">
+                              불러오기에서 MD 요약이나 페르소나 JSON을 선택하세요. Dropbox 자동
+                              연결도 같은 이름에 적용합니다. 답변 요청에는 선택된 기억 일부와 성격
+                              템플릿이 전달됩니다.
+                            </p>
+                            {selectedPersona?.template ? (
+                              <details className="text-sm text-muted">
+                                <summary>성격 템플릿 보기</summary>
+                                <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words">
+                                  {selectedPersona.template}
+                                </pre>
+                              </details>
+                            ) : null}
+                            {(selectedPersona?.memories ?? []).map((memory) => (
+                              <details key={memory.source} className="text-sm text-muted">
+                                <summary>{memory.source}</summary>
+                                <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words">
+                                  {memory.content}
+                                </pre>
+                              </details>
+                            ))}
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              className="h-11 rounded-full border border-line px-4 text-sm text-fg"
+                              onClick={() => setNewPersona({ name: "", text: "", password: "" })}
+                            >
+                              새 페르소나
+                            </button>
+                            <button
+                              type="button"
+                              className="h-11 rounded-full border border-line px-4 text-sm text-muted disabled:opacity-40"
+                              onClick={deletePersona}
+                              disabled={!selectedPersona || selectedPersona.locked}
+                            >
+                              삭제
+                            </button>
+                          </div>
+                          <p className="text-sm text-muted">
+                            이름과 내용을 고치면 바로 그 말투로 답합니다. 대화는 페르소나마다 따로
+                            보입니다. 새로 만들 때 정한 비밀번호가 있어야 지울 수 있습니다.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </details>
                 </div>
-                <VoiceSelect
-                  label="내 목소리 · 남자"
-                  value={voiceMe}
-                  voices={MALE_VOICES}
-                  previewing={previewing === voiceMe}
-                  onChange={setVoiceMe}
-                  onPreview={() => void previewVoice(voiceMe)}
-                />
-                <VoiceSelect
-                  label={`${selectedPersona?.name ?? "그록"} 목소리 · 여자`}
-                  value={voiceGrok}
-                  voices={FEMALE_VOICES}
-                  previewing={previewing === voiceGrok}
-                  onChange={(voice) => {
-                    setVoiceGrok(voice);
-                    setPersonas((prev) =>
-                      prev.map((item) => (item.id === personaId ? { ...item, voice } : item)),
-                    );
-                  }}
-                  onPreview={() => void previewVoice(voiceGrok)}
-                />
-                <Slider
-                  label="속도"
-                  value={rate}
-                  min={0.7}
-                  max={1.5}
-                  step={0.05}
-                  display={`${rate.toFixed(2)}×`}
-                  onChange={setRate}
-                />
-                <Slider
-                  label="말 사이 쉼"
-                  value={gap}
-                  min={0}
-                  max={1.5}
-                  step={0.05}
-                  display={`${gap.toFixed(2)}초`}
-                  onChange={setGap}
-                />
-                <label className="flex items-center justify-between gap-3 text-sm text-fg">
-                  이름을 부르면 말하기
-                  <input
-                    type="checkbox"
-                    checked={wakeOn && !voiceIdentity.identity?.enabled && !voiceIdentity.blocked}
-                    disabled={voiceIdentity.identity?.enabled || voiceIdentity.blocked}
-                    onChange={(e) => {
-                      const on = e.target.checked;
-                      setWakeOn(on);
-                      if (on) wake.kick();
-                      else wake.halt();
-                    }}
-                    className="size-5 accent-primary"
-                  />
-                </label>
-                <p className="text-sm text-pretty text-muted">
-                  등록된 모든 페르소나를 이름으로 부르면 해당 대화로 이동합니다. 예: “아라야”,
-                  “혜정아”, “혜정이”.
-                  {wakeOn && !wake.listening
-                    ? " 브라우저가 듣기를 끝내면 자동으로 다시 켜지 않습니다. 다시 듣고 싶으면 스위치를 껐다 켜 주세요."
-                    : ""}
-                </p>
-                <label className="flex min-h-11 items-center justify-between gap-3 text-sm text-fg">
-                  이름을 부른 뒤에만 질문 받기
-                  <input
-                    type="checkbox"
-                    checked={requireVoiceName}
-                    onChange={(e) => setRequireVoiceName(e.target.checked)}
-                    className="size-5 accent-primary"
-                  />
-                </label>
-                <p className="text-sm text-muted">
-                  음성 질문마다 “아라야 오늘 날씨 알려줘”처럼 이름을 먼저 말하세요. 직접 입력한
-                  채팅에는 적용하지 않습니다.
-                </p>
-                <label className="flex min-h-11 items-center justify-between gap-3 text-sm text-fg">
-                  내비 안내 문장 걸러내기
-                  <input
-                    type="checkbox"
-                    checked={filterAnnouncements}
-                    onChange={(e) => setFilterAnnouncements(e.target.checked)}
-                    className="size-5 accent-primary"
-                  />
-                </label>
-                <label className="grid gap-2 text-sm text-fg">
-                  걸러낼 안내 문장 (한 줄에 하나)
-                  <textarea
-                    value={announcementLines.join("\n")}
-                    onChange={(e) => setAnnouncementLines(e.target.value.split("\n").slice(0, 100))}
-                    rows={7}
-                    maxLength={20000}
-                    className="w-full rounded-xl border border-line bg-surface p-3 text-sm"
-                  />
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setAnnouncementLines([...DEFAULT_ANNOUNCEMENTS])}
-                  className="min-h-11 rounded-xl border border-line px-3 text-sm"
-                >
-                  기본 안내 문장 복원
-                </button>
-                <p className="text-sm text-muted">
-                  기본 안내 문장 {DEFAULT_ANNOUNCEMENTS.length}개가 들어 있습니다. 띄어쓰기·문장부호
-                  차이와 나누어 인식된 안내도 걸러냅니다. 등록 문장과 다른 안내는 추가해 주세요.
-                  음성 인식 후 질문 전송을 막는 기능입니다.
-                </p>
-                <label className="flex min-h-11 items-center justify-between gap-3 text-sm text-fg">
-                  페르소나 답변은 글자 없이 음성 메시지로 표시
-                  <input
-                    type="checkbox"
-                    checked={voiceOnly}
-                    onChange={(event) => setVoiceOnly(event.target.checked)}
-                    className="size-5 accent-primary"
-                  />
-                </label>
-                <p className="text-sm text-muted">
-                  켜면 답변 글자는 채팅창과 재생 표시줄에 나오지 않습니다. 음성 버튼으로 해당
-                  메시지만 듣고 일시정지·다시 재생할 수 있습니다. 답변 원문은 대화 기억과 백업을
-                  위해 내부에 보관합니다. 음성 생성에는 API가 사용되며, API 음성을 사용할 수 없으면
-                  기기 기본 음성으로 읽습니다.
-                </p>
-                <label className="flex items-center justify-between gap-3 text-sm text-fg">
-                  그록이 한 말만 읽기
-                  <input
-                    type="checkbox"
-                    checked={onlyGrok}
-                    onChange={(e) => setOnlyGrok(e.target.checked)}
-                    className="size-5 accent-primary"
-                  />
-                </label>
-                <label className="flex items-center justify-between gap-3 text-sm text-fg">
-                  말이 끊기면 자동으로 답하기
-                  <input
-                    type="checkbox"
-                    checked={autoReply}
-                    onChange={(e) => setAutoReply(e.target.checked)}
-                    className="size-5 accent-primary"
-                  />
-                </label>
-                <Slider
-                  label="음성 없이 기다리는 시간"
-                  value={silence}
-                  min={1}
-                  max={5}
-                  step={0.5}
-                  display={`${silence.toFixed(1)}초`}
-                  onChange={setSilence}
-                />
-                <label className="flex items-center justify-between gap-3 text-sm text-fg">
-                  읽는 말로 자동 스크롤
-                  <input
-                    type="checkbox"
-                    checked={autoScroll}
-                    onChange={(e) => setAutoScroll(e.target.checked)}
-                    className="size-5 accent-primary"
-                  />
-                </label>
-                <p className="text-sm text-pretty text-muted">
-                  마이크를 켜고 말하면 받아 적습니다. 페르소나 이름 뒤에 야나 아를 붙여 부르면 그
-                  말투로 받고 말하기가 켜집니다. 셀카나 사진을 보내 달라고 하면 그림을, 영상이라고
-                  하면 짧은 영상을 채팅에 넣고 읽어 줍니다. 만들기 전에는 만들었다고 말하지
-                  않습니다. 장소, 가격, 소식 같은 정보는 그록이 인터넷에서 찾아 읽어 줍니다. 설정한
-                  시간 동안 음성이 없으면 대답하고, 읽는 동안에는 마이크를 잠깐 멈춥니다.
-                </p>
-                <p className="text-center text-xs text-muted">
-                  {APP_NAME} {APP_VERSION}
-                </p>
+                <details className="rounded-2xl border border-line p-3">
+                  <summary className="min-h-11 cursor-pointer py-3 font-medium">
+                    목소리 · 재생
+                  </summary>
+                  <div className="space-y-3 pt-2">
+                    {" "}
+                    <VoiceSelect
+                      label="내 목소리 · 남자"
+                      value={voiceMe}
+                      voices={MALE_VOICES}
+                      previewing={previewing === voiceMe}
+                      onChange={setVoiceMe}
+                      onPreview={() => void previewVoice(voiceMe)}
+                    />
+                    <VoiceSelect
+                      label={`${selectedPersona?.name ?? "그록"} 목소리 · 여자`}
+                      value={voiceGrok}
+                      voices={FEMALE_VOICES}
+                      previewing={previewing === voiceGrok}
+                      onChange={(voice) => {
+                        setVoiceGrok(voice);
+                        setPersonas((prev) =>
+                          prev.map((item) => (item.id === personaId ? { ...item, voice } : item)),
+                        );
+                      }}
+                      onPreview={() => void previewVoice(voiceGrok)}
+                    />
+                    <Slider
+                      label="속도"
+                      value={rate}
+                      min={0.7}
+                      max={1.5}
+                      step={0.05}
+                      display={`${rate.toFixed(2)}×`}
+                      onChange={setRate}
+                    />
+                    <Slider
+                      label="말 사이 쉼"
+                      value={gap}
+                      min={0}
+                      max={1.5}
+                      step={0.05}
+                      display={`${gap.toFixed(2)}초`}
+                      onChange={setGap}
+                    />
+                  </div>
+                </details>
+                <details className="rounded-2xl border border-line p-3">
+                  <summary className="min-h-11 cursor-pointer py-3 font-medium">
+                    마이크 · 이름 호출 · 안내 필터
+                  </summary>
+                  <div className="space-y-3 pt-2">
+                    {" "}
+                    <label className="flex items-center justify-between gap-3 text-sm text-fg">
+                      이름을 부르면 말하기
+                      <input
+                        type="checkbox"
+                        checked={wakeOn}
+                        disabled={voiceIdentity.blocked}
+                        onChange={(e) => {
+                          const on = e.target.checked;
+                          setWakeOn(on);
+                          dictation.stop();
+                          wake.halt();
+                        }}
+                        className="size-5 accent-primary"
+                      />
+                    </label>
+                    <p className="text-sm text-pretty text-muted">
+                      켜면 메인 마이크를 0.5초 이상 꾹 눌러 시작합니다. 이름과 질문을 함께 말하세요.
+                      손을 떼어도 듣다가 {wakeIdleSeconds}초 동안 말이 없으면 한 번 종료합니다.
+                      자동으로 다시 켜지지 않습니다. 음성은 녹음 후 API로 변환합니다.
+                    </p>
+                    <Slider
+                      label="이름 호출 무음 종료 대기"
+                      value={wakeIdleSeconds}
+                      min={1}
+                      max={15}
+                      step={1}
+                      display={`${wakeIdleSeconds}초`}
+                      onChange={setWakeIdleSeconds}
+                    />
+                    <label className="flex min-h-11 items-center justify-between gap-3 text-sm text-fg">
+                      이름을 부른 뒤에만 질문 받기
+                      <input
+                        type="checkbox"
+                        checked={requireVoiceName}
+                        onChange={(e) => setRequireVoiceName(e.target.checked)}
+                        className="size-5 accent-primary"
+                      />
+                    </label>
+                    <p className="text-sm text-muted">
+                      음성 질문마다 “아라야 오늘 날씨 알려줘”처럼 이름을 먼저 말하세요. 직접 입력한
+                      채팅에는 적용하지 않습니다.
+                    </p>
+                    <label className="flex min-h-11 items-center justify-between gap-3 text-sm text-fg">
+                      내비 안내 문장 걸러내기
+                      <input
+                        type="checkbox"
+                        checked={filterAnnouncements}
+                        onChange={(e) => setFilterAnnouncements(e.target.checked)}
+                        className="size-5 accent-primary"
+                      />
+                    </label>
+                    <label className="grid gap-2 text-sm text-fg">
+                      걸러낼 안내 문장 (한 줄에 하나)
+                      <textarea
+                        value={announcementLines.join("\n")}
+                        onChange={(e) =>
+                          setAnnouncementLines(e.target.value.split("\n").slice(0, 100))
+                        }
+                        rows={7}
+                        maxLength={20000}
+                        className="w-full rounded-xl border border-line bg-surface p-3 text-sm"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setAnnouncementLines([...DEFAULT_ANNOUNCEMENTS])}
+                      className="min-h-11 rounded-xl border border-line px-3 text-sm"
+                    >
+                      기본 안내 문장 복원
+                    </button>
+                    <p className="text-sm text-muted">
+                      기본 안내 문장 {DEFAULT_ANNOUNCEMENTS.length}개가 들어 있습니다.
+                      띄어쓰기·문장부호 차이와 나누어 인식된 안내도 걸러냅니다. 등록 문장과 다른
+                      안내는 추가해 주세요. 음성 인식 후 질문 전송을 막는 기능입니다.
+                    </p>
+                  </div>
+                </details>
+                <details className="rounded-2xl border border-line p-3">
+                  <summary className="min-h-11 cursor-pointer py-3 font-medium">
+                    답변 · 대화 표시
+                  </summary>
+                  <div className="space-y-3 pt-2">
+                    {" "}
+                    <label className="flex min-h-11 items-center justify-between gap-3 text-sm text-fg">
+                      페르소나 답변은 글자 없이 음성 메시지로 표시
+                      <input
+                        type="checkbox"
+                        checked={voiceOnly}
+                        onChange={(event) => setVoiceOnly(event.target.checked)}
+                        className="size-5 accent-primary"
+                      />
+                    </label>
+                    <p className="text-sm text-muted">
+                      켜면 답변 글자는 채팅창과 재생 표시줄에 나오지 않습니다. 음성 버튼으로 해당
+                      메시지만 듣고 일시정지·다시 재생할 수 있습니다. 답변 원문은 대화 기억과 백업을
+                      위해 내부에 보관합니다. 음성 생성에는 API가 사용되며, API 음성을 사용할 수
+                      없으면 기기 기본 음성으로 읽습니다.
+                    </p>
+                    <label className="flex items-center justify-between gap-3 text-sm text-fg">
+                      그록이 한 말만 읽기
+                      <input
+                        type="checkbox"
+                        checked={onlyGrok}
+                        onChange={(e) => setOnlyGrok(e.target.checked)}
+                        className="size-5 accent-primary"
+                      />
+                    </label>
+                    <label className="flex items-center justify-between gap-3 text-sm text-fg">
+                      말이 끊기면 자동으로 답하기
+                      <input
+                        type="checkbox"
+                        checked={autoReply}
+                        onChange={(e) => setAutoReply(e.target.checked)}
+                        className="size-5 accent-primary"
+                      />
+                    </label>
+                    <Slider
+                      label="음성 없이 기다리는 시간"
+                      value={silence}
+                      min={1}
+                      max={5}
+                      step={0.5}
+                      display={`${silence.toFixed(1)}초`}
+                      onChange={setSilence}
+                    />
+                    <label className="flex items-center justify-between gap-3 text-sm text-fg">
+                      읽는 말로 자동 스크롤
+                      <input
+                        type="checkbox"
+                        checked={autoScroll}
+                        onChange={(e) => setAutoScroll(e.target.checked)}
+                        className="size-5 accent-primary"
+                      />
+                    </label>
+                    <p className="text-sm text-pretty text-muted">
+                      마이크를 켜고 말하면 받아 적습니다. 페르소나 이름 뒤에 야나 아를 붙여 부르면
+                      그 말투로 받고 말하기가 켜집니다. 셀카나 사진을 보내 달라고 하면 그림을,
+                      영상이라고 하면 짧은 영상을 채팅에 넣고 읽어 줍니다. 만들기 전에는 만들었다고
+                      말하지 않습니다. 장소, 가격, 소식 같은 정보는 그록이 인터넷에서 찾아 읽어
+                      줍니다. 설정한 시간 동안 음성이 없으면 대답하고, 읽는 동안에는 마이크를 잠깐
+                      멈춥니다.
+                    </p>
+                    <p className="text-center text-xs text-muted">
+                      {APP_NAME} {APP_VERSION}
+                    </p>
+                  </div>
+                </details>{" "}
                 <VoiceIdentitySettings
                   identity={voiceIdentity.identity}
                   error={voiceIdentity.error}
@@ -3528,26 +3658,32 @@ export function ReaderApp() {
                   }}
                 />
                 <AppSecuritySettings />
-                <section className="space-y-3 rounded-2xl border border-line p-4">
-                  <h3>모든 대화·보이스 메일 삭제</h3>
-                  <p className="text-sm text-muted">
-                    이 기기의 모든 페르소나와 단체 대화, 보이스 메일, 기기 내부 대화 백업을
-                    삭제합니다. 두 번 확인한 뒤 실행하며 되돌릴 수 없습니다. 템플릿·외부
-                    기억·Dropbox 파일은 유지합니다.
-                  </p>
-                  <button
-                    type="button"
-                    disabled={asking || painting || filming || voiceBackup.saving || deletingChats}
-                    className="min-h-11 w-full rounded-full border border-line text-fg"
-                    onClick={() => {
-                      reader.stop();
-                      dictation.stop();
-                      setDeleteAllStage(1);
-                    }}
-                  >
-                    보이스 그록의 모든 대화 전체 삭제
-                  </button>
-                </section>
+                <details className="rounded-2xl border border-line p-3">
+                  <summary className="min-h-11 cursor-pointer py-3 font-medium">
+                    모든 대화 · 보이스 메일 삭제
+                  </summary>
+                  <div className="space-y-3 pt-2">
+                    <p className="text-sm text-muted">
+                      이 기기의 모든 페르소나와 단체 대화, 보이스 메일, 기기 내부 대화 백업을
+                      삭제합니다. 두 번 확인한 뒤 실행하며 되돌릴 수 없습니다. 템플릿·외부
+                      기억·Dropbox 파일은 유지합니다.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={
+                        asking || painting || filming || voiceBackup.saving || deletingChats
+                      }
+                      className="min-h-11 w-full rounded-full border border-line text-fg"
+                      onClick={() => {
+                        reader.stop();
+                        dictation.stop();
+                        setDeleteAllStage(1);
+                      }}
+                    >
+                      보이스 그록의 모든 대화 전체 삭제
+                    </button>
+                  </div>
+                </details>
                 <div className="sticky bottom-0 -mx-4 flex gap-2 border-t border-line bg-surface px-4 py-3">
                   <button
                     type="button"

@@ -4,6 +4,8 @@ import { collapseStutter, mergeUtterance, sessionTranscript } from "@/lib/speech
 
 type Options = {
   paused: boolean;
+  forceRecord?: boolean;
+  idleMs?: number;
   acceptText?: (text: string) => string | null;
   verifyAudio?: (audio: Blob) => Promise<boolean>;
   silenceMs: number;
@@ -139,6 +141,8 @@ function stopRecorder(item: Live) {
 
 export function useDictation({
   paused,
+  forceRecord,
+  idleMs,
   acceptText,
   verifyAudio,
   silenceMs,
@@ -170,6 +174,8 @@ export function useDictation({
     onUtterance,
     onError,
     verifyAudio,
+    forceRecord,
+    idleMs,
     acceptText,
   });
   pausedRef.current = paused;
@@ -180,6 +186,8 @@ export function useDictation({
     onUtterance,
     onError,
     verifyAudio,
+    forceRecord,
+    idleMs,
     acceptText,
   };
 
@@ -245,7 +253,7 @@ export function useDictation({
   };
 
   const startSpeech = () => {
-    if (callbacks.current.verifyAudio) return false;
+    if (callbacks.current.verifyAudio || callbacks.current.forceRecord) return false;
     closeSpeech();
     const Ctor = recognitionCtor();
     if (!Ctor) return false;
@@ -407,7 +415,7 @@ export function useDictation({
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true },
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
     } catch (err) {
       starting.current = false;
@@ -466,15 +474,23 @@ export function useDictation({
       if (item.done) return;
       const level = rmsOf(analyser, buf);
       const now = Date.now();
-      const tooLong = now - item.started > 15000;
-      if (level > 0.02) {
+      const tooLong = now - item.started > 29000;
+      if (level > (callbacks.current.verifyAudio ? 0.008 : 0.02)) {
         item.heard = true;
         item.quietSince = now;
         if (!tooLong) return;
       }
-      if (!item.heard) return;
+      if (!item.heard) {
+        if (callbacks.current.idleMs && now - item.started >= callbacks.current.idleMs)
+          void finish(item, false, false);
+        return;
+      }
       const quietFor = now - (item.quietSince || now);
-      if (tooLong || (callbacks.current.autoSend && quietFor >= callbacks.current.silenceMs)) {
+      if (
+        tooLong ||
+        ((callbacks.current.autoSend || callbacks.current.idleMs) &&
+          quietFor >= (callbacks.current.idleMs ?? callbacks.current.silenceMs))
+      ) {
         if (!callbacks.current.autoSend) {
           wanted.current = false;
           setArmed(false);
@@ -490,7 +506,10 @@ export function useDictation({
     wanted.current = true;
     setBlocked(false);
     setArmed(true);
-    modeRef.current = !callbacks.current.verifyAudio && recognitionCtor() ? "speech" : "record";
+    modeRef.current =
+      !callbacks.current.verifyAudio && !callbacks.current.forceRecord && recognitionCtor()
+        ? "speech"
+        : "record";
     setNote("말하기를 켭니다");
     if (!pausedRef.current) {
       if (modeRef.current === "speech" && startSpeech()) return;

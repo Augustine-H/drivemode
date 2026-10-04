@@ -19,7 +19,7 @@ async function hashPassword(password: string, salt: string) {
   );
 }
 export async function makeLock(password: string): Promise<LockConfig> {
-  if (password.length < 6) throw new Error("비밀번호는 6글자 이상 입력하세요.");
+  if (password.length < 4) throw new Error("비밀번호는 4글자 이상 입력하세요.");
   const salt = hex(crypto.getRandomValues(new Uint8Array(32)).buffer);
   return { salt, hash: await hashPassword(password, salt) };
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { similarity, SPEAKER_MODEL, type VoiceIdentity } from "@/lib/speaker-identity";
+import { matchVoice, similarity, SPEAKER_MODEL, type VoiceIdentity } from "@/lib/speaker-identity";
 import { speakerEmbedding, releaseSpeakerModel } from "@/lib/speaker-client";
 export function VoiceIdentitySettings({
   identity,
@@ -50,7 +50,7 @@ export function VoiceIdentitySettings({
       document.removeEventListener("visibilitychange", hidden);
     };
   }, []);
-  async function record() {
+  async function record(testOnly = false) {
     onStart();
     const id = ++epoch.current;
     setPhase("recording");
@@ -91,6 +91,13 @@ export function VoiceIdentitySettings({
         if (mounted.current && id === epoch.current) setNote(n);
       });
       if (!mounted.current || id !== epoch.current) return;
+      if (testOnly && identity) {
+        const result = matchVoice(identity.samples, embedding, identity.threshold);
+        setNote(
+          `일치도 ${Math.round(result.score * 100)}점 · 기준 ${Math.round(identity.threshold * 100)}점 · ${result.accepted ? "질문 허용" : "질문 거절"}. 거절되면 기준을 조금 낮추거나 실제 사용 환경에서 다시 등록하세요.`,
+        );
+        return;
+      }
       if (samples.some((s) => similarity(s, embedding) < 0.75))
         throw new Error("앞서 등록한 목소리와 다릅니다. 주변 안내음을 끄고 다시 읽어 주세요.");
       const next = [...samples, embedding];
@@ -99,7 +106,7 @@ export function VoiceIdentitySettings({
           version: 1,
           model: SPEAKER_MODEL,
           enabled: identity?.enabled ?? false,
-          threshold: identity?.threshold ?? 0.86,
+          threshold: identity?.threshold ?? 0.8,
           samples: next,
           registeredAt: new Date().toISOString(),
         });
@@ -118,8 +125,10 @@ export function VoiceIdentitySettings({
     }
   }
   return (
-    <section className="space-y-3 rounded-2xl border border-line p-3">
-      <h3>내 목소리만 받기 · 실험 기능</h3>
+    <details className="space-y-3 rounded-2xl border border-line p-3">
+      <summary className="min-h-11 cursor-pointer py-3 font-medium">
+        내 목소리만 받기 · 실험 기능
+      </summary>
       <p className="text-sm text-muted">
         조용한 곳에서 내 목소리를 3회 등록합니다. 비교 모델 약 102MB와 실행 파일을 첫 사용 때
         다운로드하고 기기 안에서 실행합니다. 원본 녹음은 저장·업로드하지 않고, 목소리 특징만 이
@@ -151,6 +160,26 @@ export function VoiceIdentitySettings({
               ? "목소리 다시 등록"
               : "목소리 등록 시작"}
       </button>
+      {identity ? (
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="min-h-11 rounded-full border border-line px-4 text-sm"
+            disabled={phase !== "idle"}
+            onClick={() => void record(true)}
+          >
+            등록 목소리 확인
+          </button>
+          <button
+            type="button"
+            className="min-h-11 rounded-full border border-line px-4 text-sm"
+            disabled={phase !== "idle"}
+            onClick={() => onChange({ ...identity, threshold: 0.8 })}
+          >
+            일치 기준 80점 적용
+          </button>
+        </div>
+      ) : null}
       <label className="flex items-center gap-2 text-sm">
         <input
           type="checkbox"
@@ -165,7 +194,7 @@ export function VoiceIdentitySettings({
       </label>
       {identity ? (
         <label className="block text-sm">
-          일치 기준 {Math.round(identity.threshold * 100)}%
+          일치 기준 {Math.round(identity.threshold * 100)}점
           <input
             aria-label="목소리 일치 기준"
             className="mt-2 w-full"
@@ -184,9 +213,9 @@ export function VoiceIdentitySettings({
       ) : null}
       <p className="text-xs text-muted">
         수치는 유사도 기준이며 정확도 확률이 아닙니다. 높이면 다른 목소리를 더 엄격하게 거르지만 내
-        목소리도 거절될 수 있습니다. 이 모드에서는 이름 호출 대기를 끄고 마이크 버튼을 눌러
-        말합니다. 확인을 통과한 음성만 기존 받아쓰기 API로 전송하므로 받아쓰기·답변 API 비용은
-        발생할 수 있습니다. 소음·겹친 목소리·녹음 재생을 완벽히 구별하는 보안 기능은 아닙니다.
+        목소리도 거절될 수 있습니다. 이름 호출 설정을 켜면 마이크를 길게 눌러 말할 수 있습니다.
+        확인을 통과한 음성만 기존 받아쓰기 API로 전송하므로 받아쓰기·답변 API 비용은 발생할 수
+        있습니다. 소음·겹친 목소리·녹음 재생을 완벽히 구별하는 보안 기능은 아닙니다.
       </p>
       {note || error ? (
         <p role="status" className="text-sm text-muted">
@@ -222,6 +251,6 @@ export function VoiceIdentitySettings({
           </button>
         </div>
       ) : null}
-    </section>
+    </details>
   );
 }

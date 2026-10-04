@@ -66,33 +66,51 @@ export async function voicePcm(blob: Blob): Promise<Float32Array> {
   const context = new AudioContext();
   try {
     const decoded = await context.decodeAudioData(await blob.arrayBuffer());
-    if (decoded.duration < 2 || decoded.duration > 30)
-      throw new Error("2초 이상, 30초 이내로 말해 주세요.");
+    if (decoded.duration < 0.8 || decoded.duration > 30)
+      throw new Error("1초 이상, 30초 이내로 말해 주세요.");
     const offline = new OfflineAudioContext(1, Math.ceil(decoded.duration * 16000), 16000);
     const source = offline.createBufferSource();
     source.buffer = decoded;
     source.connect(offline.destination);
     source.start();
     const pcm = (await offline.startRendering()).getChannelData(0);
-    let first = pcm.length,
-      last = 0,
-      voiced = 0;
-    for (let i = 0; i < pcm.length; i += 320) {
-      let sum = 0;
-      const end = Math.min(i + 320, pcm.length);
-      for (let j = i; j < end; j++) sum += pcm[j] * pcm[j];
-      if (Math.sqrt(sum / (end - i)) > 0.012) {
-        first = Math.min(first, i);
-        last = end;
-        voiced += end - i;
-      }
-    }
-    if (voiced < 16000 * 1.5)
-      throw new Error("목소리가 너무 짧거나 작습니다. 3초 이상 또렷하게 말해 주세요.");
-    const start = Math.max(0, first - 1600),
-      end = Math.min(pcm.length, last + 1600, start + 16000 * 10);
-    return pcm.slice(start, end);
+    return prepareVoicePcm(pcm);
   } finally {
     await context.close();
   }
+}
+
+/** Trim quiet edges and normalize soft speech before the same enrollment/query model. */
+export function prepareVoicePcm(pcm: Float32Array): Float32Array {
+  let first = pcm.length,
+    last = 0,
+    voiced = 0;
+  for (let i = 0; i < pcm.length; i += 320) {
+    const end = Math.min(i + 320, pcm.length);
+    let sum = 0;
+    for (let j = i; j < end; j++) {
+      if (!Number.isFinite(pcm[j])) throw new Error("음성 데이터가 손상되었습니다.");
+      sum += pcm[j] * pcm[j];
+    }
+    if (Math.sqrt(sum / (end - i)) > 0.004) {
+      first = Math.min(first, i);
+      last = end;
+      voiced += end - i;
+    }
+  }
+  if (voiced < 16000 * 0.6)
+    throw new Error("목소리가 너무 짧거나 작습니다. 1초 이상 또렷하게 말해 주세요.");
+  const out = pcm.slice(
+    Math.max(0, first - 1600),
+    Math.min(pcm.length, last + 1600, first + 160000),
+  );
+  let sum = 0,
+    peak = 0;
+  for (const value of out) {
+    sum += value * value;
+    peak = Math.max(peak, Math.abs(value));
+  }
+  const gain = Math.min(0.1 / Math.sqrt(sum / out.length), 0.95 / peak, 8);
+  for (let i = 0; i < out.length; i++) out[i] *= gain;
+  return out;
 }

@@ -11,5 +11,6 @@ test("app passwords are salted and reject wrong passwords and damaged records", 
   assert.equal(await checkLock("test-only-1234", a), true);
   assert.equal(await checkLock("wrong-1234", a), false);
   assert.equal(await checkLock("test-only-1234", { salt: "", hash: "" }), false);
-  await assert.rejects(makeLock("12345"));
+  await assert.rejects(makeLock("123"));
+  assert.equal(await checkLock("1234", await makeLock("1234")), true);
 });

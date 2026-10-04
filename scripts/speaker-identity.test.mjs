@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  prepareVoicePcm,
   similarity,
   matchVoice,
   parseVoiceIdentity,
@@ -36,4 +37,14 @@ test("damaged or incompatible voice registrations reject instead of allowing spe
     assert.equal(parseVoiceIdentity(JSON.stringify({ ...v, ...change })), null);
   assert.throws(() => matchVoice([a], a, 0.86));
   assert.throws(() => similarity([NaN], [1]));
+});
+
+test("soft short speech is trimmed and normalized, silence remains rejected", () => {
+  const pcm = new Float32Array(32000);
+  for (let i = 8000; i < 24000; i++) pcm[i] = Math.sin(i * 0.2) * 0.008;
+  const result = prepareVoicePcm(pcm);
+  assert.ok(result.length < pcm.length);
+  assert.ok(Math.max(...result) > 0.03);
+  assert.throws(() => prepareVoicePcm(new Float32Array(32000)));
+  assert.throws(() => prepareVoicePcm(new Float32Array([NaN])));
 });
