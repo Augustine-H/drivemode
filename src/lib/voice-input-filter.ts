@@ -1,4 +1,4 @@
-export const ANNOUNCEMENT_DEFAULTS_VERSION = 2;
+export const ANNOUNCEMENT_DEFAULTS_VERSION = 3;
 const ADDED_ANNOUNCEMENTS = [
   "전방 차량 출발",
   "차선을 이탈하였습니다.",
@@ -7,6 +7,8 @@ const ADDED_ANNOUNCEMENTS = [
   "보행자를 주의하세요.",
   "차량 내부의 온도가 너무 높습니다. 블랙박스가 종료됩니다.",
 ];
+
+const EMERGENCY_ANNOUNCEMENT = "긴급 영상 녹화를 시작합니다.";
 
 export const DEFAULT_ANNOUNCEMENTS = [
   "4G 모듈 업그레이드를 실패했습니다.",
@@ -34,15 +36,15 @@ export const DEFAULT_ANNOUNCEMENTS = [
   "안녕하세요 저는 max입니다. 앱을 이용해 기기와 연결하세요.",
   "고온이 감지되었습니다. 화면을 끄고 녹화를 계속합니다.",
   ...ADDED_ANNOUNCEMENTS,
+  EMERGENCY_ANNOUNCEMENT,
 ];
 
 export function migrateAnnouncementLines(lines: string[], version = 1) {
   if (version >= ANNOUNCEMENT_DEFAULTS_VERSION) return lines;
+  const additions =
+    version < 2 ? [...ADDED_ANNOUNCEMENTS, EMERGENCY_ANNOUNCEMENT] : [EMERGENCY_ANNOUNCEMENT];
   const existing = new Set(lines.map(normalizeVoiceText));
-  return [
-    ...lines,
-    ...ADDED_ANNOUNCEMENTS.filter((line) => !existing.has(normalizeVoiceText(line))),
-  ];
+  return [...lines, ...additions.filter((line) => !existing.has(normalizeVoiceText(line)))];
 }
 
 export function normalizeVoiceText(text: string) {

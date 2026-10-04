@@ -8,7 +8,7 @@ import {
 } from "../src/lib/voice-input-filter.ts";
 
 test("all defaults and separately recognized clauses are filtered", () => {
-  assert.equal(DEFAULT_ANNOUNCEMENTS.length, 30);
+  assert.equal(DEFAULT_ANNOUNCEMENTS.length, 31);
   for (const line of DEFAULT_ANNOUNCEMENTS) {
     assert.ok(isAnnouncement(line, DEFAULT_ANNOUNCEMENTS));
     assert.ok(isAnnouncement(line.replace(/[ .]/g, ""), DEFAULT_ANNOUNCEMENTS));
@@ -32,10 +32,20 @@ test("name must start the question", () => {
 test("new defaults migrate once while preserving edits and preventing duplicates", () => {
   const custom = ["사용자 안내", "전방차량출발."];
   const migrated = migrateAnnouncementLines(custom);
-  assert.equal(migrated.length, 7);
+  assert.equal(migrated.length, 8);
   assert.equal(migrated[0], custom[0]);
-  assert.deepEqual(migrateAnnouncementLines(["사용자 안내"], 2), ["사용자 안내"]);
+  assert.deepEqual(migrateAnnouncementLines(["사용자 안내"], 3), ["사용자 안내"]);
   assert.ok(
     isAnnouncement("차량 내부의 온도가 너무 높습니다. 블랙박스가 종료됩니다.\u200b", migrated),
   );
+});
+
+test("version 2 adds only the emergency announcement", () => {
+  assert.deepEqual(migrateAnnouncementLines(["사용자 안내"], 2), [
+    "사용자 안내",
+    "긴급 영상 녹화를 시작합니다.",
+  ]);
+  assert.deepEqual(migrateAnnouncementLines(["긴급영상녹화를시작합니다"], 2), [
+    "긴급영상녹화를시작합니다",
+  ]);
 });
