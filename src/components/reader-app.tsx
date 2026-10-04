@@ -1,5 +1,7 @@
 import {
   DEFAULT_ANNOUNCEMENTS,
+  ANNOUNCEMENT_DEFAULTS_VERSION,
+  migrateAnnouncementLines,
   isAnnouncement,
   startsWithPersonaName,
 } from "@/lib/voice-input-filter";
@@ -98,6 +100,7 @@ type Saved = {
   requireVoiceName?: boolean;
   filterAnnouncements?: boolean;
   announcementLines?: string[];
+  announcementDefaultsVersion?: number;
   autoReply: boolean;
   silence: number;
   wakeOn: boolean;
@@ -473,9 +476,12 @@ export function ReaderApp() {
       setFilterAnnouncements(saved.filterAnnouncements === true);
       if (Array.isArray(saved.announcementLines))
         setAnnouncementLines(
-          saved.announcementLines
-            .filter((line): line is string => typeof line === "string")
-            .slice(0, 100),
+          migrateAnnouncementLines(
+            saved.announcementLines
+              .filter((line): line is string => typeof line === "string")
+              .slice(0, 100),
+            saved.announcementDefaultsVersion,
+          ),
         );
       if (typeof saved.autoReply === "boolean") setAutoReply(saved.autoReply);
       if (typeof saved.silence === "number") setSilence(clamp(saved.silence, 1, 5));
@@ -644,6 +650,7 @@ export function ReaderApp() {
       requireVoiceName,
       filterAnnouncements,
       announcementLines,
+      announcementDefaultsVersion: ANNOUNCEMENT_DEFAULTS_VERSION,
       autoReply,
       silence,
       wakeOn,
@@ -3400,9 +3407,9 @@ export function ReaderApp() {
                   기본 안내 문장 복원
                 </button>
                 <p className="text-sm text-muted">
-                  캡처의 안내 23개와 고온 안내가 기본으로 들어 있습니다. 띄어쓰기·문장부호 차이와
-                  나누어 인식된 안내도 걸러냅니다. 등록 문장과 다른 안내는 추가해 주세요. 음성 인식
-                  후 질문 전송을 막는 기능입니다.
+                  기본 안내 문장 {DEFAULT_ANNOUNCEMENTS.length}개가 들어 있습니다. 띄어쓰기·문장부호
+                  차이와 나누어 인식된 안내도 걸러냅니다. 등록 문장과 다른 안내는 추가해 주세요.
+                  음성 인식 후 질문 전송을 막는 기능입니다.
                 </p>
                 <label className="flex min-h-11 items-center justify-between gap-3 text-sm text-fg">
                   페르소나 답변은 글자 없이 음성 메시지로 표시
