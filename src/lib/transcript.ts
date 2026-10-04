@@ -11,10 +11,18 @@ export type Turn = {
   personaId?: string;
   voice?: string;
   textOnly?: boolean;
-  event?: "join" | "leave";
+  event?: "join" | "leave" | "relay";
   audience?: string[];
   mediaDescription?: string;
   mediaRef?: string;
+  relay?: {
+    fromId: string;
+    fromName: string;
+    toId: string;
+    toName: string;
+    request: string;
+    payload: string;
+  };
 };
 
 export type ParseMode = "labeled" | "alternating" | "empty";

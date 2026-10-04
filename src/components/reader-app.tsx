@@ -6,7 +6,9 @@ import {
   knownTurns,
   findQuestionMedia,
   turnRecord,
+  rememberRoomEvents,
 } from "@/lib/room-context";
+import { relayDelivery } from "@/lib/persona-relay";
 import { videoFrames } from "@/lib/video-frames";
 import { useMailReplies } from "@/lib/use-mail-replies";
 import { MailNotifications } from "@/components/mail-notifications";
@@ -607,7 +609,7 @@ export function ReaderApp() {
         if (next.length > 0) {
           const migrated = migrateDefaultPersonas(next, loaded ?? {}, saved.personaId);
           setPersonas(migrated.personas);
-          setThreads(migrated.threads);
+          setThreads(rememberRoomEvents(migrated.threads, migrated.personas));
           const picked = migrated.personas.find((item) => item.id === migrated.personaId)!;
           setPersonaId(picked.id);
           setPersona(picked.text.slice(0, 240));
@@ -940,7 +942,7 @@ export function ReaderApp() {
       backup.personas.find((item) => item.id === backup.personaId) ?? backup.personas[0];
     reader.stop();
     setPersonas(backup.personas);
-    setThreads(backup.threads);
+    setThreads(rememberRoomEvents(backup.threads, backup.personas));
     setRoomMembers(backup.roomMembers ?? {});
     setPersonaId(picked.id);
     setPersona(picked.text.slice(0, 240));
@@ -1477,7 +1479,8 @@ export function ReaderApp() {
     if (deleteAllStage || deletingChats) return;
     let text = (spoken ?? composer).trim();
     if (!text || busyRef.current) return;
-    const membership = fromMail ? null : participantCommand(text, personas);
+    const relay = fromMail ? null : relayCommand(text, personas);
+    const membership = fromMail || relay ? null : participantCommand(text, personas);
     if (membership) {
       if (membership.id === roomHost) {
         setBanner("이 방의 기본 페르소나는 초대하거나 내보낼 수 없습니다.");
@@ -1491,7 +1494,8 @@ export function ReaderApp() {
       );
       return;
     }
-    const hit = fromMail ? null : takePersonaWake(text, personas);
+    const wakeHit = fromMail ? null : takePersonaWake(text, personas);
+    const hit = relay && wakeHit?.id === relay.id ? null : wakeHit;
     if (hit && !target && !(groupMembers.length >= 2 && groupMembers.includes(hit.id))) {
       target = hit.id;
       selectPersona(target);
@@ -1521,17 +1525,13 @@ export function ReaderApp() {
       setBanner("전체 대화를 삭제하려면 삭제 확인을 누르거나 '모두 삭제'라고 말하세요.");
       return;
     }
-    if (!fromMail && deleteConversationCommand(text)) {
+    if (!fromMail && !relay && deleteConversationCommand(text)) {
       if (active) setDeleteChat({ id, name: active.name });
       setComposer("");
       return;
     }
-    const relay = fromMail ? null : relayCommand(text, personas);
     if (relay) {
-      const sender = active?.name ?? personaName;
-      selectPersona(relay.id);
-      await ask(`사용자가 ${sender}를 통해 전한 메시지: ${relay.message}`, relay.id);
-      setBanner(`${sender}를 통해 메시지를 전달했습니다.`);
+      await sendRelay(text, relay, hit?.id ?? active?.id ?? roomHost, id);
       return;
     }
     if (
@@ -1583,7 +1583,7 @@ export function ReaderApp() {
         .slice(-4)
         .map((turn) => ({
           role: turn.speaker === "me" ? ("user" as const) : ("assistant" as const),
-          content: `${turn.text}${turn.image ? " [사진을 보낸 기록]" : ""}${turn.video ? " [영상을 보낸 기록]" : ""}`,
+          content: `${turn.relay ? "[" + turn.relay.fromName + "가 " + turn.relay.toName + "에게 전달한 메시지] " : ""}${turn.text}${turn.image ? " [사진을 보낸 기록]" : ""}${turn.video ? " [영상을 보낸 기록]" : ""}`,
         }));
       const activePersona = personas.find((item) => item.id === id);
       const role = activePersona ? personaInstructions(activePersona) : persona;
@@ -2027,6 +2027,110 @@ export function ReaderApp() {
     }
   }
 
+  async function sendRelay(
+    raw: string,
+    command: { id: string; message: string },
+    senderId: string,
+    room: string,
+  ) {
+    const from = personas.find((p) => p.id === senderId);
+    const to = personas.find((p) => p.id === command.id);
+    if (!from || !to) return;
+    if (from.id === to.id) {
+      setBanner("다른 페르소나를 전달 대상으로 골라 주세요.");
+      return;
+    }
+    const media =
+      findQuestionMedia(threads[room] ?? [], command.message, selectedMediaId) ??
+      findQuestionMedia(knownTurns(threads, from.id), command.message, selectedMediaId);
+    if (/사진|이미지|그림|셀카|영상|동영상/.test(command.message) && !media) {
+      setBanner("전달할 사진·영상이 없습니다. 미디어를 먼저 선택해 주세요.");
+      return;
+    }
+    if (!command.message.trim() && !media) {
+      setBanner("전달할 내용을 적거나 사진·영상을 선택해 주세요.");
+      return;
+    }
+    const job = ++jobEpoch.current;
+    const abort = new AbortController();
+    answerAbort.current = abort;
+    busyRef.current = true;
+    setAsking(true);
+    reader.stop();
+    setComposer("");
+    setBanner(null);
+    const audience = roomMembers[room] ?? (room.startsWith("group:") ? legacyGroupMembers : [room]);
+    const at = Date.now();
+    const mine: Turn = {
+      id: `me-${at.toString(36)}`,
+      speaker: "me",
+      text: raw,
+      at,
+      audience,
+      mediaRef: media?.id,
+    };
+    setThreads((prev) => ({ ...prev, [room]: [...(prev[room] ?? []), mine] }));
+    try {
+      const result = await streamAsk(
+        {
+          message: `사용자가 ${to.name}에게 내용을 전해 달라고 요청했다. 실제로 전달될 말만 네 성격·말투로 작성해라. 수신인 ${to.name}에게 직접 말하는 형식이다. '전달했어' 같은 완료 보고는 쓰지 않는다. 이름, 날짜, 숫자, 부정 표현과 핵심 의미를 바꾸거나 사실을 덧붙이지 않는다. 기록을 참고해야 하는 요청이면 관련 기록을 먼저 참고한다. 요청: ${command.message || "선택한 미디어를 전달해줘"}${media ? "\n함께 전달하는 미디어: " + (media.mediaDescription || (media.video ? "선택한 영상" : "선택한 사진")) + ". 화면을 직접 분석한 것처럼 묘사하지 말고 함께 보낸다고 짧게 말한다." : ""}`,
+          history: [],
+          persona: personaInstructions(from),
+          memory: [
+            conversationMemory(threads, from.id, command.message),
+            "현재 방의 최근 대화:\n" +
+              (threads[room] ?? [])
+                .filter((t) => !t.event)
+                .slice(-8)
+                .map(turnRecord)
+                .join("\n"),
+          ]
+            .join("\n")
+            .slice(0, 12000),
+        },
+        () => {},
+        abort.signal,
+      );
+      if (job !== jobEpoch.current) return;
+      if (!result.ok) {
+        setBanner("전달하지 못했습니다. " + result.error);
+        return;
+      }
+      const { incoming, receipt } = relayDelivery({
+        from,
+        to,
+        request: raw,
+        payload: result.text,
+        media,
+        at: Date.now(),
+        sourceAudience: audience,
+        targetAudience: roomMembers[to.id] ?? [to.id],
+      });
+      setThreads((prev) =>
+        room === to.id
+          ? { ...prev, [room]: [...(prev[room] ?? []), incoming, receipt] }
+          : {
+              ...prev,
+              [room]: [...(prev[room] ?? []), receipt],
+              [to.id]: [...(prev[to.id] ?? []), incoming],
+            },
+      );
+      setSelectedMediaId(null);
+      setBanner(receipt.text);
+    } catch (error) {
+      if (job === jobEpoch.current)
+        setBanner(
+          "전달하지 못했습니다. " +
+            (error instanceof Error ? error.message : "연결을 확인해 주세요."),
+        );
+    } finally {
+      if (job === jobEpoch.current) {
+        busyRef.current = false;
+        setAsking(false);
+      }
+    }
+  }
+
   async function changeParticipants(requested: string[]) {
     if (busyRef.current) return;
     if (new Set([roomHost, ...requested]).size > 6) {
@@ -2060,7 +2164,10 @@ export function ReaderApp() {
       speaker: "grok",
       event: action,
       textOnly: true,
-      text: `${personas.find((p) => p.id === id)?.name || "페르소나"} 님이 ${action === "join" ? "들어왔습니다" : "나갔습니다"}.`,
+      personaId: id,
+      personaName: personas.find((p) => p.id === id)?.name,
+      audience: [...new Set([...groupMembers, ...changes.members])],
+      text: `${personas.find((p) => p.id === id)?.name || "페르소나"} 님이 ${personas.find((p) => p.id === roomHost)?.name || "기본 페르소나"} 방${action === "join" ? "에 초대되어 들어왔습니다" : "에서 나갔습니다"}.`,
       at,
     }));
     const current = [...(threads[room] ?? []), ...notices];
@@ -2450,7 +2557,11 @@ export function ReaderApp() {
             {voiceBackup.note}
           </p>
         ) : null}
-        {banner ? <p className="mb-3 text-sm text-pretty text-muted">{banner}</p> : null}
+        {banner ? (
+          <p role="status" className="mb-3 text-sm text-pretty text-muted">
+            {banner}
+          </p>
+        ) : null}
         {turns.length === 0 ? (
           <div className="flex h-full flex-col items-start justify-center gap-4">
             <p className="font-display text-3xl text-balance text-fg">
@@ -2475,6 +2586,15 @@ export function ReaderApp() {
                           <p role="status" className="py-2 text-center text-sm text-muted">
                             {turn.text}
                           </p>
+                          {turn.relay ? (
+                            <button
+                              type="button"
+                              className="mx-auto block min-h-11 rounded-full border border-line px-3 text-sm text-fg"
+                              onClick={() => selectPersona(turn.relay!.toId)}
+                            >
+                              받은 방 열기 · {turn.relay.toName}
+                            </button>
+                          ) : null}
                         </li>
                       );
                     const playing = reader.status !== "idle" && index === reader.turnIndex && !done;

@@ -14,7 +14,9 @@ export function relayCommand(text: string, personas: { id: string; name: string 
   for (const persona of personas) {
     const escaped = persona.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const match = text.match(
-      new RegExp(`${escaped}(?:이)?(?:한테|에게)\\s*(.+?)\\s*(?:전해줘|전달해줘)[.!?]*$`),
+      new RegExp(
+        `${escaped}(?:이)?(?:한테|에게)(?:는)?\\s*(.*?)\\s*(?:전해\\s*줘|전달해\\s*줘|알려\\s*줘|알려주라고|보내\\s*줘)[.!?]*$`,
+      ),
     );
     if (match) return { id: persona.id, message: match[1] };
   }

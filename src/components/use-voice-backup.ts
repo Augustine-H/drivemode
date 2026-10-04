@@ -63,8 +63,8 @@ export function useVoiceBackup(
       for (const persona of state.current.personas.filter(
         (item) => !ids || ids.includes(item.id),
       )) {
-        const turns = knownTurns(state.current.threads, persona.id).filter((turn) =>
-          /^(?:me|gk|relay)-/.test(turn.id),
+        const turns = knownTurns(state.current.threads, persona.id).filter(
+          (turn) => turn.event || /^(?:me|gk|relay)-/.test(turn.id),
         );
         if (!turns.some((turn) => turn.speaker === "me")) continue;
         const epoch = generation.current[persona.id] ?? 0;

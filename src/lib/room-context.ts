@@ -30,7 +30,6 @@ export function knownTurns(threads: Record<string, Turn[]>, id: string) {
     .flatMap(([room, list]) =>
       list.filter((turn) => {
         if (
-          turn.event ||
           (room !== id && !(Array.isArray(turn.audience) && turn.audience.includes(id))) ||
           seen.has(turn.id)
         )
@@ -51,7 +50,44 @@ export function knownTurns(threads: Record<string, Turn[]>, id: string) {
 }
 
 export function turnRecord(turn: Turn) {
-  return `${turn.speaker === "me" ? "사용자" : turn.personaName || "페르소나"}: ${turn.text}${turn.image ? " [사진: " + (turn.mediaDescription || "보낸 사진") + "]" : ""}${turn.video ? " [영상: " + (turn.mediaDescription || "보낸 영상") + "]" : ""}`;
+  if (turn.event)
+    return `${turn.event === "relay" ? "전달 기록" : "방 참여 기록"}${turn.at ? " (" + new Date(turn.at).toISOString() + ")" : ""}: ${turn.text}`;
+  return `${turn.speaker === "me" ? "사용자" : turn.personaName || "페르소나"}: ${turn.text}${turn.relay ? " [" + turn.relay.fromName + " → " + turn.relay.toName + "에게 전달한 내용]" : ""}${turn.image ? " [사진: " + (turn.mediaDescription || "보낸 사진") + "]" : ""}${turn.video ? " [영상: " + (turn.mediaDescription || "보낸 영상") + "]" : ""}`;
+}
+
+export function rememberRoomEvents(
+  threads: Record<string, Turn[]>,
+  personas: { id: string; name: string }[],
+) {
+  return Object.fromEntries(
+    Object.entries(threads).map(([room, turns]) => [
+      room,
+      turns.map((turn) => {
+        if (turn.event !== "join" && turn.event !== "leave") return turn;
+        const person = personas.find(
+          (p) => p.id === turn.personaId || turn.text.startsWith(p.name + " 님이"),
+        );
+        const host = personas.find((p) => p.id === room);
+        if (!person) return turn;
+        return {
+          ...turn,
+          personaId: person.id,
+          personaName: person.name,
+          audience: [
+            ...new Set([
+              ...(Array.isArray(turn.audience) ? turn.audience : []),
+              person.id,
+              ...(host ? [host.id] : []),
+            ]),
+          ],
+          text:
+            host && !turn.text.includes(" 방에") && !turn.text.includes(" 방에서")
+              ? `${person.name} 님이 ${host.name} 방${turn.event === "join" ? "에 초대되어 들어왔습니다" : "에서 나갔습니다"}.`
+              : turn.text,
+        };
+      }),
+    ]),
+  );
 }
 
 export function conversationMemory(threads: Record<string, Turn[]>, id: string, question: string) {
@@ -74,13 +110,19 @@ export function conversationMemory(threads: Record<string, Turn[]>, id: string, 
   const relevantText = matches
     .map((turn) => turnRecord(turn).slice(0, 800))
     .join("\n")
-    .slice(-4000);
+    .slice(-3500);
   const recentText = recent
     .filter((turn) => !matches.some((match) => match.id === turn.id))
     .map((turn) => turnRecord(turn).slice(0, 800))
     .join("\n")
-    .slice(-2500);
-  return [relevantText, recentText].filter(Boolean).join("\n");
+    .slice(-1800);
+  const events = all
+    .filter((turn) => turn.event)
+    .slice(-8)
+    .map(turnRecord)
+    .join("\n")
+    .slice(-1100);
+  return [relevantText, recentText, events].filter(Boolean).join("\n");
 }
 
 export function findQuestionMedia(turns: Turn[], question: string, selectedId?: string | null) {
