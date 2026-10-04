@@ -36,6 +36,7 @@ async function streamAnswer(
   memory: string,
   image?: string,
   signal?: AbortSignal,
+  frames?: string[],
 ) {
   const apiKey = process.env.XAI_API_KEY;
   if (!apiKey) return Response.json({ error: "그록에게 물어볼 수 없습니다." }, { status: 503 });
@@ -58,7 +59,7 @@ async function streamAnswer(
       input: [
         { role: "system", content: askInstructions(persona, false, facts, memory) },
         ...history.map((item) => ({ role: item.role, content: item.content })),
-        { role: "user", content: imageInput(message, image) },
+        { role: "user", content: imageInput(message, image, frames) },
       ],
     }),
   });
@@ -129,6 +130,7 @@ export const Route = createFileRoute("/api/ask")({
           persona?: unknown;
           memory?: unknown;
           image?: unknown;
+          frames?: unknown;
         };
         try {
           body = (await request.json()) as typeof body;
@@ -163,6 +165,11 @@ export const Route = createFileRoute("/api/ask")({
               .slice(0, 12000),
             typeof body.image === "string" ? body.image.slice(0, 4000) : undefined,
             request.signal,
+            Array.isArray(body.frames)
+              ? body.frames
+                  .filter((f): f is string => typeof f === "string" && f.length <= 500000)
+                  .slice(0, 3)
+              : undefined,
           );
         } catch {
           return Response.json({ error: "그록에게 연결하지 못했습니다." }, { status: 502 });

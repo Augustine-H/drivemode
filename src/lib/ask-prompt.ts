@@ -31,7 +31,22 @@ export function askInstructions(persona: string, ack: boolean, facts: boolean, m
   ].join(" ");
 }
 
-export function imageInput(message: string, image?: string) {
+export function imageInput(message: string, image?: string, frames?: string[]) {
+  const validFrames = (frames ?? [])
+    .slice(0, 3)
+    .filter(
+      (value) => value.length <= 500000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/.test(value),
+    );
+  if (validFrames.length)
+    return [
+      ...validFrames.map((url) => ({ type: "input_image", image_url: url })),
+      {
+        type: "input_text",
+        text:
+          "이 이미지들은 선택한 영상의 시작·중간·끝 장면입니다. 영상 전체나 소리를 보았다고 주장하지 말고 보이는 장면으로만 답하세요. " +
+          message,
+      },
+    ];
   if (!image) return message;
   try {
     const url = new URL(image);

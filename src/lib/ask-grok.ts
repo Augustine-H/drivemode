@@ -48,6 +48,7 @@ export const askGrok = createServerFn({ method: "POST" })
       memory?: string;
       ack?: boolean;
       image?: string;
+      frames?: string[];
     }) => {
       const message = String(input?.message ?? "")
         .replace(/\s+/g, " ")
@@ -69,6 +70,9 @@ export const askGrok = createServerFn({ method: "POST" })
       return {
         message,
         image: typeof input.image === "string" ? input.image.slice(0, 4000) : undefined,
+        frames: Array.isArray(input.frames)
+          ? input.frames.filter((f) => typeof f === "string" && f.length <= 500000).slice(0, 3)
+          : undefined,
         memory,
         history: askTurns(history.filter((item) => item.content.trim())),
         persona,
@@ -103,7 +107,7 @@ export const askGrok = createServerFn({ method: "POST" })
             ...(data.ack
               ? []
               : data.history.map((item) => ({ role: item.role, content: item.content }))),
-            { role: "user", content: imageInput(data.message, data.image) },
+            { role: "user", content: imageInput(data.message, data.image, data.frames) },
           ],
         }),
       });

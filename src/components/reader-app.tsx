@@ -1,4 +1,13 @@
 import { wantsVideo, wantsImage, videoSeconds, videoPrompt, imagePrompt } from "@/lib/media-intent";
+import {
+  participantCommand,
+  roomChanges,
+  conversationMemory,
+  knownTurns,
+  findQuestionMedia,
+  turnRecord,
+} from "@/lib/room-context";
+import { videoFrames } from "@/lib/video-frames";
 import { useMailReplies } from "@/lib/use-mail-replies";
 import { MailNotifications } from "@/components/mail-notifications";
 import {
@@ -115,6 +124,7 @@ type Saved = {
   threads?: Record<string, Turn[]>;
   wakeDefaulted?: boolean;
   groupMembers?: string[];
+  roomMembers?: Record<string, string[]>;
 };
 
 type SettingsSnap = {
@@ -298,7 +308,15 @@ export function ReaderApp() {
     });
   };
   const [personas, setPersonas] = useState<PersonaItem[]>(STARTER_PERSONAS);
-  const [groupMembers, setGroupMembers] = useState<string[]>([]);
+  const [legacyGroupMembers, setGroupMembers] = useState<string[]>([]);
+  const [roomMembers, setRoomMembers] = useState<Record<string, string[]>>({});
+  const groupMembers = useMemo(
+    () =>
+      roomMembers[personaId] ?? (personaId.startsWith("group:") ? legacyGroupMembers : [personaId]),
+    [roomMembers, personaId, legacyGroupMembers],
+  );
+  const roomHost = personaId.startsWith("group:") ? groupMembers[0] : personaId;
+  const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null);
   const [groupSetup, setGroupSetup] = useState(false);
   const [groupDraft, setGroupDraft] = useState<string[]>([]);
   const [deleteAllStage, setDeleteAllStage] = useState<0 | 1 | 2>(0);
@@ -342,8 +360,8 @@ export function ReaderApp() {
   const autoBackupQueue = useRef<AutoBackupQueue | null>(null);
   const autoBackupSaved = useRef<string | null>(null);
   const backupSnapshot = useMemo(
-    () => JSON.stringify({ personaId, personas, threads }),
-    [personaId, personas, threads],
+    () => JSON.stringify({ personaId, personas, threads, roomMembers }),
+    [personaId, personas, threads, roomMembers],
   );
   const [shareUrl, setShareUrl] = useState("");
   const [shareBusy, setShareBusy] = useState(false);
@@ -593,6 +611,23 @@ export function ReaderApp() {
           const picked = migrated.personas.find((item) => item.id === migrated.personaId)!;
           setPersonaId(picked.id);
           setPersona(picked.text.slice(0, 240));
+          if (saved.roomMembers && typeof saved.roomMembers === "object") {
+            const valid = new Set(migrated.personas.map((p) => p.id));
+            setRoomMembers(
+              Object.fromEntries(
+                Object.entries(saved.roomMembers)
+                  .filter(([host, ids]) => valid.has(host) && Array.isArray(ids))
+                  .map(([host, ids]) => [
+                    host,
+                    roomChanges(
+                      host,
+                      [],
+                      ids.filter((id) => valid.has(id)),
+                    ).members,
+                  ]),
+              ),
+            );
+          }
           if (
             typeof saved.personaId === "string" &&
             saved.personaId.startsWith("group:") &&
@@ -747,12 +782,14 @@ export function ReaderApp() {
       threads,
       wakeDefaulted: true,
       groupMembers,
+      roomMembers,
       index: reader.turnIndex,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   }, [
     hydrated,
     groupMembers,
+    roomMembers,
     turns,
     rate,
     gap,
@@ -904,6 +941,7 @@ export function ReaderApp() {
     reader.stop();
     setPersonas(backup.personas);
     setThreads(backup.threads);
+    setRoomMembers(backup.roomMembers ?? {});
     setPersonaId(picked.id);
     setPersona(picked.text.slice(0, 240));
     setEditingId(null);
@@ -954,7 +992,7 @@ export function ReaderApp() {
   }
 
   async function sendBackup(mode: "cloud" | "download" | "retarget") {
-    const backup = buildBackup({ personaId, personas, threads });
+    const backup = buildBackup({ personaId, personas, threads, roomMembers });
     const json = JSON.stringify(backup, null, 2);
     const name = backupFileName(backup.exportedAt);
     const framed = window.parent !== window;
@@ -1046,7 +1084,7 @@ export function ReaderApp() {
     if (cloudBusy) return;
     if (autoBackupTarget === "local") {
       try {
-        const backup = buildBackup({ personaId, personas, threads });
+        const backup = buildBackup({ personaId, personas, threads, roomMembers });
         saveLocalBackup(localStorage, JSON.stringify(backup));
         autoBackupSaved.current = backupSnapshot;
         setAutoBackupAt(backup.exportedAt);
@@ -1070,7 +1108,7 @@ export function ReaderApp() {
     autoBackupQueue.current?.stop();
     setCloudBusy(true);
     try {
-      const backup = buildBackup({ personaId, personas, threads });
+      const backup = buildBackup({ personaId, personas, threads, roomMembers });
       const result = await placeInCloud(JSON.stringify(backup, null, 2), AUTO_BACKUP_FILE, false);
       if (!result.ok || result.via !== "folder") {
         if (!result.ok && result.reason === "cancel") return;
@@ -1298,6 +1336,9 @@ export function ReaderApp() {
   async function paint(raw: string) {
     const text = raw.trim();
     if (!text || busyRef.current) return;
+    const room = personaIdRef.current;
+    const base = threads[room] ?? [];
+    const audience = [...groupMembers];
     const history = turnsNow.current
       .filter((turn) => !turn.id.startsWith("s"))
       .slice(-6)
@@ -1322,18 +1363,23 @@ export function ReaderApp() {
       const stamp = repliedAt.toString(36);
       const caption = "";
       const next = [
-        ...turnsNow.current,
-        { id: `me-${stamp}`, speaker: "me" as const, text, at: sentAt },
+        ...base,
+        { id: `me-${stamp}`, speaker: "me" as const, text, at: sentAt, audience },
         {
           id: `gk-${stamp}`,
           speaker: "grok" as const,
           text: caption,
           image: result.url,
+          mediaDescription: text,
+          audience,
+          personaId: roomHost,
+          personaName: personas.find((p) => p.id === roomHost)?.name,
           at: repliedAt,
         },
       ];
       setComposer("");
-      setTurns(next);
+      setThreads((prev) => ({ ...prev, [room]: next }));
+      if (personaIdRef.current === room) turnsNow.current = next;
     } finally {
       if (job === jobEpoch.current) {
         busyRef.current = false;
@@ -1346,6 +1392,9 @@ export function ReaderApp() {
   async function film(raw: string) {
     const text = raw.trim();
     if (!text || busyRef.current) return;
+    const room = personaIdRef.current;
+    const base = threads[room] ?? [];
+    const audience = [...groupMembers];
     const history = turnsNow.current
       .filter((turn) => !turn.id.startsWith("s"))
       .slice(-6)
@@ -1398,18 +1447,23 @@ export function ReaderApp() {
       const repliedAt = Date.now();
       const stamp = repliedAt.toString(36);
       const next = [
-        ...turnsNow.current,
-        { id: `me-${stamp}`, speaker: "me" as const, text, at: sentAt },
+        ...base,
+        { id: `me-${stamp}`, speaker: "me" as const, text, at: sentAt, audience },
         {
           id: `gk-${stamp}`,
           speaker: "grok" as const,
           text: "",
           video: url,
+          mediaDescription: text,
+          audience,
+          personaId: roomHost,
+          personaName: personas.find((p) => p.id === roomHost)?.name,
           at: repliedAt,
         },
       ];
       setComposer("");
-      setTurns(next);
+      setThreads((prev) => ({ ...prev, [room]: next }));
+      if (personaIdRef.current === room) turnsNow.current = next;
     } finally {
       if (job === jobEpoch.current) {
         busyRef.current = false;
@@ -1423,8 +1477,22 @@ export function ReaderApp() {
     if (deleteAllStage || deletingChats) return;
     let text = (spoken ?? composer).trim();
     if (!text || busyRef.current) return;
+    const membership = fromMail ? null : participantCommand(text, personas);
+    if (membership) {
+      if (membership.id === roomHost) {
+        setBanner("이 방의 기본 페르소나는 초대하거나 내보낼 수 없습니다.");
+        setComposer("");
+        return;
+      }
+      await changeParticipants(
+        membership.action === "join"
+          ? [...groupMembers, membership.id]
+          : groupMembers.filter((id) => id !== membership.id),
+      );
+      return;
+    }
     const hit = fromMail ? null : takePersonaWake(text, personas);
-    if (hit && !target) {
+    if (hit && !target && !(groupMembers.length >= 2 && groupMembers.includes(hit.id))) {
       target = hit.id;
       selectPersona(target);
       text = hit.rest.trim();
@@ -1434,6 +1502,7 @@ export function ReaderApp() {
       }
     }
     const id = target ?? personaIdRef.current;
+    const audience = roomMembers[id] ?? (id.startsWith("group:") ? legacyGroupMembers : [id]);
     const active = personas.find((item) => item.id === id);
     if (!fromMail && deleteChat) {
       if (
@@ -1465,16 +1534,20 @@ export function ReaderApp() {
       setBanner(`${sender}를 통해 메시지를 전달했습니다.`);
       return;
     }
-    if (!target && groupMembers.length >= 2 && id.startsWith("group:")) {
-      await askGroup(text, id);
+    if (
+      !target &&
+      groupMembers.length >= 2 &&
+      (selectedMediaId || (!wantsImage(text) && !wantsVideo(text)))
+    ) {
+      await askGroup(text, id, hit?.id);
       return;
     }
     const finishBackup = conversationEnded(text);
-    if (!fromMail && wantsVideo(text)) {
+    if (!fromMail && !selectedMediaId && wantsVideo(text)) {
       await film(text);
       return;
     }
-    if (!fromMail && wantsImage(text)) {
+    if (!fromMail && !selectedMediaId && wantsImage(text)) {
       await paint(text);
       return;
     }
@@ -1491,6 +1564,12 @@ export function ReaderApp() {
       speaker: "me" as const,
       text,
       at: sentAt,
+      audience: [...audience],
+      mediaRef: findQuestionMedia(
+        [...knownTurns(threads, id), ...(threads[id] ?? [])],
+        text,
+        selectedMediaId,
+      )?.id,
     };
     const withUser = [...(threads[id] ?? []), mine];
     const commit = (next: Turn[]) => {
@@ -1500,7 +1579,7 @@ export function ReaderApp() {
     commit(withUser);
     try {
       const history = withUser
-        .filter((turn) => turn !== mine && !turn.id.startsWith("s"))
+        .filter((turn) => turn !== mine && !turn.event && !turn.id.startsWith("s"))
         .slice(-4)
         .map((turn) => ({
           role: turn.speaker === "me" ? ("user" as const) : ("assistant" as const),
@@ -1508,13 +1587,23 @@ export function ReaderApp() {
         }));
       const activePersona = personas.find((item) => item.id === id);
       const role = activePersona ? personaInstructions(activePersona) : persona;
-      const memory = memoryForQuestion(activePersona?.memories, text);
-      const media = [...withUser].reverse().find((turn) => turn.image || turn.video);
-      const image = /사진|이미지|그림|셀카|보낸|보내준|이거|그거|묘사|설명/.test(text)
-        ? [...withUser].reverse().find((turn) => turn.image)?.image
-        : undefined;
+      const memory = [
+        memoryForQuestion(activePersona?.memories, text, 4000),
+        conversationMemory(threads, id, text),
+      ]
+        .filter(Boolean)
+        .join("\n");
+      const media = findQuestionMedia(
+        [...knownTurns(threads, id), ...withUser],
+        text,
+        selectedMediaId,
+      );
+      const image = media?.image;
+      const frames = media?.video ? await videoFrames(media.video) : undefined;
+      if (job !== jobEpoch.current) return;
+      setSelectedMediaId(null);
       const mediaMemory = media
-        ? `최근 이 페르소나가 ${media.image ? "사진" : "영상"}을 보낸 기록이 있다. 보낸 적 없다고 부정하지 않는다. 영상은 직접 분석하지 않았으면 분석했다고 주장하지 않는다.`
+        ? `지금 질문하는 ${media.image ? "사진" : "영상"}: ${media.mediaDescription || "선택한 미디어"}. 보낸 기록이 있다. 보낸 적 없다고 부정하지 않는다.`
         : "";
       const grokId = `gk-${sentAt.toString(36)}`;
       let latestReply: Turn[] = [];
@@ -1531,6 +1620,7 @@ export function ReaderApp() {
             personaId: id,
             personaName: activePersona?.name,
             voice: activePersona?.voice,
+            audience: [...audience],
           },
         ];
         commit(next);
@@ -1545,6 +1635,7 @@ export function ReaderApp() {
             persona: role,
             memory: [memory, mediaMemory].filter(Boolean).join("\n"),
             image,
+            frames,
           },
           show,
           abort.signal,
@@ -1561,6 +1652,7 @@ export function ReaderApp() {
             persona: role,
             memory: [memory, mediaMemory].filter(Boolean).join("\n"),
             image,
+            frames,
           },
         });
         if (job !== jobEpoch.current) return;
@@ -1573,6 +1665,9 @@ export function ReaderApp() {
       if (job !== jobEpoch.current) return;
       if (latestReply.length && personaIdRef.current === id)
         reader.playFrom(latestReply, latestReply.length - 1);
+    } catch (error) {
+      if (job === jobEpoch.current)
+        setBanner(error instanceof Error ? error.message : "선택한 미디어를 읽지 못했습니다.");
     } finally {
       if (job === jobEpoch.current) {
         busyRef.current = false;
@@ -1764,6 +1859,7 @@ export function ReaderApp() {
     setPersona(item.text);
     setNewPersona(null);
     setEditingId(null);
+    setSelectedMediaId(null);
   }
 
   async function confirmDeleteChat() {
@@ -1842,40 +1938,61 @@ export function ReaderApp() {
     setDeletingChats(false);
   }
 
-  async function askGroup(text: string, room: string) {
-    const members = personas.filter((item) => groupMembers.includes(item.id));
+  async function askGroup(text: string, room: string, addressed?: string) {
+    const members = groupMembers
+      .map((id) => personas.find((item) => item.id === id))
+      .filter((p): p is PersonaItem => Boolean(p));
     if (members.length < 2) return;
     const job = ++jobEpoch.current;
     busyRef.current = true;
     setAsking(true);
+    const abort = new AbortController();
+    answerAbort.current = abort;
     setComposer("");
     reader.stop();
     const at = Date.now();
-    const mine: Turn = { id: `me-${at.toString(36)}`, speaker: "me", text, at };
+    const mine: Turn = {
+      id: `me-${at.toString(36)}`,
+      speaker: "me",
+      text,
+      at,
+      audience: [...groupMembers],
+      mediaRef: findQuestionMedia(threads[room] ?? [], text, selectedMediaId)?.id,
+    };
     const current = [...(threads[room] ?? []), mine];
     setThreads((prev) => ({ ...prev, [room]: current }));
     try {
       const shared = current
+        .filter((turn) => !turn.event)
         .slice(-12)
-        .map((turn) => `${turn.speaker === "me" ? "사용자" : turn.personaName}: ${turn.text}`)
+        .map(turnRecord)
         .join("\n");
+      const media = findQuestionMedia(current, text, selectedMediaId);
+      const frames = media?.video ? await videoFrames(media.video) : undefined;
+      if (job !== jobEpoch.current) return;
+      setSelectedMediaId(null);
       const replies = await Promise.all(
-        members.map(async (member) => {
-          const result = await streamAsk(
-            {
-              message: text,
-              history: [],
-              persona: `${personaInstructions(member)}\n함께 대화하는 사람: ${members.map((item) => item.name).join(", ")}. 반드시 ${member.name} 한 사람의 입장에서만 답한다.`,
-              memory:
-                `${memoryForQuestion(member.memories, text, 8000)}\n단체 대화 기록:\n${shared}`.slice(
-                  0,
-                  12000,
-                ),
-            },
-            () => {},
-          ).catch(() => ({ ok: false as const, error: "그록에게 연결하지 못했습니다." }));
-          return { member, result };
-        }),
+        members
+          .filter((member) => !addressed || member.id === addressed)
+          .map(async (member) => {
+            const result = await streamAsk(
+              {
+                message: text,
+                history: [],
+                persona: `${personaInstructions(member)}\n함께 대화하는 사람: ${members.map((item) => item.name).join(", ")}. 반드시 ${member.name} 한 사람의 입장에서만 답한다.`,
+                memory:
+                  `${memoryForQuestion(member.memories, text, 3000)}\n본인이 나눈 과거 대화:\n${conversationMemory(threads, member.id, text)}\n현재 방 대화:\n${shared}`.slice(
+                    0,
+                    12000,
+                  ),
+                image: media?.image,
+                frames,
+              },
+              () => {},
+              abort.signal,
+            ).catch(() => ({ ok: false as const, error: "그록에게 연결하지 못했습니다." }));
+            return { member, result };
+          }),
       );
       if (job !== jobEpoch.current) return;
       const answers: Turn[] = replies
@@ -1888,19 +2005,19 @@ export function ReaderApp() {
           personaId: member.id,
           personaName: member.name,
           voice: member.voice,
+          audience: [...groupMembers],
         }));
       const next = [...current, ...answers];
-      setThreads((prev) => {
-        const updated = { ...prev, [room]: next };
-        for (const member of members)
-          updated[member.id] = [...(prev[member.id] ?? []), mine, ...answers];
-        return updated;
-      });
+      setThreads((prev) => ({ ...prev, [room]: next }));
+      if (personaIdRef.current === room) turnsNow.current = next;
       const errors = replies
         .filter((reply) => !reply.result.ok)
         .map((reply) => `${reply.member.name}: ${reply.result.ok ? "" : reply.result.error}`);
       if (errors.length) setBanner(errors.join(" · "));
       if (personaIdRef.current === room && answers.length) reader.playFrom(next, current.length);
+    } catch (error) {
+      if (job === jobEpoch.current)
+        setBanner(error instanceof Error ? error.message : "답변을 받지 못했습니다.");
     } finally {
       if (job === jobEpoch.current) {
         busyRef.current = false;
@@ -1910,42 +2027,95 @@ export function ReaderApp() {
     }
   }
 
-  function startGroup() {
-    if (groupDraft.length < 1 || groupDraft.length > 6) {
+  async function changeParticipants(requested: string[]) {
+    if (busyRef.current) return;
+    if (new Set([roomHost, ...requested]).size > 6) {
       setBanner("함께 대화할 페르소나를 1~6명 선택하세요.");
       return;
     }
-    const previous = personaIdRef.current;
-    const history = threads[previous] ?? [];
-    const room =
-      groupDraft.length === 1
-        ? groupDraft[0]
-        : previous.startsWith("group:")
-          ? previous
-          : `group:${Date.now().toString(36)}`;
-    setGroupMembers([...groupDraft]);
-    setThreads((prev) => {
-      const next = { ...prev, [room]: history };
-      for (const id of groupDraft) {
-        if (id === room) continue;
-        const existing = prev[id] ?? [];
-        const seen = new Set(existing.map((turn) => turn.id));
-        next[id] = [...existing, ...history.filter((turn) => !seen.has(turn.id))];
-      }
-      return next;
-    });
+    const room = personaIdRef.current;
+    const changes = roomChanges(roomHost, groupMembers, requested);
+    if (!changes.joined.length && !changes.left.length) {
+      setBanner("참여자 변경이 없습니다.");
+      setGroupSetup(false);
+      return;
+    }
+    const job = ++jobEpoch.current;
+    const abort = new AbortController();
+    answerAbort.current = abort;
+    busyRef.current = true;
+    setAsking(true);
     reader.stop();
-    personaIdRef.current = room;
-    setPersonaId(room);
-    setPersona(personas.find((item) => item.id === room)?.text ?? "");
+    setComposer("");
     setGroupSetup(false);
-    turnsNow.current = history;
-    setBanner(
-      `대화 참여자: ${personas
-        .filter((item) => groupDraft.includes(item.id))
-        .map((item) => item.name)
-        .join(", ")}. 기존 대화가 이어집니다.`,
-    );
+    const transitions = [
+      ...changes.left.map((id) => ({ id, action: "leave" as const })),
+      ...changes.joined.map((id) => ({ id, action: "join" as const })),
+    ];
+    // Commit membership and notices immediately; optional greetings cannot block a join/leave.
+    setRoomMembers((prev) => ({ ...prev, [room]: changes.members }));
+    const at = Date.now();
+    const notices: Turn[] = transitions.map(({ id, action }, i) => ({
+      id: `event-${at.toString(36)}-${i}`,
+      speaker: "grok",
+      event: action,
+      textOnly: true,
+      text: `${personas.find((p) => p.id === id)?.name || "페르소나"} 님이 ${action === "join" ? "들어왔습니다" : "나갔습니다"}.`,
+      at,
+    }));
+    const current = [...(threads[room] ?? []), ...notices];
+    setThreads((prev) => ({ ...prev, [room]: current }));
+    turnsNow.current = current;
+    try {
+      const lines = await Promise.all(
+        transitions.map(async ({ id, action }, i) => {
+          const person = personas.find((p) => p.id === id);
+          if (!person || Math.random() >= 0.5) return null;
+          const result = await streamAsk(
+            {
+              message:
+                action === "join"
+                  ? "다른 페르소나의 대화방에 방금 초대받았다. 네 성격에 맞게 짧게 인사하거나 왜 불렀는지 물어봐."
+                  : "이 대화방에서 이제 나간다. 네 성격에 맞게 짧게 작별 인사를 해줘.",
+              history: [],
+              persona: personaInstructions(person),
+            },
+            () => {},
+            abort.signal,
+          ).catch(() => ({ ok: false as const, error: "" }));
+          if (!result.ok) return null;
+          return {
+            id: `greeting-${at.toString(36)}-${i}`,
+            speaker: "grok" as const,
+            text: result.text,
+            at,
+            personaId: id,
+            personaName: person.name,
+            voice: person.voice,
+            audience: [...new Set([...groupMembers, ...changes.members])],
+          };
+        }),
+      );
+      if (job !== jobEpoch.current) return;
+      const ordered = transitions.flatMap(({ action }, i) =>
+        lines[i]
+          ? action === "leave"
+            ? [lines[i]!, notices[i]]
+            : [notices[i], lines[i]!]
+          : [notices[i]],
+      );
+      const next = [...current.slice(0, -notices.length), ...ordered];
+      setThreads((prev) => ({ ...prev, [room]: next }));
+      if (personaIdRef.current === room) {
+        turnsNow.current = next;
+        if (lines.some(Boolean)) reader.playFrom(next, next.length - ordered.length);
+      }
+    } finally {
+      if (job === jobEpoch.current) {
+        busyRef.current = false;
+        setAsking(false);
+      }
+    }
   }
 
   async function confirmDeleteAll() {
@@ -1978,6 +2148,7 @@ export function ReaderApp() {
       memories: item.memories?.filter((memory) => memory.source !== "voicegrok/memory.md"),
     }));
     setThreads({});
+    setRoomMembers({});
     setPersonas(clean);
     turnsNow.current = [];
     if (settingsBase.current) settingsBase.current.personas = clean;
@@ -2015,7 +2186,11 @@ export function ReaderApp() {
       return;
     }
     let index = turns.length - 1;
-    while (index >= 0 && turns[index].speaker !== "grok") index--;
+    while (
+      index >= 0 &&
+      (turns[index].speaker !== "grok" || turns[index].event || !turns[index].text)
+    )
+      index--;
     if (index >= 0) reader.playOne(index);
   }
   const [profileBusy, setProfileBusy] = useState(false);
@@ -2203,7 +2378,7 @@ export function ReaderApp() {
               </span>
             </div>
             <p className="mt-1 truncate text-sm text-muted">
-              {personaId.startsWith("group:")
+              {groupMembers.length >= 2
                 ? `${groupMembers
                     .map((id) => personas.find((item) => item.id === id)?.name)
                     .filter(Boolean)
@@ -2294,6 +2469,14 @@ export function ReaderApp() {
                 ) : null}
                 <ol className="flex flex-col gap-3">
                   {group.turns.map(({ turn, index }) => {
+                    if (turn.event)
+                      return (
+                        <li key={turn.id} id={`turn-${turn.id}`}>
+                          <p role="status" className="py-2 text-center text-sm text-muted">
+                            {turn.text}
+                          </p>
+                        </li>
+                      );
                     const playing = reader.status !== "idle" && index === reader.turnIndex && !done;
                     const chunks = chunkText(turn.text);
                     const mine = turn.speaker === "me";
@@ -2492,6 +2675,21 @@ export function ReaderApp() {
                               className="mt-3 w-full rounded-2xl bg-bg"
                             />
                           ) : null}
+                          {turn.image || turn.video ? (
+                            <button
+                              type="button"
+                              aria-pressed={selectedMediaId === turn.id}
+                              className="mt-2 min-h-11 rounded-full border border-line px-3 text-sm text-fg"
+                              onClick={() => {
+                                setSelectedMediaId(turn.id);
+                                setComposer(`이 ${turn.video ? "영상" : "사진"} 설명해줘`);
+                              }}
+                            >
+                              {selectedMediaId === turn.id
+                                ? "질문할 미디어로 선택됨"
+                                : `이 ${turn.video ? "영상" : "사진"}에 대해 질문`}
+                            </button>
+                          ) : null}
                           {when ? (
                             <p
                               className={
@@ -2520,6 +2718,21 @@ export function ReaderApp() {
           void ask();
         }}
       >
+        {selectedMediaId ? (
+          <div className="mb-2 flex items-center justify-between gap-2 text-sm text-fg">
+            <span>
+              선택한 {turns.find((t) => t.id === selectedMediaId)?.video ? "영상" : "사진"}에
+              질문합니다.
+            </span>
+            <button
+              type="button"
+              className="min-h-11 rounded-full border border-line px-3"
+              onClick={() => setSelectedMediaId(null)}
+            >
+              선택 해제
+            </button>
+          </div>
+        ) : null}
         {dictation.blocked ? (
           <label className="mb-2 flex h-11 cursor-pointer items-center justify-center rounded-full border border-line text-sm text-fg">
             음성 파일로 받아쓰기
@@ -3253,9 +3466,7 @@ export function ReaderApp() {
                           type="button"
                           disabled={asking}
                           onClick={() => {
-                            setGroupDraft(
-                              personaId.startsWith("group:") ? [...groupMembers] : [personaId],
-                            );
+                            setGroupDraft([...groupMembers]);
                             setSheet(null);
                             setGroupSetup(true);
                           }}
@@ -3808,7 +4019,8 @@ export function ReaderApp() {
             <h2 className="text-lg">함께 대화할 페르소나</h2>
             <p className="mt-2 text-sm text-muted">
               체크하면 참여하고 해제하면 나갑니다. 1~6명이 대화할 수 있으며 기존 대화가 이어집니다.
-              각자 자기 설정과 기억으로 답합니다.
+              초대받은 사람의 기존 대화는 이 방에 가져오지 않습니다. 각자 자기 설정과 대화 기억으로
+              답합니다. 기본 페르소나는 나갈 수 없습니다.
             </p>
             <div className="my-3 grid grid-cols-2 gap-1">
               {personas.map((item) => (
@@ -3816,6 +4028,7 @@ export function ReaderApp() {
                   <input
                     type="checkbox"
                     checked={groupDraft.includes(item.id)}
+                    disabled={item.id === roomHost}
                     onChange={(event) =>
                       setGroupDraft((prev) =>
                         event.target.checked
@@ -3825,6 +4038,7 @@ export function ReaderApp() {
                     }
                   />
                   {item.name}
+                  {item.id === roomHost ? " (기본)" : ""}
                 </label>
               ))}
             </div>
@@ -3837,7 +4051,7 @@ export function ReaderApp() {
               </button>
               <button
                 className="min-h-11 flex-1 rounded-full bg-primary text-ink"
-                onClick={startGroup}
+                onClick={() => void changeParticipants(groupDraft)}
               >
                 참여자 변경 적용
               </button>

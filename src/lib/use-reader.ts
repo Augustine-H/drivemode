@@ -24,7 +24,7 @@ function pieceAt(turns: Turn[], t: number, c: number, onlyGrok: boolean): Piece 
   let ti = t;
   let ci = c;
   while (ti < turns.length) {
-    if (onlyGrok && turns[ti]?.speaker !== "grok") {
+    if (turns[ti]?.event || (onlyGrok && turns[ti]?.speaker !== "grok")) {
       ti += 1;
       ci = 0;
       continue;

@@ -16,6 +16,7 @@ export type NangdokBackup = {
   personaId: string;
   personas: BackupPersona[];
   threads: Record<string, Turn[]>;
+  roomMembers?: Record<string, string[]>;
 };
 
 function isTurn(value: unknown): value is Turn {
@@ -51,12 +52,14 @@ export function buildBackup(input: {
   personaId: string;
   personas: BackupPersona[];
   threads: Record<string, Turn[]>;
+  roomMembers?: Record<string, string[]>;
 }): NangdokBackup {
   return {
     app: "nangdok",
     version: 1,
     exportedAt: new Date().toISOString(),
     personaId: input.personaId,
+    roomMembers: input.roomMembers,
     personas: input.personas.map((item) => ({ ...item })),
     threads: Object.fromEntries(
       Object.entries(input.threads).map(([key, turns]) => [
@@ -105,5 +108,24 @@ export function parseNangdokBackup(value: unknown): NangdokBackup | null {
     personaId,
     personas,
     threads,
+    roomMembers:
+      row.roomMembers && typeof row.roomMembers === "object"
+        ? Object.fromEntries(
+            Object.entries(row.roomMembers)
+              .filter(([host, ids]) => personas.some((p) => p.id === host) && Array.isArray(ids))
+              .map(([host, ids]) => [
+                host,
+                [
+                  ...new Set([
+                    host,
+                    ...(ids as unknown[]).filter(
+                      (id): id is string =>
+                        typeof id === "string" && personas.some((p) => p.id === id),
+                    ),
+                  ]),
+                ].slice(0, 6),
+              ]),
+          )
+        : undefined,
   };
 }

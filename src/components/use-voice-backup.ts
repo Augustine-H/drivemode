@@ -4,6 +4,7 @@ import { summarizeConversation } from "@/lib/summarize-conversation";
 import { conversationDigest, summaryFilename } from "@/lib/conversation-actions";
 import type { Turn } from "@/lib/transcript";
 import type { PersonaKnowledge } from "@/lib/persona-memory";
+import { knownTurns, turnRecord } from "@/lib/room-context";
 
 const KEY = "voice-grok-summary-receipts";
 const SETTING = "voice-grok-summary-enabled";
@@ -62,16 +63,13 @@ export function useVoiceBackup(
       for (const persona of state.current.personas.filter(
         (item) => !ids || ids.includes(item.id),
       )) {
-        const turns = (state.current.threads[persona.id] ?? []).filter((turn) =>
+        const turns = knownTurns(state.current.threads, persona.id).filter((turn) =>
           /^(?:me|gk|relay)-/.test(turn.id),
         );
         if (!turns.some((turn) => turn.speaker === "me")) continue;
         const epoch = generation.current[persona.id] ?? 0;
         const transcript = turns
-          .map(
-            (turn) =>
-              `${turn.at ? new Date(turn.at).toISOString() : ""} ${turn.speaker === "me" ? "사용자" : (turn.personaName ?? persona.name)}: ${turn.text}`,
-          )
+          .map((turn) => `${turn.at ? new Date(turn.at).toISOString() : ""} ${turnRecord(turn)}`)
           .join("\n");
         const digest = await conversationDigest(transcript);
         if (receipts.current[persona.id]?.digest === digest) continue;
