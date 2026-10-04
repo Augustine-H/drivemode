@@ -10,7 +10,7 @@ import {
 } from "@/lib/room-context";
 import { MusicListener } from "@/components/music-listener";
 import { musicCommand } from "@/lib/music-analysis";
-import { relayDelivery } from "@/lib/persona-relay";
+import { relayDelivery, storeRelay, relayMemoryKey } from "@/lib/persona-relay";
 import { videoFrames } from "@/lib/video-frames";
 import { useMailReplies } from "@/lib/use-mail-replies";
 import { MailNotifications } from "@/components/mail-notifications";
@@ -1924,7 +1924,9 @@ export function ReaderApp() {
       Object.fromEntries(
         Object.entries(prev).map(([key, list]) => [
           key,
-          key === id ? [] : list.filter((turn) => turn.personaId !== id),
+          key === id || key === relayMemoryKey(id)
+            ? []
+            : list.filter((turn) => turn.personaId !== id),
         ]),
       ),
     );
@@ -1938,7 +1940,9 @@ export function ReaderApp() {
           saved.threads = Object.fromEntries(
             Object.entries(saved.threads).map(([thread, list]) => [
               thread,
-              thread === id ? [] : (list as Turn[]).filter((turn) => turn.personaId !== id),
+              thread === id || thread === relayMemoryKey(id)
+                ? []
+                : (list as Turn[]).filter((turn) => turn.personaId !== id),
             ]),
           );
         if (saved.personaId === id) saved.turns = [];
@@ -2007,7 +2011,12 @@ export function ReaderApp() {
         .slice(-12)
         .map(turnRecord)
         .join("\n");
-      const media = findQuestionMedia(current, text, selectedMediaId);
+      const media = findQuestionMedia(
+        [...knownTurns(threads, addressed ?? room), ...current],
+        text,
+        selectedMediaId,
+      );
+      mine.mediaRef = media?.id;
       const frames = media?.video ? await videoFrames(media.video) : undefined;
       if (job !== jobEpoch.current) return;
       setSelectedMediaId(null);
@@ -2167,15 +2176,7 @@ export function ReaderApp() {
         sourceAudience: audience,
         targetAudience: roomMembers[to.id] ?? [to.id],
       });
-      setThreads((prev) =>
-        room === to.id
-          ? { ...prev, [room]: [...(prev[room] ?? []), incoming, receipt] }
-          : {
-              ...prev,
-              [room]: [...(prev[room] ?? []), receipt],
-              [to.id]: [...(prev[to.id] ?? []), incoming],
-            },
-      );
+      setThreads((prev) => storeRelay(prev, room, { incoming, receipt }));
       setSelectedMediaId(null);
       setBanner(receipt.text);
     } catch (error) {
@@ -2482,6 +2483,7 @@ export function ReaderApp() {
     setThreads((prev) => {
       const copy = { ...prev };
       delete copy[selectedPersona.id];
+      delete copy[relayMemoryKey(selectedPersona.id)];
       return copy;
     });
     setPersonaId(fallback.id);
@@ -2647,15 +2649,6 @@ export function ReaderApp() {
                           <p role="status" className="py-2 text-center text-sm text-muted">
                             {turn.text}
                           </p>
-                          {turn.relay ? (
-                            <button
-                              type="button"
-                              className="mx-auto block min-h-11 rounded-full border border-line px-3 text-sm text-fg"
-                              onClick={() => selectPersona(turn.relay!.toId)}
-                            >
-                              받은 방 열기 · {turn.relay.toName}
-                            </button>
-                          ) : null}
                         </li>
                       );
                     const playing = reader.status !== "idle" && index === reader.turnIndex && !done;

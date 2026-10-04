@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { relayCommand } from "../src/lib/conversation-actions.ts";
-import { relayDelivery } from "../src/lib/persona-relay.ts";
+import {
+  relayDelivery,
+  storeRelay,
+  relayMemoryKey,
+  rememberRelays,
+} from "../src/lib/persona-relay.ts";
 import { rememberRoomEvents, knownTurns, conversationMemory } from "../src/lib/room-context.ts";
 import { buildBackup, parseNangdokBackup } from "../src/lib/nangdok-backup.ts";
 const personas = [
@@ -65,9 +70,68 @@ test("delivery preserves the styled sender message, voice and exact selected ima
   assert.equal(incoming.voice, "ara");
   assert.match(receipt.text, /아라 → 혜정: 사진 전달 완료/);
   assert.equal(receipt.event, "relay");
-  const threads = { ara: [receipt], hye: [incoming] };
+  const original = { ara: [], hye: [] };
+  const threads = storeRelay(original, "ara", { incoming, receipt });
+  assert.deepEqual(threads.hye, []);
+  assert.equal(threads.ara.length, 1);
+  assert.equal(threads[relayMemoryKey("hye")][0].image, media.image);
+  assert.deepEqual(original, { ara: [], hye: [] });
   assert.equal(knownTurns(threads, "hye")[0].image, media.image);
+  assert.match(conversationMemory(threads, "hye", "아라가 뭘 전달했어?"), /고양이 사진/);
   assert.match(conversationMemory(threads, "ara", "혜정에게 전달했어?"), /전달 완료/);
+});
+
+test("legacy received bubbles become private relay memory without losing text/media or other chats", () => {
+  const media = {
+    id: "video",
+    speaker: "grok",
+    text: "",
+    video: "https://example.com/sea.mp4",
+    mediaDescription: "바다 영상",
+  };
+  const delivery = relayDelivery({
+    from: personas[0],
+    to: personas[1],
+    request: "영상 전달",
+    payload: "바다 영상 봐!",
+    media,
+    at: 2,
+    sourceAudience: ["ara"],
+    targetAudience: ["hye", "grok"],
+  });
+  const normal = { id: "normal", speaker: "me", text: "혜정과 기존 대화", at: 1 };
+  const migrated = rememberRelays({ ara: [delivery.receipt], hye: [normal, delivery.incoming] });
+  assert.deepEqual(migrated.hye, [normal]);
+  assert.deepEqual(rememberRelays(migrated), migrated);
+  assert.equal(knownTurns(migrated, "hye").find((t) => t.relay)?.video, media.video);
+  assert.equal(knownTurns(migrated, "grok").length, 0);
+  const restored = parseNangdokBackup(
+    buildBackup({
+      personaId: "hye",
+      personas: personas.map((p) => ({ ...p, text: "", password: "", locked: false })),
+      threads: migrated,
+    }),
+  );
+  assert.match(conversationMemory(restored.threads, "hye", "전달한 영상"), /바다 영상/);
+  assert.deepEqual(restored.threads.hye, [normal]);
+});
+
+test("sending to the source room's host only appends receipt to visible room", () => {
+  const delivery = relayDelivery({
+    from: personas[0],
+    to: personas[1],
+    request: "알려줘",
+    payload: "오늘 안 간대",
+    at: 3,
+    sourceAudience: ["ara", "hye"],
+    targetAudience: ["hye"],
+  });
+  const threads = storeRelay({ hye: [] }, "hye", delivery);
+  assert.deepEqual(threads.hye, [delivery.receipt]);
+  assert.equal(
+    knownTurns(threads, "hye").some((t) => t.text === "오늘 안 간대"),
+    true,
+  );
 });
 test("membership facts survive long chat and backup restoration", () => {
   const event = {

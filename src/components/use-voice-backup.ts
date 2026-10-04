@@ -66,7 +66,7 @@ export function useVoiceBackup(
         const turns = knownTurns(state.current.threads, persona.id).filter(
           (turn) => turn.event || /^(?:me|gk|relay)-/.test(turn.id),
         );
-        if (!turns.some((turn) => turn.speaker === "me")) continue;
+        if (!turns.some((turn) => turn.speaker === "me" || turn.relay)) continue;
         const epoch = generation.current[persona.id] ?? 0;
         const transcript = turns
           .map((turn) => `${turn.at ? new Date(turn.at).toISOString() : ""} ${turnRecord(turn)}`)

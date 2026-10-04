@@ -1,4 +1,5 @@
 import type { Turn } from "./transcript";
+import { rememberRelays } from "./persona-relay.ts";
 
 export function participantCommand(text: string, personas: { id: string; name: string }[]) {
   const compact = text.replace(/\s+/g, "");
@@ -60,7 +61,7 @@ export function rememberRoomEvents(
   personas: { id: string; name: string }[],
 ) {
   return Object.fromEntries(
-    Object.entries(threads).map(([room, turns]) => [
+    Object.entries(rememberRelays(threads)).map(([room, turns]) => [
       room,
       turns.map((turn) => {
         if (turn.event !== "join" && turn.event !== "leave")

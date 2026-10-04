@@ -1,4 +1,38 @@
 import type { Turn } from "./transcript";
+export const relayMemoryKey = (id: string) => `relay-memory:${id}`;
+
+export function rememberRelays(threads: Record<string, Turn[]>) {
+  const next: Record<string, Turn[]> = {};
+  const memories = new Map<string, Map<string, Turn>>();
+  for (const [room, turns] of Object.entries(threads)) {
+    next[room] = [];
+    for (const turn of turns) {
+      if (turn.relay && !turn.event) {
+        const key = relayMemoryKey(turn.relay.toId);
+        if (!memories.has(key)) memories.set(key, new Map());
+        memories.get(key)!.set(turn.id, {
+          ...turn,
+          audience: [...new Set([turn.relay.fromId, turn.relay.toId])],
+        });
+      } else next[room].push(turn);
+    }
+  }
+  for (const [key, turns] of memories) next[key] = [...(next[key] ?? []), ...turns.values()];
+  return next;
+}
+
+export function storeRelay(
+  threads: Record<string, Turn[]>,
+  sourceRoom: string,
+  delivery: { incoming: Turn; receipt: Turn },
+) {
+  const target = relayMemoryKey(delivery.incoming.relay!.toId);
+  return {
+    ...threads,
+    [sourceRoom]: [...(threads[sourceRoom] ?? []), delivery.receipt],
+    [target]: [...(threads[target] ?? []), delivery.incoming],
+  };
+}
 export function relayDelivery(input: {
   from: { id: string; name: string; voice?: string };
   to: { id: string; name: string };
@@ -29,9 +63,7 @@ export function relayDelivery(input: {
     image: input.media?.image,
     video: input.media?.video,
     mediaDescription: input.media?.mediaDescription,
-    audience: [
-      ...new Set([input.from.id, input.to.id, ...input.sourceAudience, ...input.targetAudience]),
-    ],
+    audience: [...new Set([input.from.id, input.to.id])],
   };
   const receipt: Turn = {
     id: `relay-notice-${input.at.toString(36)}`,
