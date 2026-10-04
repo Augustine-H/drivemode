@@ -4,6 +4,7 @@ import { collapseStutter, mergeUtterance, sessionTranscript } from "@/lib/speech
 
 type Options = {
   paused: boolean;
+  acceptText?: (text: string) => string | null;
   verifyAudio?: (audio: Blob) => Promise<boolean>;
   silenceMs: number;
   autoSend: boolean;
@@ -138,6 +139,7 @@ function stopRecorder(item: Live) {
 
 export function useDictation({
   paused,
+  acceptText,
   verifyAudio,
   silenceMs,
   autoSend,
@@ -161,9 +163,35 @@ export function useDictation({
   const sendTimer = useRef(0);
   const genRef = useRef(0);
   const modeRef = useRef<"speech" | "record">("speech");
-  const callbacks = useRef({ silenceMs, autoSend, onText, onUtterance, onError, verifyAudio });
+  const callbacks = useRef({
+    silenceMs,
+    autoSend,
+    onText,
+    onUtterance,
+    onError,
+    verifyAudio,
+    acceptText,
+  });
   pausedRef.current = paused;
-  callbacks.current = { silenceMs, autoSend, onText, onUtterance, onError, verifyAudio };
+  callbacks.current = {
+    silenceMs,
+    autoSend,
+    onText,
+    onUtterance,
+    onError,
+    verifyAudio,
+    acceptText,
+  };
+
+  const deliverText = (text: string, send = false) => {
+    const reason = callbacks.current.acceptText?.(text);
+    if (reason) {
+      setNote(reason);
+      return;
+    }
+    if (send) callbacks.current.onUtterance(text);
+    else callbacks.current.onText(text);
+  };
 
   const clearSend = () => {
     window.clearTimeout(sendTimer.current);
@@ -185,7 +213,7 @@ export function useDictation({
       closeSpeech();
       setHearing(false);
       setNote(said);
-      callbacks.current.onUtterance(said);
+      deliverText(said, true);
     }, callbacks.current.silenceMs);
   };
 
@@ -238,7 +266,9 @@ export function useDictation({
       }
       bufferRef.current = text;
       speechText.current = text;
-      callbacks.current.onText(text);
+      if (!callbacks.current.acceptText) callbacks.current.onText(text);
+      // Keep interim speech out of the composer: an incomplete announcement
+      // could otherwise be sent manually before the final filter can reject it.
       setNote(text);
       scheduleSend();
     };
@@ -275,7 +305,8 @@ export function useDictation({
       bufferRef.current = "";
       speechText.current = "";
       setNote(said || "음성 입력이 끝났습니다. 다시 말하려면 마이크를 누르세요.");
-      if (said && callbacks.current.autoSend) callbacks.current.onUtterance(said);
+      if (said && !callbacks.current.autoSend) deliverText(said);
+      if (said && callbacks.current.autoSend) deliverText(said, true);
     };
     try {
       rec.start();
@@ -346,9 +377,9 @@ export function useDictation({
         return;
       }
       if (session.current !== item.id) return;
-      callbacks.current.onText(result.text);
       setNote(result.text);
-      if (send) callbacks.current.onUtterance(result.text);
+      deliverText(result.text);
+      if (send) deliverText(result.text, true);
     } catch (error) {
       if (session.current === item.id) {
         const message =
@@ -517,9 +548,9 @@ export function useDictation({
         return;
       }
       if (session.current !== id) return;
-      callbacks.current.onText(result.text);
       setNote(result.text);
-      if (callbacks.current.autoSend) callbacks.current.onUtterance(result.text);
+      deliverText(result.text);
+      if (callbacks.current.autoSend) deliverText(result.text, true);
     } catch (error) {
       if (session.current === id) {
         const message = error instanceof Error ? error.message : "목소리를 확인하지 못했습니다.";
@@ -546,9 +577,9 @@ export function useDictation({
       setHearing(false);
       speechText.current = "";
       if (said) {
-        callbacks.current.onText(said);
         setNote(said);
-        if (callbacks.current.autoSend) callbacks.current.onUtterance(said);
+        deliverText(said);
+        if (callbacks.current.autoSend) deliverText(said, true);
       } else if (item) {
         item.id = session.current;
         void finish(item, send, send && callbacks.current.autoSend);

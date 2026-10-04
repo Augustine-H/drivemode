@@ -1,4 +1,9 @@
 import {
+  DEFAULT_ANNOUNCEMENTS,
+  isAnnouncement,
+  startsWithPersonaName,
+} from "@/lib/voice-input-filter";
+import {
   parsePersonaTemplate,
   parsePersonaMarkdown,
   applyPersonaAsset,
@@ -90,6 +95,9 @@ type Saved = {
   autoScroll: boolean;
   onlyGrok: boolean;
   voiceOnly?: boolean;
+  requireVoiceName?: boolean;
+  filterAnnouncements?: boolean;
+  announcementLines?: string[];
   autoReply: boolean;
   silence: number;
   wakeOn: boolean;
@@ -110,6 +118,9 @@ type SettingsSnap = {
   autoScroll: boolean;
   onlyGrok: boolean;
   voiceOnly: boolean;
+  requireVoiceName: boolean;
+  filterAnnouncements: boolean;
+  announcementLines: string[];
   autoReply: boolean;
   silence: number;
   wakeOn: boolean;
@@ -256,6 +267,9 @@ export function ReaderApp() {
   const [autoScroll, setAutoScroll] = useState(true);
   const [onlyGrok, setOnlyGrok] = useState(true);
   const [voiceOnly, setVoiceOnly] = useState(true);
+  const [requireVoiceName, setRequireVoiceName] = useState(false);
+  const [filterAnnouncements, setFilterAnnouncements] = useState(false);
+  const [announcementLines, setAnnouncementLines] = useState<string[]>(DEFAULT_ANNOUNCEMENTS);
   const [autoReply, setAutoReply] = useState(true);
   const [silence, setSilence] = useState(2);
   const [wakeOn, setWakeOn] = useState(false);
@@ -355,6 +369,25 @@ export function ReaderApp() {
     paused: asking || reader.status === "playing" || reader.preparing,
     silenceMs: Math.round(silence * 1000),
     autoSend: autoReply,
+    acceptText:
+      requireVoiceName || filterAnnouncements
+        ? (text) => {
+            if (
+              filterAnnouncements &&
+              isAnnouncement(takePersonaWake(text, personas)?.rest || text, announcementLines)
+            )
+              return "안내 문장을 무시했습니다.";
+            if (
+              requireVoiceName &&
+              !startsWithPersonaName(
+                text,
+                personas.map((p) => p.name),
+              )
+            )
+              return "페르소나 이름을 부른 뒤 질문해 주세요.";
+            return null;
+          }
+        : undefined,
     onText: setComposer,
     onUtterance: (text) => askRef.current(text),
     onError: setBanner,
@@ -380,6 +413,14 @@ export function ReaderApp() {
       reader.status === "playing" ||
       reader.preparing,
     names: personas,
+    acceptText: (text) =>
+      (!requireVoiceName ||
+        startsWithPersonaName(
+          text,
+          personas.map((p) => p.name),
+        )) &&
+      (!filterAnnouncements ||
+        !isAnnouncement(takePersonaWake(text, personas)?.rest || text, announcementLines)),
     onWake: (rest, id) => wakeHandler.current(rest, id),
     onError: setBanner,
   });
@@ -428,6 +469,14 @@ export function ReaderApp() {
       if (typeof saved.autoScroll === "boolean") setAutoScroll(saved.autoScroll);
       if (typeof saved.onlyGrok === "boolean") setOnlyGrok(saved.onlyGrok);
       if (typeof saved.voiceOnly === "boolean") setVoiceOnly(saved.voiceOnly);
+      setRequireVoiceName(saved.requireVoiceName === true);
+      setFilterAnnouncements(saved.filterAnnouncements === true);
+      if (Array.isArray(saved.announcementLines))
+        setAnnouncementLines(
+          saved.announcementLines
+            .filter((line): line is string => typeof line === "string")
+            .slice(0, 100),
+        );
       if (typeof saved.autoReply === "boolean") setAutoReply(saved.autoReply);
       if (typeof saved.silence === "number") setSilence(clamp(saved.silence, 1, 5));
       // Microphone sessions require an explicit action each time the app opens.
@@ -592,6 +641,9 @@ export function ReaderApp() {
       autoScroll,
       onlyGrok,
       voiceOnly,
+      requireVoiceName,
+      filterAnnouncements,
+      announcementLines,
       autoReply,
       silence,
       wakeOn,
@@ -615,6 +667,9 @@ export function ReaderApp() {
     autoScroll,
     onlyGrok,
     voiceOnly,
+    requireVoiceName,
+    filterAnnouncements,
+    announcementLines,
     autoReply,
     silence,
     wakeOn,
@@ -1387,6 +1442,10 @@ export function ReaderApp() {
   }
   askRef.current = ask;
   wakeHandler.current = (rest, id) => {
+    if (filterAnnouncements && isAnnouncement(rest, announcementLines)) {
+      setBanner("안내 문장을 무시했습니다.");
+      return;
+    }
     selectPersona(id);
     const follow = rest.trim();
     setComposer("");
@@ -1454,6 +1513,9 @@ export function ReaderApp() {
       autoScroll,
       onlyGrok,
       voiceOnly,
+      requireVoiceName,
+      filterAnnouncements,
+      announcementLines,
       autoReply,
       silence,
       wakeOn,
@@ -1485,6 +1547,9 @@ export function ReaderApp() {
     setAutoScroll(snap.autoScroll);
     setOnlyGrok(snap.onlyGrok);
     setVoiceOnly(snap.voiceOnly);
+    setRequireVoiceName(snap.requireVoiceName);
+    setFilterAnnouncements(snap.filterAnnouncements);
+    setAnnouncementLines(snap.announcementLines);
     setAutoReply(snap.autoReply);
     setSilence(snap.silence);
     setWakeOn(false);
@@ -1510,6 +1575,9 @@ export function ReaderApp() {
     setAutoScroll(true);
     setOnlyGrok(true);
     setVoiceOnly(true);
+    setRequireVoiceName(false);
+    setFilterAnnouncements(false);
+    setAnnouncementLines(DEFAULT_ANNOUNCEMENTS);
     setAutoReply(true);
     setSilence(2);
     setWakeOn(false);
@@ -3291,6 +3359,50 @@ export function ReaderApp() {
                   {wakeOn && !wake.listening
                     ? " 브라우저가 듣기를 끝내면 자동으로 다시 켜지 않습니다. 다시 듣고 싶으면 스위치를 껐다 켜 주세요."
                     : ""}
+                </p>
+                <label className="flex min-h-11 items-center justify-between gap-3 text-sm text-fg">
+                  이름을 부른 뒤에만 질문 받기
+                  <input
+                    type="checkbox"
+                    checked={requireVoiceName}
+                    onChange={(e) => setRequireVoiceName(e.target.checked)}
+                    className="size-5 accent-primary"
+                  />
+                </label>
+                <p className="text-sm text-muted">
+                  음성 질문마다 “아라야 오늘 날씨 알려줘”처럼 이름을 먼저 말하세요. 직접 입력한
+                  채팅에는 적용하지 않습니다.
+                </p>
+                <label className="flex min-h-11 items-center justify-between gap-3 text-sm text-fg">
+                  내비 안내 문장 걸러내기
+                  <input
+                    type="checkbox"
+                    checked={filterAnnouncements}
+                    onChange={(e) => setFilterAnnouncements(e.target.checked)}
+                    className="size-5 accent-primary"
+                  />
+                </label>
+                <label className="grid gap-2 text-sm text-fg">
+                  걸러낼 안내 문장 (한 줄에 하나)
+                  <textarea
+                    value={announcementLines.join("\n")}
+                    onChange={(e) => setAnnouncementLines(e.target.value.split("\n").slice(0, 100))}
+                    rows={7}
+                    maxLength={20000}
+                    className="w-full rounded-xl border border-line bg-surface p-3 text-sm"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setAnnouncementLines([...DEFAULT_ANNOUNCEMENTS])}
+                  className="min-h-11 rounded-xl border border-line px-3 text-sm"
+                >
+                  기본 안내 문장 복원
+                </button>
+                <p className="text-sm text-muted">
+                  캡처의 안내 23개와 고온 안내가 기본으로 들어 있습니다. 띄어쓰기·문장부호 차이와
+                  나누어 인식된 안내도 걸러냅니다. 등록 문장과 다른 안내는 추가해 주세요. 음성 인식
+                  후 질문 전송을 막는 기능입니다.
                 </p>
                 <label className="flex min-h-11 items-center justify-between gap-3 text-sm text-fg">
                   페르소나 답변은 글자 없이 음성 메시지로 표시

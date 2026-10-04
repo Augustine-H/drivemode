@@ -17,6 +17,7 @@ type Options = {
   enabled: boolean;
   paused: boolean;
   names: { id: string; name: string }[];
+  acceptText?: (text: string) => boolean;
   onWake: (rest: string, id: string) => void;
   onError: (message: string) => void;
 };
@@ -30,7 +31,7 @@ function recognitionCtor() {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
-export function useWake({ enabled, paused, names, onWake, onError }: Options) {
+export function useWake({ enabled, paused, names, acceptText, onWake, onError }: Options) {
   const [listening, setListening] = useState(false);
   const [standby, setStandby] = useState(false);
   const [note, setNote] = useState("");
@@ -40,10 +41,10 @@ export function useWake({ enabled, paused, names, onWake, onError }: Options) {
   const nameRef = useRef(names);
   const recRef = useRef<Rec | null>(null);
   const fireTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const callbacks = useRef({ onWake, onError });
+  const callbacks = useRef({ onWake, onError, acceptText });
   pausedRef.current = paused;
   nameRef.current = names;
-  callbacks.current = { onWake, onError };
+  callbacks.current = { onWake, onError, acceptText };
 
   const close = () => {
     if (fireTimer.current) clearTimeout(fireTimer.current);
@@ -81,7 +82,13 @@ export function useWake({ enabled, paused, names, onWake, onError }: Options) {
     rec.onresult = (event) => {
       if (fired) return;
       heard = sessionTranscript(event);
-      const hit = takePersonaWake(mergeUtterance(tail.current, heard), nameRef.current);
+      const spoken = mergeUtterance(tail.current, heard);
+      if (callbacks.current.acceptText && !callbacks.current.acceptText(spoken)) {
+        if (fireTimer.current) clearTimeout(fireTimer.current);
+        fireTimer.current = null;
+        return;
+      }
+      const hit = takePersonaWake(spoken, nameRef.current);
       if (!hit) return;
       if (fireTimer.current) clearTimeout(fireTimer.current);
       fireTimer.current = setTimeout(() => {
