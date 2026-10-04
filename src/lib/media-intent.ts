@@ -1,4 +1,16 @@
+export function isMediaQuestion(text: string) {
+  const compact = text.replace(/\s+/g, "");
+  return (
+    /사진|이미지|그림|셀카|영상|동영상|비디오/.test(compact) &&
+    /설명|묘사|분석|해석|내용|무슨|어떤색|왜|누구|뭐야|어때|보이는|몇마리|몇명|알려/.test(
+      compact,
+    ) &&
+    !/새로|다시만들|다시그려/.test(compact)
+  );
+}
+
 export function wantsVideo(text: string) {
+  if (isMediaQuestion(text)) return false;
   const compact = text.replace(/\s+/g, "");
   if (/설명|묘사|분석|해석|알려|보낸적|안보|안떠|안뜨|어디|이상|깨져|안나/.test(compact))
     return false;
@@ -36,6 +48,7 @@ export function videoPrompt(text: string, history: { role: string; content: stri
 }
 
 export function wantsImage(text: string) {
+  if (isMediaQuestion(text)) return false;
   const compact = text.replace(/\s+/g, "");
   if (/설명|묘사|분석|해석|알려|보낸적|안보|안떠|안뜨|어디|이상|깨져|안나|없대|없어/.test(compact))
     return false;

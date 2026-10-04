@@ -63,7 +63,8 @@ export function rememberRoomEvents(
     Object.entries(threads).map(([room, turns]) => [
       room,
       turns.map((turn) => {
-        if (turn.event !== "join" && turn.event !== "leave") return turn;
+        if (turn.event !== "join" && turn.event !== "leave")
+          return turn.streaming ? { ...turn, streaming: false, speechParts: undefined } : turn;
         const person = personas.find(
           (p) => p.id === turn.personaId || turn.text.startsWith(p.name + " 님이"),
         );
@@ -126,17 +127,44 @@ export function conversationMemory(threads: Record<string, Turn[]>, id: string, 
 }
 
 export function findQuestionMedia(turns: Turn[], question: string, selectedId?: string | null) {
-  if (selectedId) return turns.find((t) => t.id === selectedId && (t.image || t.video));
-  if (!/사진|이미지|그림|셀카|영상|동영상|비디오|보낸|보내준|이거|그거|묘사|설명/.test(question))
-    return undefined;
-  const video = /영상|동영상|비디오/.test(question);
-  const candidates = turns.filter((t) => (video ? t.video : t.image));
-  const words =
-    question
-      .replace(/최근|방금|아까|받은|보낸|사진|이미지|영상|설명|묘사|해줘|해봐/g, " ")
-      .match(/[가-힣a-zA-Z]{2,}/g) ?? [];
-  return (
-    [...candidates].reverse().find((t) => words.some((w) => t.mediaDescription?.includes(w))) ??
-    candidates.at(-1)
+  const unique = [...new Map(turns.map((turn) => [turn.id, turn])).values()];
+  if (selectedId) return unique.find((t) => t.id === selectedId && (t.image || t.video));
+  const explicit = /사진|이미지|그림|셀카|영상|동영상|비디오/.test(question);
+  const followup = /이거|그거|저거|그건|이건|여기|거기|왜|누구|무슨|어떤|몇|색|보여|보이는/.test(
+    question,
   );
+  if (!explicit && followup) {
+    const reference = [...unique].reverse().find((t) => t.mediaRef)?.mediaRef;
+    if (reference) return unique.find((t) => t.id === reference && (t.image || t.video));
+  }
+  if (!explicit && !/보낸|보내준|이거|그거|묘사|설명/.test(question)) return undefined;
+  const video = /영상|동영상|비디오/.test(question);
+  const photo = /사진|이미지|그림|셀카/.test(question);
+  const candidates = unique.filter((t) => (video ? t.video : photo ? t.image : t.image || t.video));
+  if (/첫\s*번째|처음/.test(question)) return candidates[0];
+  const ordinal = question.match(/(\d+)\s*번째/);
+  if (ordinal) return candidates[Number(ordinal[1]) - 1];
+  if (/직전|이전|그\s*전|두\s*번째/.test(question))
+    return /두\s*번째/.test(question) ? candidates[1] : candidates.at(-2);
+  const words = (
+    question
+      .replace(
+        /최근|방금|아까|받은|보낸|보내준|생성한|사진|이미지|영상|동영상|비디오|설명|묘사|분석|해줘|해봐|알려줘/g,
+        " ",
+      )
+      .match(/[가-힣a-zA-Z]{2,}/g) ?? []
+  )
+    .map((word) => word.replace(/(?:에서는|에서|에는|은|는|을|를|이|가|의|에)$/, ""))
+    .filter((word) => word.length >= 2);
+  const ranked = candidates.map((turn, index) => ({
+    turn,
+    index,
+    score: words.reduce(
+      (n, w) =>
+        n + ((turn.mediaDescription ?? "").toLowerCase().includes(w.toLowerCase()) ? w.length : 0),
+      0,
+    ),
+  }));
+  ranked.sort((a, b) => b.score - a.score || b.index - a.index);
+  return ranked[0]?.turn;
 }

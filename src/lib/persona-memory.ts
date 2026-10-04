@@ -142,7 +142,12 @@ export function cleanPersonaKnowledge(value: unknown): PersonaKnowledge {
 }
 
 export function personaInstructions(persona: { name: string; text: string } & PersonaKnowledge) {
-  return [`페르소나 이름: ${persona.name}`, persona.text, persona.template]
+  return [
+    `페르소나 이름: ${persona.name}`,
+    persona.text,
+    persona.template,
+    "일반 대화는 자연스러운 한국어를 우선한다. 외국인·외국어 사용 설정이 명시된 경우나 사용자가 번역·외국어를 요청한 경우에는 해당 설정을 따른다. 그 외에는 불필요한 영어 감탄사, 외국어 문장, 한자를 섞지 않고 한국어 표현으로 말한다. 고유명사와 필요한 기술 용어는 허용한다.",
+  ]
     .filter(Boolean)
     .join("\n\n");
 }

@@ -8,6 +8,8 @@ import {
   turnRecord,
   rememberRoomEvents,
 } from "@/lib/room-context";
+import { MusicListener } from "@/components/music-listener";
+import { musicCommand } from "@/lib/music-analysis";
 import { relayDelivery } from "@/lib/persona-relay";
 import { videoFrames } from "@/lib/video-frames";
 import { useMailReplies } from "@/lib/use-mail-replies";
@@ -67,6 +69,7 @@ import {
 import { useDropboxImport } from "@/components/dropbox-import";
 import { APP_NAME, APP_VERSION } from "@/lib/app-meta";
 import { askGrok } from "@/lib/ask-grok";
+import { speechParts } from "@/lib/stream-speech";
 import { streamAsk } from "@/lib/ask-stream";
 import { chatsFromJson, type ImportedChat } from "@/lib/grok-import";
 import { buildBackup, parseNangdokBackup, type NangdokBackup } from "@/lib/nangdok-backup";
@@ -382,12 +385,29 @@ export function ReaderApp() {
   const busyRef = useRef(false);
   const jobEpoch = useRef(0);
   const answerAbort = useRef<AbortController | null>(null);
+  const [musicRequest, setMusicRequest] = useState(0);
+  const musicStop = useRef<() => void>(() => {});
+  const musicRoom = useRef("");
+  const musicBusy = useRef(false);
   function stopActivity() {
+    musicStop.current();
     jobEpoch.current++;
     answerAbort.current?.abort();
     answerAbort.current = null;
     reader.stop();
     dictation.stop();
+    setThreads((prev) =>
+      Object.fromEntries(
+        Object.entries(prev).map(([key, list]) => [
+          key,
+          list.map((turn) =>
+            turn.streaming
+              ? { ...turn, streaming: false, speechParts: speechParts(turn.text, true) }
+              : turn,
+          ),
+        ]),
+      ),
+    );
     busyRef.current = false;
     setAsking(false);
     setPainting(false);
@@ -872,7 +892,7 @@ export function ReaderApp() {
   const parsedDraft = useMemo(() => parseTranscript(draft, "preview"), [draft]);
   const duration = formatDuration(readingSeconds(turns, rate));
   const active = turns[reader.turnIndex];
-  const activeChunks = active ? chunkText(active.text) : [];
+  const activeChunks = active ? (active.speechParts ?? chunkText(active.text)) : [];
   const activeLine = filming
     ? "영상 만드는 중"
     : painting
@@ -1542,6 +1562,12 @@ export function ReaderApp() {
       await askGroup(text, id, hit?.id);
       return;
     }
+    if (!fromMail && musicCommand(text)) {
+      setComposer("");
+      setSheet("voice");
+      setMusicRequest((value) => value + 1);
+      return;
+    }
     const finishBackup = conversationEnded(text);
     if (!fromMail && !selectedMediaId && wantsVideo(text)) {
       await film(text);
@@ -1607,7 +1633,8 @@ export function ReaderApp() {
         : "";
       const grokId = `gk-${sentAt.toString(36)}`;
       let latestReply: Turn[] = [];
-      const show = (said: string) => {
+      let speechStarted = false;
+      const show = (said: string, done = false) => {
         if (job !== jobEpoch.current) return;
         const next = [
           ...withUser.filter((turn) => turn.id !== mine.id && turn.id !== grokId),
@@ -1616,6 +1643,8 @@ export function ReaderApp() {
             id: grokId,
             speaker: "grok" as const,
             text: said,
+            speechParts: speechParts(said, done),
+            streaming: !done,
             at: sentAt,
             personaId: id,
             personaName: activePersona?.name,
@@ -1625,6 +1654,10 @@ export function ReaderApp() {
         ];
         commit(next);
         latestReply = next;
+        if (!speechStarted && next.at(-1)?.speechParts?.length && personaIdRef.current === id) {
+          speechStarted = true;
+          reader.playFrom(next, next.length - 1);
+        }
       };
       let result: { ok: true; text: string } | { ok: false; error: string };
       try {
@@ -1637,13 +1670,19 @@ export function ReaderApp() {
             image,
             frames,
           },
-          show,
+          (said) => show(said),
           abort.signal,
         );
       } catch {
         result = { ok: false, error: "그록에게 연결하지 못했습니다." };
       }
       if (job !== jobEpoch.current) return;
+      if (!result.ok && speechStarted) {
+        reader.stop();
+        show(latestReply.at(-1)?.text ?? "", true);
+        setBanner(`${result.error} 답변이 중간에 끊겼습니다.`);
+        return;
+      }
       if (!result.ok) {
         const again = await askGrok({
           data: {
@@ -1660,11 +1699,10 @@ export function ReaderApp() {
           setBanner(again.error);
           return;
         }
-        show(again.text);
+        show(again.text, true);
+      } else {
+        show(result.text, true);
       }
-      if (job !== jobEpoch.current) return;
-      if (latestReply.length && personaIdRef.current === id)
-        reader.playFrom(latestReply, latestReply.length - 1);
     } catch (error) {
       if (job === jobEpoch.current)
         setBanner(error instanceof Error ? error.message : "선택한 미디어를 읽지 못했습니다.");
@@ -1829,7 +1867,9 @@ export function ReaderApp() {
   }
 
   function updateTurn(id: string, text: string) {
-    setTurns((prev) => prev.map((t) => (t.id === id ? { ...t, text } : t)));
+    setTurns((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, text, streaming: false, speechParts: undefined } : t)),
+    );
   }
 
   function removeTurn(id: string) {
@@ -1971,50 +2011,71 @@ export function ReaderApp() {
       const frames = media?.video ? await videoFrames(media.video) : undefined;
       if (job !== jobEpoch.current) return;
       setSelectedMediaId(null);
+      const speakers = members.filter((member) => !addressed || member.id === addressed);
+      const answers: Turn[] = speakers.map((member) => ({
+        id: `gk-${at.toString(36)}-${member.id}`,
+        speaker: "grok",
+        text: "",
+        speechParts: [],
+        streaming: true,
+        at,
+        personaId: member.id,
+        personaName: member.name,
+        voice: member.voice,
+        audience: [...groupMembers],
+      }));
+      let started = false;
+      const publish = () => {
+        if (job !== jobEpoch.current) return;
+        const next = [...current, ...answers.map((answer) => ({ ...answer }))];
+        setThreads((prev) => ({ ...prev, [room]: next }));
+        if (personaIdRef.current === room) {
+          turnsNow.current = next;
+          if (!started && answers[0]?.speechParts?.length) {
+            started = true;
+            reader.playFrom(next, current.length);
+          }
+        }
+      };
+      publish();
       const replies = await Promise.all(
-        members
-          .filter((member) => !addressed || member.id === addressed)
-          .map(async (member) => {
-            const result = await streamAsk(
-              {
-                message: text,
-                history: [],
-                persona: `${personaInstructions(member)}\n함께 대화하는 사람: ${members.map((item) => item.name).join(", ")}. 반드시 ${member.name} 한 사람의 입장에서만 답한다.`,
-                memory:
-                  `${memoryForQuestion(member.memories, text, 3000)}\n본인이 나눈 과거 대화:\n${conversationMemory(threads, member.id, text)}\n현재 방 대화:\n${shared}`.slice(
-                    0,
-                    12000,
-                  ),
-                image: media?.image,
-                frames,
-              },
-              () => {},
-              abort.signal,
-            ).catch(() => ({ ok: false as const, error: "그록에게 연결하지 못했습니다." }));
-            return { member, result };
-          }),
+        speakers.map(async (member, index) => {
+          const update = (text: string, done = false) => {
+            answers[index] = {
+              ...answers[index],
+              text,
+              speechParts: speechParts(text, done),
+              streaming: !done,
+            };
+            publish();
+          };
+          const result = await streamAsk(
+            {
+              message: text,
+              history: [],
+              persona: `${personaInstructions(member)}\n함께 대화하는 사람: ${members.map((item) => item.name).join(", ")}. 반드시 ${member.name} 한 사람의 입장에서만 답한다.`,
+              memory:
+                `${memoryForQuestion(member.memories, text, 3000)}\n본인이 나눈 과거 대화:\n${conversationMemory(threads, member.id, text)}\n현재 방 대화:\n${shared}`.slice(
+                  0,
+                  12000,
+                ),
+              image: media?.image,
+              frames,
+            },
+            (said) => update(said),
+            abort.signal,
+          ).catch(() => ({ ok: false as const, error: "그록에게 연결하지 못했습니다." }));
+          if (job === jobEpoch.current) update(result.ok ? result.text : answers[index].text, true);
+          return { member, result };
+        }),
       );
       if (job !== jobEpoch.current) return;
-      const answers: Turn[] = replies
-        .filter((reply) => reply.result.ok)
-        .map(({ member, result }) => ({
-          id: `gk-${at.toString(36)}-${member.id}`,
-          speaker: "grok",
-          text: result.ok ? result.text : "",
-          at: Date.now(),
-          personaId: member.id,
-          personaName: member.name,
-          voice: member.voice,
-          audience: [...groupMembers],
-        }));
-      const next = [...current, ...answers];
-      setThreads((prev) => ({ ...prev, [room]: next }));
-      if (personaIdRef.current === room) turnsNow.current = next;
       const errors = replies
         .filter((reply) => !reply.result.ok)
         .map((reply) => `${reply.member.name}: ${reply.result.ok ? "" : reply.result.error}`);
       if (errors.length) setBanner(errors.join(" · "));
-      if (personaIdRef.current === room && answers.length) reader.playFrom(next, current.length);
+      if (!started && personaIdRef.current === room && answers.some((answer) => answer.text))
+        reader.playFrom([...current, ...answers], current.length);
     } catch (error) {
       if (job === jobEpoch.current)
         setBanner(error instanceof Error ? error.message : "답변을 받지 못했습니다.");
@@ -4051,6 +4112,46 @@ export function ReaderApp() {
                     </p>
                   </div>
                 </details>{" "}
+                <MusicListener
+                  request={musicRequest}
+                  blocked={asking || painting || filming || deletingChats}
+                  stopRef={musicStop}
+                  onPrepare={() => {
+                    setMusicRequest(0);
+                    musicBusy.current = true;
+                    musicRoom.current = personaIdRef.current;
+                    reader.stop();
+                    dictation.stop();
+                    busyRef.current = true;
+                    setAsking(true);
+                  }}
+                  onFinished={() => {
+                    if (musicBusy.current) {
+                      musicBusy.current = false;
+                      busyRef.current = false;
+                      setAsking(false);
+                    }
+                  }}
+                  onResult={(text) => {
+                    const room = musicRoom.current;
+                    const at = Date.now();
+                    setThreads((prev) => ({
+                      ...prev,
+                      [room]: [
+                        ...(prev[room] ?? []),
+                        {
+                          id: `music-${at}`,
+                          speaker: "grok",
+                          text,
+                          textOnly: true,
+                          at,
+                          audience: roomMembers[room] ?? [room],
+                        },
+                      ],
+                    }));
+                    setBanner(text);
+                  }}
+                />
                 <VoiceIdentitySettings
                   identity={voiceIdentity.identity}
                   error={voiceIdentity.error}

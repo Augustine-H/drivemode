@@ -29,10 +29,11 @@ function pieceAt(turns: Turn[], t: number, c: number, onlyGrok: boolean): Piece 
       ci = 0;
       continue;
     }
-    const chunks = chunkText(turns[ti]?.text ?? "");
+    const chunks = turns[ti]?.speechParts ?? chunkText(turns[ti]?.text ?? "");
     if (ci < chunks.length) {
       return { t: ti, c: ci, text: chunks[ci], speaker: turns[ti].speaker, voice: turns[ti].voice };
     }
+    if (turns[ti]?.streaming) return null;
     ti += 1;
     ci = 0;
   }
@@ -189,6 +190,10 @@ export function useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok }: Op
     [fetchAudio],
   );
 
+  useEffect(() => {
+    if (statusRef.current === "playing") prefetch(turnRef.current, chunkRef.current + 1);
+  }, [turns, prefetch]);
+
   const prime = useCallback(() => {
     if (typeof window === "undefined") return;
     const Ctx = window.AudioContext;
@@ -309,6 +314,16 @@ export function useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok }: Op
           }
           useGap = false;
           const piece = pieceAt(turnsRef.current, t, c, onlyGrokRef.current);
+          const waiting = turnsRef.current.findIndex((turn, index) => index >= t && turn.streaming);
+          if (!piece && waiting >= 0) {
+            if (waiting !== t) {
+              t = waiting;
+              c = 0;
+            }
+            setPreparing(true);
+            if (!(await sleep(80, gen))) return;
+            continue;
+          }
           if (!piece || (singleTurnRef.current !== null && piece.t !== singleTurnRef.current)) {
             setPos(turnsRef.current.length, 0);
             setPreparing(false);
@@ -369,11 +384,23 @@ export function useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok }: Op
           }
 
           const follow = pieceAt(turnsRef.current, t, c + 1, onlyGrokRef.current);
+          if (!follow && turnsRef.current[t]?.streaming) {
+            c += 1;
+            continue;
+          }
           if (singleTurnRef.current !== null && (!follow || follow.t !== singleTurnRef.current)) {
             setPos(t, 0);
             setPreparing(false);
             setStatusBoth("idle");
             return;
+          }
+          const nextWaiting = turnsRef.current.findIndex(
+            (turn, index) => index > t && turn.streaming,
+          );
+          if (!follow && nextWaiting >= 0) {
+            t = nextWaiting;
+            c = 0;
+            continue;
           }
           if (!follow) {
             setPos(turnsRef.current.length, 0);

@@ -16,7 +16,7 @@ export function askTurns(history: AskTurn[]) {
 
 export function askInstructions(persona: string, ack: boolean, facts: boolean, memory = "") {
   return [
-    "너는 귀로 듣는 대화 상대다. 한국어로만 답한다.",
+    "너는 귀로 듣는 대화 상대다. 일반 대화는 한국어를 우선한다. 외국인·외국어 설정 또는 사용자의 외국어 요청이 있을 때만 해당 언어를 사용한다. 불필요한 한자나 영어 감탄사를 섞지 않는다.",
     persona
       ? `사용자가 정한 역할과 말투: ${persona} 이 태도를 지키되, 아래 형식은 바꾸지 않는다.`
       : "특별한 역할은 없다. 담백하게 말한다.",
