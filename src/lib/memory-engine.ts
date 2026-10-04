@@ -9,6 +9,14 @@ export type MemoryDocument = {
   lastUsedAt?: number;
   source?: string;
   sourceIds?: string[];
+  sourceRevision?: string;
+  provenance?: "user-explicit" | "imported" | "local-excerpt";
+  category?: string;
+  updatedAt?: number;
+  revision?: number;
+  sourceDeleted?: boolean;
+  manual?: boolean;
+  relatedMediaIds?: string[];
 };
 export type MemoryState = {
   schemaVersion: 2;
@@ -18,6 +26,7 @@ export type MemoryState = {
   recentBudget: number;
   summaries: Record<string, MemoryDocument[]>;
   longTerm: Record<string, MemoryDocument[]>;
+  suppressedSources?: Record<string, string[]>;
 };
 export const emptyMemoryState = (): MemoryState => ({
   schemaVersion: 2,
@@ -27,18 +36,26 @@ export const emptyMemoryState = (): MemoryState => ({
   recentBudget: 6000,
   summaries: {},
   longTerm: {},
+  suppressedSources: {},
 });
 export function eraseConversationMemory(state: MemoryState, id?: string): MemoryState {
   return {
     ...state,
     longTerm: id ? { ...state.longTerm, [id]: [] } : {},
     summaries: id ? { ...state.summaries, [id]: [] } : {},
+    suppressedSources: id ? { ...state.suppressedSources, [id]: [] } : {},
   };
 }
 export function cleanMemoryState(raw: unknown): MemoryState {
   const state = emptyMemoryState();
   if (!raw || typeof raw !== "object") return state;
   const r = raw as Record<string, unknown>;
+  if (r.suppressedSources && typeof r.suppressedSources === "object")
+    state.suppressedSources = Object.fromEntries(
+      Object.entries(r.suppressedSources)
+        .filter(([, v]) => Array.isArray(v))
+        .map(([k, v]) => [k, (v as unknown[]).filter((x): x is string => typeof x === "string")]),
+    );
   for (const key of ["enabled", "longTermEnabled", "summaryEnabled"] as const)
     if (typeof r[key] === "boolean") state[key] = r[key] as boolean;
   if (typeof r.recentBudget === "number" && Number.isFinite(r.recentBudget))
@@ -64,6 +81,18 @@ export function cleanMemoryState(raw: unknown): MemoryState {
             source: typeof d.source === "string" ? d.source : undefined,
             sourceIds: Array.isArray(d.sourceIds)
               ? d.sourceIds.filter((x: unknown) => typeof x === "string")
+              : undefined,
+            sourceRevision: typeof d.sourceRevision === "string" ? d.sourceRevision : undefined,
+            provenance: ["user-explicit", "imported", "local-excerpt"].includes(d.provenance)
+              ? d.provenance
+              : undefined,
+            category: typeof d.category === "string" ? d.category : undefined,
+            updatedAt: Number.isFinite(d.updatedAt) ? d.updatedAt : undefined,
+            revision: Number.isFinite(d.revision) ? d.revision : undefined,
+            sourceDeleted: typeof d.sourceDeleted === "boolean" ? d.sourceDeleted : undefined,
+            manual: typeof d.manual === "boolean" ? d.manual : undefined,
+            relatedMediaIds: Array.isArray(d.relatedMediaIds)
+              ? d.relatedMediaIds.filter((x: unknown) => typeof x === "string")
               : undefined,
           }));
       }
@@ -215,26 +244,46 @@ export function summarizeExcluded(
         importance: 3,
         createdAt: batch.at(-1)?.at ?? 0,
         sourceIds: batch.map((t) => t.id),
+        sourceRevision: sourceRevision(batch.map((t) => `${t.id}:${t.content}`).join("\n")),
+        provenance: "local-excerpt",
+        revision: 1,
       });
   }
   return summaries;
+}
+function sourceRevision(text: string) {
+  let hash = 2166136261;
+  for (const c of text) hash = Math.imul(hash ^ c.charCodeAt(0), 16777619);
+  return (hash >>> 0).toString(16);
 }
 export function buildPersonaMemory(
   state: MemoryState,
   id: string,
   turns: { id: string; content: string; at?: number; role?: string }[],
 ) {
-  const complete = turns.filter((t) => !/^s\d+$/.test(t.id));
+  const blocked = new Set(state.suppressedSources?.[id] ?? []);
+  const complete = turns.filter((t) => !/^s\d+$/.test(t.id) && !blocked.has(t.id));
   const excluded = selectRecent(complete, state.recentBudget).excluded;
   const summaries = state.summaryEnabled
     ? summarizeExcluded(excluded)
     : (state.summaries[id] ?? []);
   const remembered = new Map((state.longTerm[id] ?? []).map((d) => [d.id, d]));
+  for (const turn of complete) {
+    const old = remembered.get(`fact:${turn.id}`);
+    if (
+      old &&
+      !old.manual &&
+      turn.role === "user" &&
+      !/기억해\s*(?:줘|둬|[.!]|$)|잊지\s*마|나는[^?\n]*(?:좋아|싫어|선호)/.test(turn.content)
+    )
+      remembered.delete(old.id);
+  }
   for (const turn of complete)
     if (
       turn.role === "user" &&
       /기억해\s*(?:줘|둬|[.!]|$)|잊지\s*마|나는[^?\n]*(?:좋아|싫어|선호)/.test(turn.content) &&
-      !remembered.has(`fact:${turn.id}`)
+      !remembered.get(`fact:${turn.id}`)?.manual &&
+      remembered.get(`fact:${turn.id}`)?.sourceRevision !== sourceRevision(turn.content)
     )
       remembered.set(`fact:${turn.id}`, {
         id: `fact:${turn.id}`,
@@ -242,6 +291,60 @@ export function buildPersonaMemory(
         importance: 5,
         createdAt: turn.at ?? 0,
         sourceIds: [turn.id],
+        sourceRevision: sourceRevision(turn.content),
+        provenance: "user-explicit",
+        revision: (remembered.get(`fact:${turn.id}`)?.revision ?? 0) + 1,
+        updatedAt: Date.now(),
       });
   return { summaries, longTerm: [...remembered.values()] };
+}
+export function forgetMemoryDocument(state: MemoryState, personaId: string, id: string) {
+  const doc = state.longTerm[personaId]?.find((d) => d.id === id);
+  if (!doc) return state;
+  return {
+    ...state,
+    longTerm: {
+      ...state.longTerm,
+      [personaId]: state.longTerm[personaId].filter((d) => d.id !== id),
+    },
+    summaries: {
+      ...state.summaries,
+      [personaId]: (state.summaries[personaId] ?? []).filter(
+        (d) => !d.sourceIds?.some((s) => doc.sourceIds?.includes(s)),
+      ),
+    },
+    suppressedSources: {
+      ...state.suppressedSources,
+      [personaId]: [
+        ...new Set([...(state.suppressedSources?.[personaId] ?? []), ...(doc.sourceIds ?? [])]),
+      ],
+    },
+  };
+}
+export function conversationMemoryDeleted(
+  state: MemoryState,
+  removed: Set<string>,
+  eraseFacts: boolean,
+) {
+  return {
+    ...state,
+    summaries: Object.fromEntries(
+      Object.entries(state.summaries).map(([p, docs]) => [
+        p,
+        docs.filter((d) => !d.sourceIds?.some((id) => removed.has(id))),
+      ]),
+    ),
+    longTerm: Object.fromEntries(
+      Object.entries(state.longTerm).map(([p, docs]) => [
+        p,
+        docs.flatMap((d) =>
+          d.sourceIds?.some((id) => removed.has(id))
+            ? eraseFacts
+              ? []
+              : [{ ...d, sourceDeleted: true }]
+            : [d],
+        ),
+      ]),
+    ),
+  };
 }

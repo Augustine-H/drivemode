@@ -18,6 +18,8 @@ export type Turn = {
   audience?: string[];
   mediaDescription?: string;
   mediaRef?: string;
+  mediaIds?: string[];
+  responseStatus?: "complete" | "partial" | "cancelled";
   relay?: {
     fromId: string;
     fromName: string;

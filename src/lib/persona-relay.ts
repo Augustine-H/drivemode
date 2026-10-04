@@ -63,6 +63,7 @@ export function relayDelivery(input: {
     image: input.media?.image,
     video: input.media?.video,
     mediaDescription: input.media?.mediaDescription,
+    mediaIds: input.media?.mediaIds,
     audience: [...new Set([input.from.id, input.to.id])],
   };
   const receipt: Turn = {

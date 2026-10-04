@@ -16,6 +16,9 @@ export type ContextMetrics = {
   responseTokens?: number;
   fullLength?: number;
   voiceLength?: number;
+  excludedRecent?: number;
+  applicationInputLimit?: number;
+  modelContextLimit?: number | null;
 };
 export function buildGrokContext(input: {
   message: string;
@@ -38,7 +41,17 @@ export function buildGrokContext(input: {
   const memory = input.ack ? "" : fitText(input.memory ?? "", budgets.memory);
   const summary = input.ack ? "" : fitText(input.summary ?? "", budgets.summary);
   const recent = selectRecent(
-    input.ack ? [] : (input.history ?? []).filter((t) => t.content.trim()),
+    input.ack
+      ? []
+      : (input.history ?? []).filter(
+          (t, i, list) =>
+            t.content.trim() &&
+            !(
+              i === list.length - 1 &&
+              t.role === "user" &&
+              t.content.trim() === input.message.trim()
+            ),
+        ),
     budgets.recent,
   );
   const message = fitText(input.message, budgets.message);
@@ -63,6 +76,19 @@ export function buildGrokContext(input: {
       });
   }
   items.push(...recent.recent, { role: "user", content: message });
+  // grok-4.5's current official model limit is unconfirmed. This is an app cost cap,
+  // not a claim about provider capacity: 32k minus 1024 output and 4096 safety.
+  const applicationInputLimit = 32000 - 1024 - 4096;
+  while (
+    items.reduce((n, t) => n + estimateTokens(t.content) + 8, 0) > applicationInputLimit &&
+    recent.recent.length
+  ) {
+    const first = recent.recent.shift()!;
+    const position = items.indexOf(first);
+    if (position >= 0) items.splice(position, 1);
+    recent.excluded.push(first);
+    recent.tokens -= estimateTokens(first.content) + 8;
+  }
   const metrics: ContextMetrics = {
     memoriesRetrieved: input.memoriesRetrieved,
     recentTokens: recent.tokens,
@@ -70,6 +96,9 @@ export function buildGrokContext(input: {
     memoryTokens: estimateTokens(memory),
     personaTokens: estimateTokens(persona),
     totalTokens: items.reduce((n, t) => n + estimateTokens(t.content) + 8, 0),
+    excludedRecent: recent.excluded.length,
+    applicationInputLimit,
+    modelContextLimit: null,
   };
   return {
     input: items,

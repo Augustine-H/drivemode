@@ -47,6 +47,11 @@ export function imageInput(message: string, image?: string, frames?: string[]) {
       },
     ];
   if (!image) return message;
+  if (image.length <= 500000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/.test(image))
+    return [
+      { type: "input_image", image_url: image },
+      { type: "input_text", text: message },
+    ];
   try {
     const url = new URL(image);
     if (

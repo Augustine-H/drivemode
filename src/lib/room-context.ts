@@ -80,7 +80,14 @@ export function rememberRoomEvents(
       room,
       turns.map((turn) => {
         if (turn.event !== "join" && turn.event !== "leave")
-          return turn.streaming ? { ...turn, streaming: false, speechParts: undefined } : turn;
+          return turn.streaming
+            ? {
+                ...turn,
+                streaming: false,
+                responseStatus: "partial" as const,
+                speechParts: undefined,
+              }
+            : turn;
         const person = personas.find(
           (p) => p.id === turn.personaId || turn.text.startsWith(p.name + " 님이"),
         );

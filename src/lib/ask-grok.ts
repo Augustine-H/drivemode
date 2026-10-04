@@ -65,7 +65,8 @@ export const askGrok = createServerFn({ method: "POST" })
         .slice(0, 12000);
       return {
         message,
-        image: typeof input.image === "string" ? input.image.slice(0, 4000) : undefined,
+        image:
+          typeof input.image === "string" && input.image.length <= 500000 ? input.image : undefined,
         frames: Array.isArray(input.frames)
           ? input.frames.filter((f) => typeof f === "string" && f.length <= 500000).slice(0, 3)
           : undefined,

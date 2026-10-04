@@ -41,6 +41,10 @@ function MailAudio({ parts, heard }: { parts: Blob[]; heard?: () => void }) {
   const continuing = useRef(false);
   const part = parts[index];
   useEffect(() => {
+    if (!part) {
+      setUrl("");
+      return;
+    }
     const url = URL.createObjectURL(part);
     const player = audio.current;
     setUrl(url);
@@ -57,6 +61,9 @@ function MailAudio({ parts, heard }: { parts: Blob[]; heard?: () => void }) {
   }, [url]);
   return (
     <div className="space-y-2">
+      {!part ? (
+        <p className="text-sm text-muted">음성 원본 없음 · 미디어 라이브러리에서 복원하세요.</p>
+      ) : null}
       <audio
         ref={audio}
         controls

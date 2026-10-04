@@ -39,7 +39,12 @@ export function useMemoryV2(
         personas.map((p) => [
           p.id,
           knownTurns(stableThreads, p.id)
-            .filter((t) => !t.streaming && !/^s\d+$/.test(t.id))
+            .filter(
+              (t) =>
+                !t.streaming &&
+                !/^s\d+$/.test(t.id) &&
+                !state.suppressedSources?.[p.id]?.includes(t.id),
+            )
             .map((t) => ({
               id: t.id,
               content: turnRecord(t),
@@ -48,27 +53,36 @@ export function useMemoryV2(
             })),
         ]),
       ),
-    [stableThreads, personas],
+    [stableThreads, personas, state.suppressedSources],
   );
   useEffect(() => {
     if (!hydrated) return;
-    setState((previous) => {
-      const next = {
-        ...previous,
-        summaries: { ...previous.summaries },
-        longTerm: { ...previous.longTerm },
-      };
-      for (const persona of personas) {
-        try {
-          const generated = buildPersonaMemory(previous, persona.id, documents[persona.id] ?? []);
-          next.summaries[persona.id] = generated.summaries;
-          next.longTerm[persona.id] = generated.longTerm;
-        } catch {
-          /* Retain original turns and the last successful memory state. */
-        }
-      }
-      return JSON.stringify(next) === JSON.stringify(previous) ? previous : next;
-    });
+    const timer = setTimeout(
+      () =>
+        setState((previous) => {
+          const next = {
+            ...previous,
+            summaries: { ...previous.summaries },
+            longTerm: { ...previous.longTerm },
+          };
+          for (const persona of personas) {
+            try {
+              const generated = buildPersonaMemory(
+                previous,
+                persona.id,
+                documents[persona.id] ?? [],
+              );
+              next.summaries[persona.id] = generated.summaries;
+              next.longTerm[persona.id] = generated.longTerm;
+            } catch {
+              /* Retain original turns and the last successful memory state. */
+            }
+          }
+          return JSON.stringify(next) === JSON.stringify(previous) ? previous : next;
+        }),
+      0,
+    );
+    return () => clearTimeout(timer);
   }, [documents, hydrated, personas, state.enabled, state.summaryEnabled, state.recentBudget]);
   const indexes = useMemo(
     () =>

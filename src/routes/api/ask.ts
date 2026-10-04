@@ -179,7 +179,7 @@ export const Route = createFileRoute("/api/ask")({
             String(body.memory ?? "")
               .trim()
               .slice(0, 12000),
-            typeof body.image === "string" ? body.image.slice(0, 4000) : undefined,
+            typeof body.image === "string" && body.image.length <= 500000 ? body.image : undefined,
             request.signal,
             Array.isArray(body.frames)
               ? body.frames

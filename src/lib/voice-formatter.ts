@@ -6,6 +6,8 @@ export function voiceResponse(full: string, done = true) {
     .replace(/\[([^\]]*)]\([^)]*\)/g, "$1")
     .replace(/!?\[[^\]]*]\([^)]*$/g, " ")
     .replace(/!?\[[^\]]*$/g, " ")
+    .replace(/https?:\/\/\S*/g, " ")
+    .replace(/^[ \t]*\|.*(?:\n|$)/gm, " ")
     .replace(/^[ \t#>*-]+/gm, "")
     .replace(/[*_`]/g, "")
     .trim();
@@ -16,5 +18,5 @@ export function voiceResponse(full: string, done = true) {
     first.push(
       parts.slice(2).find((p) => /주의|경고|위험|금지|반드시|하지 마|안전/.test(p)) ?? parts[2],
     );
-  return first.join(" ");
+  return first.join(" ") || (done && full.trim() ? "자세한 내용은 화면에서 확인해 주세요." : "");
 }

@@ -6,6 +6,8 @@ export type VoiceMail = {
   createdAt: number;
   text: string;
   audio: Blob[];
+  mediaIds?: string[];
+  mediaError?: string;
   heard: boolean;
   reply?: {
     dueAt: number;
@@ -95,15 +97,92 @@ async function transaction<T>(
     }
   });
 }
-export function listVoiceMails() {
-  return transaction<VoiceMail[]>("readonly", (store, done) => {
+export async function listVoiceMails() {
+  const mails = await transaction<VoiceMail[]>("readonly", (store, done) => {
     const request = store.getAll();
     request.onsuccess = () =>
       done((request.result as VoiceMail[]).sort((a, b) => b.createdAt - a.createdAt));
   });
+  const { readMediaBlob, getMedia } = await import("./media-repository");
+  return Promise.all(
+    mails.map(async (mail) => {
+      if (!mail.mediaIds?.length) return mail;
+      const parts = await Promise.all(
+        mail.mediaIds.map(async (id) => {
+          const item = await getMedia(id);
+          return item?.lifecycle === "active"
+            ? readMediaBlob(id).catch(() => undefined)
+            : undefined;
+        }),
+      );
+      return {
+        ...mail,
+        audio: parts.filter((part): part is Blob => !!part),
+        mediaError: parts.some((p) => !p)
+          ? "음성 원본이 없습니다. 라이브러리에서 복원하세요."
+          : undefined,
+      };
+    }),
+  );
+}
+async function managedMail(mail: VoiceMail, legacy = false) {
+  if (mail.mediaIds?.length) return { ...mail, audio: [] };
+  const { getMedia, ingestMedia } = await import("./media-repository");
+  const ids: string[] = [];
+  for (let i = 0; i < mail.audio.length; i++) {
+    const id = `mail-${mail.id.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 70)}-${i}`;
+    let item = await getMedia(id);
+    if (!item)
+      item = await ingestMedia({
+        id,
+        type: "voice",
+        origin: legacy ? "legacy" : mail.direction === "received" ? "generated" : "uploaded",
+        blob: mail.audio[i],
+        personaId: mail.personaId,
+        createdAt: mail.createdAt,
+        description: `${mail.personaName} 보이스 메일 ${i + 1}`,
+        refs: [
+          {
+            conversationId: `mail:${mail.personaId}`,
+            messageId: mail.id,
+            personaId: mail.personaId,
+          },
+        ],
+      });
+    if (
+      item.ingestState !== "complete" ||
+      item.availability !== "local" ||
+      item.lifecycle !== "active"
+    )
+      return {
+        ...mail,
+        mediaIds: undefined,
+        mediaError: item.error ?? "음성 파일 저장이 확인되지 않았습니다.",
+      };
+    ids.push(id);
+  }
+  return { ...mail, audio: [], mediaIds: ids };
+}
+export async function migrateVoiceMailMedia() {
+  for (const mail of await listVoiceMails()) {
+    if (mail.mediaIds?.length) continue;
+    const managed = await managedMail(mail, true);
+    if (!managed.mediaIds?.length) continue;
+    const { mediaPut } = await import("./media-db");
+    await mediaPut("staging", `legacy-mail-${mail.id}`, mail);
+    await transaction<void>("readwrite", (store, done) => {
+      const req = store.get(mail.id);
+      req.onsuccess = () => {
+        if (req.result && !req.result.mediaIds?.length)
+          store.put({ ...req.result, audio: [], mediaIds: managed.mediaIds });
+        done();
+      };
+    });
+  }
 }
 export async function addVoiceMail(mail: VoiceMail) {
   validateMail(mail);
+  mail = await managedMail(mail);
   const added = await transaction<boolean>("readwrite", (store, done) => {
     const count = store.count();
     count.onsuccess = () => {
@@ -141,13 +220,31 @@ export async function updateVoiceMailText(id: string, text: string) {
   });
   if (!updated) throw new Error("이미 삭제된 메일입니다.");
 }
-export function removeVoiceMail(id: string) {
+export async function removeVoiceMail(id: string) {
+  const mail = await transaction<VoiceMail | undefined>("readonly", (store, done) => {
+    const r = store.get(id);
+    r.onsuccess = () => done(r.result);
+  });
+  if (mail) {
+    const { detachConversationMedia } = await import("./media-repository");
+    await detachConversationMedia(new Set([`mail:${mail.personaId}\0${id}`]));
+  }
   return transaction<void>("readwrite", (store, done) => {
     store.delete(id);
     done();
   });
 }
-export function deleteVoiceMails(personaId?: string) {
+export async function deleteVoiceMails(personaId?: string, trashTemporary = false) {
+  const mails = await transaction<VoiceMail[]>("readonly", (store, done) => {
+    const r = store.getAll();
+    r.onsuccess = () =>
+      done(r.result.filter((m: VoiceMail) => !personaId || m.personaId === personaId));
+  });
+  const { detachConversationMedia } = await import("./media-repository");
+  await detachConversationMedia(
+    new Set(mails.map((m) => `mail:${m.personaId}\0${m.id}`)),
+    trashTemporary,
+  );
   return transaction<void>("readwrite", (store, done) => {
     if (!personaId) {
       store.clear();
@@ -216,8 +313,9 @@ export function claimMailReply(id: string, now: number, claimId: string) {
   });
 }
 
-export function completeVoiceReply(sourceId: string, response: VoiceMail, claimId: string) {
+export async function completeVoiceReply(sourceId: string, response: VoiceMail, claimId: string) {
   validateMail(response);
+  response = await managedMail(response);
   return transaction<boolean>("readwrite", (store, done) => {
     const source = store.get(sourceId);
     source.onsuccess = () => {

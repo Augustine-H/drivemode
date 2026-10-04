@@ -78,7 +78,12 @@ export const startVideo = createServerFn({ method: "POST" })
       .slice(0, 400);
     const seconds = Math.min(8, Math.max(2, Math.round(Number(input?.seconds) || 5)));
     const image =
-      typeof input?.image === "string" && input.image.startsWith("https://") ? input.image : "";
+      typeof input?.image === "string" &&
+      (input.image.startsWith("https://") ||
+        (input.image.length <= 500000 &&
+          /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/.test(input.image)))
+        ? input.image
+        : "";
     return { prompt, seconds, image };
   })
   .handler(async ({ data }): Promise<{ ok: true; id: string } | { ok: false; error: string }> => {
@@ -118,11 +123,14 @@ export const startVideo = createServerFn({ method: "POST" })
 
 export const videoStatus = createServerFn({ method: "POST" })
   .validator((input: { id: string }) => {
-    const id = String(input?.id ?? "").trim().slice(0, 80);
+    const id = String(input?.id ?? "")
+      .trim()
+      .slice(0, 80);
     return { id };
   })
   .handler(async ({ data }): Promise<VideoResult> => {
-    if (!/^[A-Za-z0-9_-]+$/.test(data.id)) return { ok: false, error: "영상 요청을 찾지 못했습니다." };
+    if (!/^[A-Za-z0-9_-]+$/.test(data.id))
+      return { ok: false, error: "영상 요청을 찾지 못했습니다." };
     const apiKey = process.env.XAI_API_KEY;
     if (!apiKey) return { ok: false, error: "영상을 만들 수 없습니다." };
     try {

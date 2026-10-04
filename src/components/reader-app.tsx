@@ -1,11 +1,17 @@
 import { erasePersonaConversations } from "@/lib/room-context";
 import { selectRecent } from "@/lib/context-budget";
 import { MemorySettings } from "@/components/memory-settings";
+import { StorageSettings } from "@/components/storage-settings";
+import { useStorageSnapshots } from "@/lib/use-storage-snapshots";
+import { ManagedMedia } from "@/components/managed-media";
+import { questionMedia } from "@/lib/media-input";
+import { useMediaLibrary } from "@/lib/use-media-library";
+import { detachConversationMedia, ingestMedia } from "@/lib/media-repository";
 import type { ContextMetrics } from "@/lib/grok-context";
 import { readAppState, writeAppState } from "@/lib/app-storage";
 import { useMemoryV2 } from "@/lib/use-memory-v2";
 import { voiceResponse } from "@/lib/voice-formatter";
-import { eraseConversationMemory, type MemoryState } from "@/lib/memory-engine";
+import { conversationMemoryDeleted, type MemoryState } from "@/lib/memory-engine";
 import type { AskResult } from "@/lib/ask-grok";
 import { wantsVideo, wantsImage, videoSeconds, videoPrompt, imagePrompt } from "@/lib/media-intent";
 import {
@@ -19,7 +25,6 @@ import {
 import { AudioAwarenessSettings } from "@/components/audio-awareness-settings";
 import { useAudioAwareness, type AudioSettings } from "@/lib/use-audio-awareness";
 import { relayDelivery, storeRelay, relayMemoryKey } from "@/lib/persona-relay";
-import { videoFrames } from "@/lib/video-frames";
 import { useMailReplies } from "@/lib/use-mail-replies";
 import { MailNotifications } from "@/components/mail-notifications";
 import {
@@ -43,7 +48,7 @@ import {
 import { getDropboxClient } from "@/lib/dropbox-client";
 import { profileImage, personaColor } from "@/lib/persona-profile";
 import { DEFAULT_PERSONAS, migrateDefaultPersonas } from "@/lib/default-personas";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVoiceBackup } from "@/components/use-voice-backup";
 import { VoiceIdentitySettings } from "@/components/voice-identity";
 import { useVoiceIdentity } from "@/lib/use-voice-identity";
@@ -355,6 +360,32 @@ export function ReaderApp() {
   const [filming, setFilming] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const memoryEngine = useMemoryV2(threads, personas, hydrated);
+  const migrateMediaTurn = useCallback(
+    (room: string, id: string, mediaId: string) =>
+      setThreads((previous) => ({
+        ...previous,
+        [room]: (previous[room] ?? []).map((t) =>
+          t.id === id && !t.mediaIds?.length
+            ? {
+                ...t,
+                mediaIds: [mediaId],
+                image: t.image ? `media:${mediaId}` : undefined,
+                video: t.video ? `media:${mediaId}` : undefined,
+              }
+            : t,
+        ),
+      })),
+    [],
+  );
+  const mediaLibrary = useMediaLibrary(threads, hydrated, migrateMediaTurn);
+  const [trashChatMedia, setTrashChatMedia] = useState(false);
+  const [deleteChatMemory, setDeleteChatMemory] = useState(false);
+  const deletedMessages = (next: Record<string, Turn[]>) =>
+    new Set(
+      Object.entries(threads).flatMap(([room, list]) =>
+        list.filter((t) => !next[room]?.some((n) => n.id === t.id)).map((t) => `${room}\0${t.id}`),
+      ),
+    );
   const { restore: restoreMemory } = memoryEngine;
   const [memoryMetrics, setMemoryMetrics] = useState<ContextMetrics | null>(null);
   const [sheet, setSheet] = useState<"script" | "save" | "voice" | null>(null);
@@ -424,6 +455,19 @@ export function ReaderApp() {
       wakeIdleSeconds,
     ],
   );
+  useStorageSnapshots(
+    () =>
+      buildBackup({
+        personaId,
+        personas,
+        threads,
+        roomMembers,
+        memoryV2: memoryEngine.state,
+        settings: captureSettings(),
+      }),
+    backupSnapshot + mediaLibrary.items.map((i) => `${i.id}:${i.revision}`).join(","),
+    hydrated,
+  );
   const [shareUrl, setShareUrl] = useState("");
   const [shareBusy, setShareBusy] = useState(false);
   const [imported, setImported] = useState<ImportedChat[] | null>(null);
@@ -458,6 +502,7 @@ export function ReaderApp() {
               ? {
                   ...turn,
                   streaming: false,
+                  responseStatus: "cancelled",
                   voiceText: voiceResponse(turn.text, true),
                   speechParts: speechParts(voiceResponse(turn.text, true), true),
                 }
@@ -1042,13 +1087,30 @@ export function ReaderApp() {
     setBanner(`${chat.title} 대화를 끝까지 읽습니다.`);
   }
 
-  function restoreBackup(backup: NangdokBackup) {
+  async function restoreBackup(backup: NangdokBackup) {
     backup = {
       ...backup,
       ...migrateDefaultPersonas(backup.personas, backup.threads, backup.personaId),
     };
     const picked =
       backup.personas.find((item) => item.id === backup.personaId) ?? backup.personas[0];
+    const restoredThreads = rememberRoomEvents(backup.threads, backup.personas);
+    if (
+      !(await writeAppState({
+        ...captureSettings(),
+        ...backup.settings,
+        threads: restoredThreads,
+        turns: restoredThreads[picked.id] ?? [],
+        personas: backup.personas,
+        memoryV2: backup.memoryV2,
+        personaId: picked.id,
+        persona: picked.text,
+        roomMembers: backup.roomMembers ?? {},
+      }))
+    ) {
+      setBanner("복원 데이터 저장 실패. 활성 대화를 변경하지 않았습니다.");
+      throw new Error("복원 저장 실패");
+    }
     reader.stop();
     memoryEngine.restore(backup.memoryV2);
     const restored = backup.settings;
@@ -1524,6 +1586,21 @@ export function ReaderApp() {
       const repliedAt = Date.now();
       const stamp = repliedAt.toString(36);
       const caption = "";
+      const mediaItem = await ingestMedia({
+        type: "image",
+        origin: "generated",
+        url: result.url,
+        description: text,
+        personaId: roomHost,
+        provider: "xAI",
+        refs: [{ conversationId: room, messageId: `gk-${stamp}`, personaId: roomHost }],
+        createdAt: repliedAt,
+      });
+      if (job !== jobEpoch.current) return;
+      if (mediaItem.ingestState !== "complete")
+        setBanner(
+          `사진 생성됨 · 로컬 원본 저장 실패: ${mediaItem.error}. 라이브러리에서 재시도하세요.`,
+        );
       const next = [
         ...base,
         { id: `me-${stamp}`, speaker: "me" as const, text, at: sentAt, audience },
@@ -1531,7 +1608,8 @@ export function ReaderApp() {
           id: `gk-${stamp}`,
           speaker: "grok" as const,
           text: caption,
-          image: result.url,
+          image: `media:${mediaItem.id}`,
+          mediaIds: [mediaItem.id],
           mediaDescription: text,
           audience,
           personaId: roomHost,
@@ -1568,9 +1646,9 @@ export function ReaderApp() {
     let image = "";
     if (/그거|이거|저거|방금|셀카|베이스|기반|그 사진|이 사진|그 그림/.test(text)) {
       for (let i = turnsNow.current.length - 1; i >= 0; i--) {
-        const found = turnsNow.current[i]?.image;
-        if (found?.startsWith("https://")) {
-          image = found;
+        const found = turnsNow.current[i];
+        if (found?.image) {
+          image = (await questionMedia(found)).image ?? "";
           break;
         }
       }
@@ -1608,6 +1686,21 @@ export function ReaderApp() {
       }
       const repliedAt = Date.now();
       const stamp = repliedAt.toString(36);
+      const mediaItem = await ingestMedia({
+        type: "video",
+        origin: "generated",
+        url,
+        description: text,
+        personaId: roomHost,
+        provider: "xAI",
+        refs: [{ conversationId: room, messageId: `gk-${stamp}`, personaId: roomHost }],
+        createdAt: repliedAt,
+      });
+      if (job !== jobEpoch.current) return;
+      if (mediaItem.ingestState !== "complete")
+        setBanner(
+          `영상 생성됨 · 로컬 원본 저장 실패: ${mediaItem.error}. 라이브러리에서 재시도하세요.`,
+        );
       const next = [
         ...base,
         { id: `me-${stamp}`, speaker: "me" as const, text, at: sentAt, audience },
@@ -1615,7 +1708,8 @@ export function ReaderApp() {
           id: `gk-${stamp}`,
           speaker: "grok" as const,
           text: "",
-          video: url,
+          video: `media:${mediaItem.id}`,
+          mediaIds: [mediaItem.id],
           mediaDescription: text,
           audience,
           personaId: roomHost,
@@ -1756,17 +1850,21 @@ export function ReaderApp() {
         text,
         selectedMediaId,
       );
-      const image = media?.image;
-      const frames = media?.video ? await videoFrames(media.video) : undefined;
+      const { image, frames, note: mediaStatus } = await questionMedia(media);
       if (job !== jobEpoch.current) return;
       setSelectedMediaId(null);
       const mediaMemory = media
-        ? `지금 질문하는 ${media.image ? "사진" : "영상"}: ${media.mediaDescription || "선택한 미디어"}. 보낸 기록이 있다. 보낸 적 없다고 부정하지 않는다.`
+        ? `지금 질문하는 ${media.image ? "사진" : "영상"}: ${media.mediaDescription || "선택한 미디어"}. 보낸 기록이 있다. 보낸 적 없다고 부정하지 않는다. ${mediaStatus}`
         : "";
       const grokId = `gk-${sentAt.toString(36)}`;
       let latestReply: Turn[] = [];
       let speechStarted = false;
-      const show = (said: string, done = false, voiceText = voiceResponse(said, done)) => {
+      const show = (
+        said: string,
+        done = false,
+        voiceText = voiceResponse(said, done),
+        status: "complete" | "partial" = "complete",
+      ) => {
         if (job !== jobEpoch.current) return;
         const next = [
           ...withUser.filter((turn) => turn.id !== mine.id && turn.id !== grokId),
@@ -1778,6 +1876,7 @@ export function ReaderApp() {
             voiceText,
             speechParts: speechParts(voiceText, true),
             streaming: !done,
+            responseStatus: done ? status : undefined,
             at: sentAt,
             personaId: id,
             personaName: activePersona?.name,
@@ -1802,7 +1901,7 @@ export function ReaderApp() {
             recentBudget: recalled.recentBudget,
             memoriesRetrieved: recalled.memoriesRetrieved,
             persona: role,
-            memory: [memory, mediaMemory].filter(Boolean).join("\n"),
+            memory: [mediaMemory, memory].filter(Boolean).join("\n"),
             image,
             frames,
           },
@@ -1813,9 +1912,9 @@ export function ReaderApp() {
         result = { ok: false, error: "그록에게 연결하지 못했습니다." };
       }
       if (job !== jobEpoch.current) return;
-      if (!result.ok && speechStarted) {
+      if (!result.ok && latestReply.at(-1)?.text) {
         reader.stop();
-        show(latestReply.at(-1)?.text ?? "", true);
+        show(latestReply.at(-1)?.text ?? "", true, undefined, "partial");
         setBanner(`${result.error} 답변이 중간에 끊겼습니다.`);
         return;
       }
@@ -1828,7 +1927,7 @@ export function ReaderApp() {
             recentBudget: recalled.recentBudget,
             memoriesRetrieved: recalled.memoriesRetrieved,
             persona: role,
-            memory: [memory, mediaMemory].filter(Boolean).join("\n"),
+            memory: [mediaMemory, memory].filter(Boolean).join("\n"),
             image,
             frames,
           },
@@ -2029,8 +2128,14 @@ export function ReaderApp() {
     );
   }
 
-  function removeTurn(id: string) {
+  async function removeTurn(id: string) {
     reader.stop();
+    try {
+      await detachConversationMedia(new Set([`${personaId}\0${id}`]));
+    } catch (e) {
+      setBanner(e instanceof Error ? e.message : "미디어 연결 정리 실패");
+      return;
+    }
     setTurns((prev) => prev.filter((t) => t.id !== id));
     if (editingId === id) setEditingId(null);
   }
@@ -2067,7 +2172,11 @@ export function ReaderApp() {
     busyRef.current = true;
     setDeletingChats(true);
     try {
-      await deleteVoiceMails(id);
+      await detachConversationMedia(
+        deletedMessages(erasePersonaConversations(threads, id)),
+        trashChatMedia,
+      );
+      await deleteVoiceMails(id, trashChatMedia);
     } catch {
       setBanner(
         "음성 메일 삭제에 실패했습니다. 대화를 삭제하지 않았습니다. 저장소를 확인하고 다시 시도하세요.",
@@ -2077,7 +2186,10 @@ export function ReaderApp() {
       return;
     }
     voiceBackup.forget(id);
-    const clearedMemory = eraseConversationMemory(memoryEngine.state, id);
+    const removed = new Set(
+      [...deletedMessages(erasePersonaConversations(threads, id))].map((key) => key.split("\0")[1]),
+    );
+    const clearedMemory = conversationMemoryDeleted(memoryEngine.state, removed, deleteChatMemory);
     memoryEngine.setState(clearedMemory);
     if (settingsBase.current) settingsBase.current.memoryV2 = clearedMemory;
     setThreads((prev) => erasePersonaConversations(prev, id));
@@ -2088,10 +2200,7 @@ export function ReaderApp() {
         if (!raw) continue;
         const saved = JSON.parse(raw);
         if (saved.threads) saved.threads = erasePersonaConversations(saved.threads, id);
-        if (saved.memoryV2) {
-          delete saved.memoryV2.longTerm?.[id];
-          delete saved.memoryV2.summaries?.[id];
-        }
+        if (saved.memoryV2) saved.memoryV2 = clearedMemory;
         if (saved.personaId === id) saved.turns = [];
         if (Array.isArray(saved.personas))
           saved.personas = saved.personas.map((item: PersonaItem) =>
@@ -2166,7 +2275,8 @@ export function ReaderApp() {
         selectedMediaId,
       );
       mine.mediaRef = media?.id;
-      const frames = media?.video ? await videoFrames(media.video) : undefined;
+      const mediaInput = await questionMedia(media);
+      const frames = mediaInput.frames;
       if (job !== jobEpoch.current) return;
       setSelectedMediaId(null);
       const speakers = members.filter((member) => !addressed || member.id === addressed);
@@ -2221,18 +2331,22 @@ export function ReaderApp() {
               summary: recalled.summary,
               recentBudget: recalled.recentBudget,
               persona: `${personaInstructions(member)}\n함께 대화하는 사람: ${members.map((item) => item.name).join(", ")}. 반드시 ${member.name} 한 사람의 입장에서만 답한다.`,
-              memory: `${audioMemory}\n${recalled.memory}\n현재 방 대화:\n${shared}`.slice(
-                0,
-                12000,
-              ),
-              image: media?.image,
+              memory:
+                `${mediaInput.note}\n${audioMemory}\n${recalled.memory}\n현재 방 대화:\n${shared}`.slice(
+                  0,
+                  12000,
+                ),
+              image: mediaInput.image,
               frames,
             },
             (said, voiceText) => update(said, false, voiceText),
             abort.signal,
           ).catch(() => ({ ok: false as const, error: "그록에게 연결하지 못했습니다." }));
           if (result.ok) setMemoryMetrics(result.metrics ?? null);
-          if (job === jobEpoch.current) update(result.ok ? result.text : answers[index].text, true);
+          if (job === jobEpoch.current) {
+            answers[index].responseStatus = result.ok ? "complete" : "partial";
+            update(result.ok ? result.text : answers[index].text, true);
+          }
           return { member, result };
         }),
       );
@@ -2464,7 +2578,8 @@ export function ReaderApp() {
     busyRef.current = true;
     setDeletingChats(true);
     try {
-      await deleteVoiceMails();
+      await detachConversationMedia(deletedMessages({}), trashChatMedia);
+      await deleteVoiceMails(undefined, trashChatMedia);
     } catch {
       setBanner(
         "보이스 메일 삭제에 실패했습니다. 대화를 삭제하지 않았습니다. 저장소를 확인하고 다시 시도하세요.",
@@ -2478,7 +2593,15 @@ export function ReaderApp() {
       ...item,
       memories: item.memories?.filter((memory) => memory.source !== "voicegrok/memory.md"),
     }));
-    const clearedMemory = eraseConversationMemory(memoryEngine.state);
+    const clearedMemory = conversationMemoryDeleted(
+      memoryEngine.state,
+      new Set(
+        Object.values(threads)
+          .flat()
+          .map((t) => t.id),
+      ),
+      deleteChatMemory,
+    );
     memoryEngine.setState(clearedMemory);
     if (settingsBase.current) settingsBase.current.memoryV2 = clearedMemory;
     setThreads({});
@@ -2497,7 +2620,7 @@ export function ReaderApp() {
         const raw = localStorage.getItem(key);
         if (!raw) continue;
         const saved = JSON.parse(raw);
-        saved.memoryV2 = { ...memoryEngine.state, longTerm: {}, summaries: {} };
+        saved.memoryV2 = clearedMemory;
         saved.threads = {};
         saved.turns = [];
         saved.personas = clean;
@@ -3009,15 +3132,15 @@ export function ReaderApp() {
                                   })}
                             </button>
                           )}
-                          {turn.video ? (
+                          {turn.video && !turn.mediaIds?.length ? (
                             <video
-                              src={turn.video}
+                              src={turn.mediaIds?.length ? undefined : turn.video}
                               controls
                               playsInline
                               preload="metadata"
                               className="mt-3 w-full rounded-2xl bg-bg"
                             />
-                          ) : turn.image ? (
+                          ) : turn.image && !turn.mediaIds?.length ? (
                             <img
                               src={turn.image}
                               alt={
@@ -3027,6 +3150,21 @@ export function ReaderApp() {
                               }
                               className="mt-3 w-full rounded-2xl bg-bg"
                             />
+                          ) : null}
+                          {turn.mediaIds?.length ? (
+                            <ManagedMedia
+                              id={turn.mediaIds[0]}
+                              type={turn.video ? "video" : "image"}
+                              alt={turn.text || "페르소나가 보낸 사진"}
+                            />
+                          ) : null}
+                          {turn.responseStatus === "partial" ||
+                          turn.responseStatus === "cancelled" ? (
+                            <p className="mt-2 text-xs text-muted">
+                              {turn.responseStatus === "cancelled"
+                                ? "중간에 멈춘 답변"
+                                : "연결이 끊긴 부분 답변"}
+                            </p>
                           ) : null}
                           {turn.image || turn.video ? (
                             <button
@@ -3637,7 +3775,9 @@ export function ReaderApp() {
                       type="button"
                       className="h-11 rounded-full bg-primary text-sm text-ink"
                       onClick={() => {
-                        restoreBackup(pendingBackup.backup);
+                        void restoreBackup(pendingBackup.backup).catch((e) =>
+                          setBanner(e instanceof Error ? e.message : "복원 실패"),
+                        );
                         setPendingBackup(null);
                       }}
                     >
@@ -4288,6 +4428,31 @@ export function ReaderApp() {
                   state={memoryEngine.state}
                   onChange={memoryEngine.setState}
                   metrics={memoryMetrics}
+                  personaId={personaId}
+                />
+                <StorageSettings
+                  items={mediaLibrary.items}
+                  error={mediaLibrary.error}
+                  refresh={mediaLibrary.refresh}
+                  personaId={personaId}
+                  personas={personas
+                    .filter((p) => !p.locked)
+                    .map((p) => ({ id: p.id, name: p.name }))}
+                  getBackup={() =>
+                    buildBackup({
+                      personaId,
+                      personas,
+                      threads,
+                      roomMembers,
+                      memoryV2: memoryEngine.state,
+                      settings: captureSettings(),
+                    })
+                  }
+                  onRestore={restoreBackup}
+                  onNavigate={(room) => {
+                    selectPersona(room);
+                    saveSettings();
+                  }}
                 />
                 <AudioAwarenessSettings audio={audioAwareness} />
                 <VoiceIdentitySettings
@@ -4306,9 +4471,10 @@ export function ReaderApp() {
                   </summary>
                   <div className="space-y-3 pt-2">
                     <p className="text-sm text-muted">
-                      이 기기의 모든 페르소나와 단체 대화, 보이스 메일, 기기 내부 대화 백업을
-                      삭제합니다. 두 번 확인한 뒤 실행하며 되돌릴 수 없습니다. 템플릿·외부
-                      기억·Dropbox 파일은 유지합니다.
+                      이 기기의 모든 페르소나와 단체 대화, 보이스 메일을 삭제합니다. 두 번 확인한 뒤
+                      실행합니다. 장기 기억·연결된 임시 미디어는 확인 화면에서 별도로 선택하세요.
+                      템플릿·외부 기억·Dropbox 파일과 과거 snapshot·내보낸 백업은 별도이며, 과거
+                      백업을 복원하면 삭제한 대화가 다시 나타날 수 있습니다.
                     </p>
                     <button
                       type="button"
@@ -4433,8 +4599,35 @@ export function ReaderApp() {
                 : "최종 경고: 모든 대화를 정말 삭제할까요? (2/2)"}
             </h2>
             <p className="text-sm text-muted">
-              모든 페르소나·단체 대화, 보이스 메일과 이 기기의 대화 백업, 앱이 만든 요약 기억이
-              삭제됩니다. 되돌릴 수 없습니다. Dropbox 파일·외부 기억·템플릿은 유지합니다.
+              모든 페르소나·단체 대화와 보이스 메일, 관련 요약을 삭제합니다. 보관 미디어·외부
+              파일·과거 snapshot은 유지되며 그 백업을 복원하면 대화가 다시 나타날 수 있습니다.
+            </p>
+            <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
+              연결이 모두 사라지는 임시 미디어도 휴지통으로 이동
+              <input
+                type="checkbox"
+                checked={trashChatMedia}
+                onChange={(e) => setTrashChatMedia(e.target.checked)}
+              />
+            </label>
+            <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
+              이 대화에서 만든 장기 기억도 삭제
+              <input
+                type="checkbox"
+                checked={deleteChatMemory}
+                onChange={(e) => setDeleteChatMemory(e.target.checked)}
+              />
+            </label>
+            <p className="text-xs text-muted">
+              미디어 연결 해제{" "}
+              {
+                mediaLibrary.items.filter((i) =>
+                  i.refs.some(
+                    (r) => !!threads[r.conversationId]?.some((t) => t.id === r.messageId),
+                  ),
+                ).length
+              }
+              개. Saved와 외부 사본은 삭제하지 않습니다.
             </p>
             <div className="flex gap-2">
               <button
@@ -4467,8 +4660,33 @@ export function ReaderApp() {
           <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-5 text-fg">
             <h2 className="text-lg">{deleteChat.name}의 대화를 정말 모두 삭제할까요?</h2>
             <p className="my-3 text-sm text-muted">
-              이 기기의 전체 대화와 보이스 메일, 앱에서 만든 요약 기억을 삭제합니다. 성격 템플릿과
-              외부에서 불러온 기억, Dropbox 파일은 유지합니다. 삭제 후 되돌릴 수 없습니다.
+              이 페르소나의 대화·보이스 메일과 관련 요약을 삭제합니다. 성격 템플릿·외부 기억·Saved
+              미디어·Dropbox·NAS·과거 snapshot은 유지합니다.
+            </p>
+            <label className="mb-3 flex min-h-11 items-center justify-between gap-3 text-sm">
+              연결이 모두 사라지는 임시 미디어도 휴지통으로 이동
+              <input
+                type="checkbox"
+                checked={trashChatMedia}
+                onChange={(e) => setTrashChatMedia(e.target.checked)}
+              />
+            </label>
+            <label className="mb-3 flex min-h-11 items-center justify-between gap-3 text-sm">
+              이 대화에서 만든 장기 기억도 삭제
+              <input
+                type="checkbox"
+                checked={deleteChatMemory}
+                onChange={(e) => setDeleteChatMemory(e.target.checked)}
+              />
+            </label>
+            <p className="mb-3 text-xs text-muted">
+              미디어 연결 해제{" "}
+              {
+                mediaLibrary.items.filter((i) =>
+                  i.refs.some((r) => r.conversationId === deleteChat.id),
+                ).length
+              }
+              개. 공유 중인 원본과 Saved는 유지됩니다.
             </p>
             <p className="mb-3 text-sm text-muted">
               음성 확인은 마이크를 누르고 “모두 삭제” 또는 “취소”라고 말하세요.

@@ -53,9 +53,14 @@ function isTurn(value: unknown): value is Turn {
     typeof turn.text === "string" &&
     typeof turn.id === "string" &&
     (turn.image === undefined ||
-      (typeof turn.image === "string" && turn.image.startsWith("https://"))) &&
+      (typeof turn.image === "string" && /^(https:\/\/|media:[a-zA-Z0-9_-]+$)/.test(turn.image))) &&
     (turn.video === undefined ||
-      (typeof turn.video === "string" && turn.video.startsWith("https://"))) &&
+      (typeof turn.video === "string" && /^(https:\/\/|media:[a-zA-Z0-9_-]+$)/.test(turn.video))) &&
+    (turn.mediaIds === undefined ||
+      (Array.isArray(turn.mediaIds) &&
+        turn.mediaIds.every(
+          (id) => typeof id === "string" && /^[a-zA-Z0-9_-]{1,100}$/.test(id),
+        ))) &&
     (turn.at === undefined || (typeof turn.at === "number" && Number.isFinite(turn.at)))
   );
 }
