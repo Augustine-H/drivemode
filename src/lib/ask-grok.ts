@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { PERSONA_INSTRUCTIONS_LIMIT } from "@/lib/persona-memory";
-import { askInstructions, askTurns, needsFacts, type AskTurn } from "@/lib/ask-prompt";
+import { imageInput, askInstructions, askTurns, needsFacts, type AskTurn } from "@/lib/ask-prompt";
 
 export type AskResult = { ok: true; text: string } | { ok: false; error: string };
 
@@ -47,6 +47,7 @@ export const askGrok = createServerFn({ method: "POST" })
       persona?: string;
       memory?: string;
       ack?: boolean;
+      image?: string;
     }) => {
       const message = String(input?.message ?? "")
         .replace(/\s+/g, " ")
@@ -67,6 +68,7 @@ export const askGrok = createServerFn({ method: "POST" })
         .slice(0, 12000);
       return {
         message,
+        image: typeof input.image === "string" ? input.image.slice(0, 4000) : undefined,
         memory,
         history: askTurns(history.filter((item) => item.content.trim())),
         persona,
@@ -90,6 +92,7 @@ export const askGrok = createServerFn({ method: "POST" })
         signal: AbortSignal.timeout(20000),
         body: JSON.stringify({
           model: "grok-4.5",
+          store: false,
           max_output_tokens: data.ack ? 40 : facts ? 140 : 90,
           ...(facts ? { max_tool_calls: 1, tools: [{ type: "web_search" }] } : {}),
           input: [
@@ -100,7 +103,7 @@ export const askGrok = createServerFn({ method: "POST" })
             ...(data.ack
               ? []
               : data.history.map((item) => ({ role: item.role, content: item.content }))),
-            { role: "user", content: data.message },
+            { role: "user", content: imageInput(data.message, data.image) },
           ],
         }),
       });

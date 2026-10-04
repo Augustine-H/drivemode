@@ -2,10 +2,12 @@ import type { AskResult } from "@/lib/ask-grok";
 import type { AskTurn } from "@/lib/ask-prompt";
 
 export async function streamAsk(
-  input: { message: string; history: AskTurn[]; persona?: string; memory?: string },
+  input: { message: string; history: AskTurn[]; persona?: string; memory?: string; image?: string },
   onText: (text: string) => void,
+  signal?: AbortSignal,
 ): Promise<AskResult> {
   const res = await fetch("/api/ask", {
+    signal,
     method: "POST",
     headers: { "content-type": "application/json", accept: "text/event-stream" },
     body: JSON.stringify(input),

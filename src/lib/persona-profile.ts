@@ -27,9 +27,23 @@ export async function profileImage(file: Blob): Promise<string> {
       256,
       256,
     );
-    const data = canvas.toDataURL("image/png");
-    if (data.length > 200000) throw new Error("사진이 너무 복잡합니다. 더 작은 사진을 선택하세요.");
-    return data;
+    for (const size of [256, 224, 192, 160, 128, 96]) {
+      canvas.width = canvas.height = size;
+      ctx.drawImage(
+        image,
+        (image.width - side) / 2,
+        (image.height - side) / 2,
+        side,
+        side,
+        0,
+        0,
+        size,
+        size,
+      );
+      const data = canvas.toDataURL("image/png");
+      if (data.length <= 200000) return data;
+    }
+    throw new Error("사진을 줄이지 못했습니다. JPG·PNG 사진을 8MB 이내로 선택하세요.");
   } finally {
     image.close();
   }

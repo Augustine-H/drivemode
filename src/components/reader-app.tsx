@@ -1,3 +1,4 @@
+import { wantsVideo, wantsImage, videoSeconds, videoPrompt, imagePrompt } from "@/lib/media-intent";
 import { useMailReplies } from "@/lib/use-mail-replies";
 import { MailNotifications } from "@/components/mail-notifications";
 import {
@@ -275,7 +276,7 @@ export function ReaderApp() {
   const [onlyGrok, setOnlyGrok] = useState(true);
   const [voiceOnly, setVoiceOnly] = useState(true);
   const [requireVoiceName, setRequireVoiceName] = useState(false);
-  const [filterAnnouncements, setFilterAnnouncements] = useState(false);
+  const [filterAnnouncements, setFilterAnnouncements] = useState(true);
   const [announcementLines, setAnnouncementLines] = useState<string[]>(DEFAULT_ANNOUNCEMENTS);
   const [autoReply, setAutoReply] = useState(true);
   const [silence, setSilence] = useState(2);
@@ -359,6 +360,20 @@ export function ReaderApp() {
 
   const reader = useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok });
   const busyRef = useRef(false);
+  const jobEpoch = useRef(0);
+  const answerAbort = useRef<AbortController | null>(null);
+  function stopActivity() {
+    jobEpoch.current++;
+    answerAbort.current?.abort();
+    answerAbort.current = null;
+    reader.stop();
+    dictation.stop();
+    busyRef.current = false;
+    setAsking(false);
+    setPainting(false);
+    setFilming(false);
+    setBanner("멈췄습니다. 이미 서버에 전달된 생성 요청의 비용은 발생할 수 있습니다.");
+  }
   const askRef = useRef<(spoken?: string) => void>(() => {});
   const personaNameRef = useRef("");
   const personaRef = useRef("");
@@ -410,6 +425,7 @@ export function ReaderApp() {
         : undefined,
     paused: asking || reader.status === "playing" || reader.preparing,
     keepListening: wakeOn,
+    forceRecord: wakeOn,
     idleMs: wakeOn && wakeSession ? wakeIdleSeconds * 1000 : undefined,
     silenceMs: Math.round(silence * 1000),
     autoSend: wakeOn || autoReply,
@@ -423,10 +439,12 @@ export function ReaderApp() {
               return "안내 문장을 무시했습니다.";
             if (
               (wakeOn ? !wakeSessionRef.current : requireVoiceName) &&
-              !startsWithPersonaName(
-                text,
-                personas.map((p) => p.name),
-              )
+              !(wakeOn
+                ? takePersonaWake(text, personas)
+                : startsWithPersonaName(
+                    text,
+                    personas.map((p) => p.name),
+                  ))
             )
               return "페르소나 이름을 부른 뒤 질문해 주세요.";
             if (wakeOn && takePersonaWake(text, personas)) {
@@ -539,7 +557,7 @@ export function ReaderApp() {
       if (typeof saved.onlyGrok === "boolean") setOnlyGrok(saved.onlyGrok);
       if (typeof saved.voiceOnly === "boolean") setVoiceOnly(saved.voiceOnly);
       setRequireVoiceName(saved.requireVoiceName === true);
-      setFilterAnnouncements(saved.filterAnnouncements === true);
+      setFilterAnnouncements(saved.filterAnnouncements !== false);
       if (Array.isArray(saved.announcementLines))
         setAnnouncementLines(
           migrateAnnouncementLines(
@@ -1284,24 +1302,25 @@ export function ReaderApp() {
       .filter((turn) => !turn.id.startsWith("s"))
       .slice(-6)
       .map((turn) => ({ role: turn.speaker === "me" ? "user" : "assistant", content: turn.text }));
-    const prompt = imagePrompt(text, history);
+    const prompt =
+      imagePrompt(text, history) +
+      "\n요청 문장, 프롬프트, 자막, 말풍선, 워터마크를 이미지에 쓰지 않는다.";
     const sentAt = Date.now();
+    const job = ++jobEpoch.current;
     busyRef.current = true;
     setPainting(true);
     setAsking(true);
     setBanner(null);
     try {
       const result = await imagineImage({ data: { prompt } });
+      if (job !== jobEpoch.current) return;
       if (!result.ok) {
         setBanner(result.error);
         return;
       }
       const repliedAt = Date.now();
       const stamp = repliedAt.toString(36);
-      const caption =
-        prompt.length <= 24
-          ? `${prompt} 그림을 만들었어요.`
-          : "그림을 만들었어요. 화면에서 볼 수 있어요.";
+      const caption = "";
       const next = [
         ...turnsNow.current,
         { id: `me-${stamp}`, speaker: "me" as const, text, at: sentAt },
@@ -1315,11 +1334,12 @@ export function ReaderApp() {
       ];
       setComposer("");
       setTurns(next);
-      reader.playFrom(next, next.length - 1);
     } finally {
-      busyRef.current = false;
-      setAsking(false);
-      setPainting(false);
+      if (job === jobEpoch.current) {
+        busyRef.current = false;
+        setAsking(false);
+        setPainting(false);
+      }
     }
   }
 
@@ -1330,7 +1350,8 @@ export function ReaderApp() {
       .filter((turn) => !turn.id.startsWith("s"))
       .slice(-6)
       .map((turn) => ({ role: turn.speaker === "me" ? "user" : "assistant", content: turn.text }));
-    const prompt = videoPrompt(text, history);
+    const prompt =
+      videoPrompt(text, history) + "\n요청 문구를 자막·말풍선·워터마크로 표시하지 않는다.";
     const sentAt = Date.now();
     const seconds = videoSeconds(text);
     let image = "";
@@ -1343,12 +1364,14 @@ export function ReaderApp() {
         }
       }
     }
+    const job = ++jobEpoch.current;
     busyRef.current = true;
     setFilming(true);
     setAsking(true);
     setBanner(null);
     try {
       const started = await startVideo({ data: { prompt, seconds, image } });
+      if (job !== jobEpoch.current) return;
       if (!started.ok) {
         setBanner(started.error);
         return;
@@ -1356,7 +1379,9 @@ export function ReaderApp() {
       let url = "";
       for (let i = 0; i < 24; i++) {
         await new Promise((resolve) => setTimeout(resolve, 4000));
+        if (job !== jobEpoch.current) return;
         const status = await videoStatus({ data: { id: started.id } });
+        if (job !== jobEpoch.current) return;
         if (!status.ok) {
           setBanner(status.error);
           return;
@@ -1378,18 +1403,19 @@ export function ReaderApp() {
         {
           id: `gk-${stamp}`,
           speaker: "grok" as const,
-          text: "짧은 영상을 만들었어요.",
+          text: "",
           video: url,
           at: repliedAt,
         },
       ];
       setComposer("");
       setTurns(next);
-      reader.playFrom(next, next.length - 1);
     } finally {
-      busyRef.current = false;
-      setAsking(false);
-      setFilming(false);
+      if (job === jobEpoch.current) {
+        busyRef.current = false;
+        setAsking(false);
+        setFilming(false);
+      }
     }
   }
 
@@ -1452,12 +1478,20 @@ export function ReaderApp() {
       await paint(text);
       return;
     }
+    const job = ++jobEpoch.current;
     busyRef.current = true;
     setAsking(true);
     setBanner(null);
     setComposer("");
+    const abort = new AbortController();
+    answerAbort.current = abort;
     const sentAt = Date.now();
-    const mine = { id: `me-${sentAt.toString(36)}`, speaker: "me" as const, text, at: sentAt };
+    const mine: Turn = {
+      id: `me-${sentAt.toString(36)}`,
+      speaker: "me" as const,
+      text,
+      at: sentAt,
+    };
     const withUser = [...(threads[id] ?? []), mine];
     const commit = (next: Turn[]) => {
       setThreads((prev) => ({ ...prev, [id]: next }));
@@ -1470,14 +1504,22 @@ export function ReaderApp() {
         .slice(-4)
         .map((turn) => ({
           role: turn.speaker === "me" ? ("user" as const) : ("assistant" as const),
-          content: turn.text,
+          content: `${turn.text}${turn.image ? " [사진을 보낸 기록]" : ""}${turn.video ? " [영상을 보낸 기록]" : ""}`,
         }));
       const activePersona = personas.find((item) => item.id === id);
       const role = activePersona ? personaInstructions(activePersona) : persona;
       const memory = memoryForQuestion(activePersona?.memories, text);
+      const media = [...withUser].reverse().find((turn) => turn.image || turn.video);
+      const image = /사진|이미지|그림|셀카|보낸|보내준|이거|그거|묘사|설명/.test(text)
+        ? [...withUser].reverse().find((turn) => turn.image)?.image
+        : undefined;
+      const mediaMemory = media
+        ? `최근 이 페르소나가 ${media.image ? "사진" : "영상"}을 보낸 기록이 있다. 보낸 적 없다고 부정하지 않는다. 영상은 직접 분석하지 않았으면 분석했다고 주장하지 않는다.`
+        : "";
       const grokId = `gk-${sentAt.toString(36)}`;
-      let played = false;
+      let latestReply: Turn[] = [];
       const show = (said: string) => {
+        if (job !== jobEpoch.current) return;
         const next = [
           ...withUser.filter((turn) => turn.id !== mine.id && turn.id !== grokId),
           mine,
@@ -1492,29 +1534,51 @@ export function ReaderApp() {
           },
         ];
         commit(next);
-        if (!played && personaIdRef.current === id) {
-          played = true;
-          reader.playFrom(next, next.length - 1);
-        }
+        latestReply = next;
       };
       let result: { ok: true; text: string } | { ok: false; error: string };
       try {
-        result = await streamAsk({ message: text, history, persona: role, memory }, show);
+        result = await streamAsk(
+          {
+            message: text,
+            history,
+            persona: role,
+            memory: [memory, mediaMemory].filter(Boolean).join("\n"),
+            image,
+          },
+          show,
+          abort.signal,
+        );
       } catch {
         result = { ok: false, error: "그록에게 연결하지 못했습니다." };
       }
-      if (!result.ok && !played) {
-        const again = await askGrok({ data: { message: text, history, persona: role, memory } });
+      if (job !== jobEpoch.current) return;
+      if (!result.ok) {
+        const again = await askGrok({
+          data: {
+            message: text,
+            history,
+            persona: role,
+            memory: [memory, mediaMemory].filter(Boolean).join("\n"),
+            image,
+          },
+        });
+        if (job !== jobEpoch.current) return;
         if (!again.ok) {
           setBanner(again.error);
           return;
         }
         show(again.text);
       }
+      if (job !== jobEpoch.current) return;
+      if (latestReply.length && personaIdRef.current === id)
+        reader.playFrom(latestReply, latestReply.length - 1);
     } finally {
-      busyRef.current = false;
-      setAsking(false);
-      if (finishBackup) voiceBackup.trigger([id]);
+      if (job === jobEpoch.current) {
+        busyRef.current = false;
+        setAsking(false);
+        if (finishBackup) voiceBackup.trigger([id]);
+      }
     }
   }
   askRef.current = ask;
@@ -1535,6 +1599,7 @@ export function ReaderApp() {
 
   async function greet(target = personaIdRef.current) {
     if (busyRef.current) return;
+    const job = ++jobEpoch.current;
     busyRef.current = true;
     setAsking(true);
     const item = personas.find((persona) => persona.id === target);
@@ -1562,6 +1627,7 @@ export function ReaderApp() {
     } catch {
       /* keep the local line */
     }
+    if (job !== jobEpoch.current) return;
     const at = Date.now();
     const next = [
       ...(threads[target] ?? []),
@@ -1655,7 +1721,7 @@ export function ReaderApp() {
     setOnlyGrok(true);
     setVoiceOnly(true);
     setRequireVoiceName(false);
-    setFilterAnnouncements(false);
+    setFilterAnnouncements(true);
     setAnnouncementLines(DEFAULT_ANNOUNCEMENTS);
     setAutoReply(true);
     setSilence(2);
@@ -1779,6 +1845,7 @@ export function ReaderApp() {
   async function askGroup(text: string, room: string) {
     const members = personas.filter((item) => groupMembers.includes(item.id));
     if (members.length < 2) return;
+    const job = ++jobEpoch.current;
     busyRef.current = true;
     setAsking(true);
     setComposer("");
@@ -1810,6 +1877,7 @@ export function ReaderApp() {
           return { member, result };
         }),
       );
+      if (job !== jobEpoch.current) return;
       const answers: Turn[] = replies
         .filter((reply) => reply.result.ok)
         .map(({ member, result }) => ({
@@ -1834,9 +1902,11 @@ export function ReaderApp() {
       if (errors.length) setBanner(errors.join(" · "));
       if (personaIdRef.current === room && answers.length) reader.playFrom(next, current.length);
     } finally {
-      busyRef.current = false;
-      setAsking(false);
-      if (conversationEnded(text)) voiceBackup.trigger(members.map((item) => item.id));
+      if (job === jobEpoch.current) {
+        busyRef.current = false;
+        setAsking(false);
+        if (conversationEnded(text)) voiceBackup.trigger(members.map((item) => item.id));
+      }
     }
   }
 
@@ -1969,18 +2039,28 @@ export function ReaderApp() {
     setProfileNote("");
     try {
       const client = getDropboxClient();
-      if (upload) {
-        if (!item.photo) throw new Error("먼저 프로필 사진을 선택하세요.");
-        const blob = await (await fetch(item.photo)).blob();
-        await client.uploadProfile(item.name, blob);
-        setProfileNote("Dropbox 프로필 폴더에 백업했습니다.");
-      } else {
-        const photo = await profileImage(await client.downloadProfile(item.name));
-        setPersonas((items) =>
-          items.map((p) => (p.id === item.id ? { ...p, photo, showAvatar: true } : p)),
-        );
-        setProfileNote("Dropbox 사진을 적용했습니다.");
+      let done = 0;
+      const failures: string[] = [];
+      for (const persona of personas) {
+        if (upload && !persona.photo) continue;
+        try {
+          if (upload) {
+            const blob = await (await fetch(persona.photo!)).blob();
+            await client.uploadProfile(persona.name, blob);
+          } else {
+            const photo = await profileImage(await client.downloadProfile(persona.name));
+            setPersonas((items) =>
+              items.map((p) => (p.id === persona.id ? { ...p, photo, showAvatar: true } : p)),
+            );
+          }
+          done++;
+        } catch {
+          failures.push(persona.name);
+        }
       }
+      setProfileNote(
+        `전체 페르소나 사진 ${upload ? "백업" : "불러오기"}: ${done}개 완료${failures.length ? " · 실패: " + failures.join(", ") : ""}`,
+      );
     } catch (error) {
       setProfileNote(error instanceof Error ? error.message : "Dropbox 사진 처리에 실패했습니다.");
     } finally {
@@ -2183,7 +2263,7 @@ export function ReaderApp() {
         ref={scrollerRef}
         className="min-h-0 flex-1 overflow-y-auto bg-cover bg-center px-4 py-4"
         style={
-          selectedPersona?.photo && selectedPersona.showBackground
+          selectedPersona?.photo && selectedPersona.showBackground !== false
             ? {
                 backgroundImage: `linear-gradient(#151310b8,#151310b8),url("${selectedPersona.photo}")`,
               }
@@ -2314,7 +2394,9 @@ export function ReaderApp() {
                               </button>
                             </span>
                           </div>
-                          {voiceOnly && !mine && !turn.textOnly ? (
+                          {!turn.text && (turn.image || turn.video) ? null : voiceOnly &&
+                            !mine &&
+                            !turn.textOnly ? (
                             <div className="space-y-2">
                               <button
                                 type="button"
@@ -2479,11 +2561,28 @@ export function ReaderApp() {
             className="min-h-11 min-w-0 flex-1 resize-none rounded-2xl border border-line bg-bg px-3 py-2 text-base text-fg placeholder:text-faint disabled:opacity-60"
           />
           <button
-            type="submit"
-            disabled={asking || !composer.trim()}
+            type={
+              asking || painting || filming || reader.status === "playing" || reader.preparing
+                ? "button"
+                : "submit"
+            }
+            onClick={() => {
+              if (asking || painting || filming || reader.status === "playing" || reader.preparing)
+                stopActivity();
+            }}
+            disabled={
+              !asking &&
+              !painting &&
+              !filming &&
+              reader.status !== "playing" &&
+              !reader.preparing &&
+              !composer.trim()
+            }
             className="h-11 shrink-0 rounded-full bg-primary px-4 text-sm font-medium text-ink disabled:opacity-40"
           >
-            {asking ? "기다리는 중" : "듣기"}
+            {asking || painting || filming || reader.status === "playing" || reader.preparing
+              ? "멈춤"
+              : "듣기"}
           </button>
         </div>
       </form>
@@ -3222,7 +3321,7 @@ export function ReaderApp() {
                       <label className="flex items-center gap-2 text-sm">
                         <input
                           type="checkbox"
-                          checked={selectedPersona?.showBackground === true}
+                          checked={selectedPersona?.showBackground !== false}
                           onChange={(e) => updatePersona({ showBackground: e.target.checked })}
                         />
                         프로필 사진을 대화 배경으로 표시
@@ -3248,7 +3347,7 @@ export function ReaderApp() {
                             disabled={profileBusy}
                             onClick={() => void profileCloud(upload)}
                           >
-                            {upload ? "사진 Dropbox 백업" : "사진 Dropbox 불러오기"}
+                            {upload ? "전체 사진 Dropbox 백업" : "전체 사진 Dropbox 불러오기"}
                           </button>
                         ))}
                         <button
@@ -3489,8 +3588,9 @@ export function ReaderApp() {
                       켜면 페르소나 이름을 기다립니다. “아라야”라고 부르면 호출되고, 그 뒤에는 이름
                       없이 계속 질문할 수 있습니다. 답변 재생 중에는 질문을 받지 않습니다. 마지막 말
                       이후 {wakeIdleSeconds}초 동안 조용하면 마이크를 끕니다. 다시 시작하려면 마이크
-                      버튼을 누르세요. 브라우저가 듣기를 종료해도 자동 재시작하지 않습니다. 내
-                      목소리 비교 또는 브라우저 음성인식 미지원 시 녹음·받아쓰기 API를 사용합니다.
+                      버튼을 누르세요. 브라우저가 듣기를 종료해도 자동 재시작하지 않습니다. 호출
+                      대기와 질문 인식에 녹음·받아쓰기 API를 사용하므로 API 사용료가 발생할 수
+                      있습니다.
                     </p>
                     <Slider
                       label="이름 호출 무음 종료 대기"
@@ -3983,13 +4083,42 @@ function Slider({
   display: string;
   onChange: (value: number) => void;
 }) {
+  const [locked, setLocked] = useState(false);
+  useEffect(() => {
+    try {
+      setLocked(localStorage.getItem("voice-grok-slider-lock:" + label) === "1");
+    } catch {
+      /* Keep sliders usable when browser storage is unavailable. */
+    }
+  }, [label]);
   return (
-    <label className="flex flex-col gap-2 text-sm text-muted">
+    <div className="flex flex-col gap-2 text-sm text-muted">
       <span className="flex items-center justify-between">
-        {label}
+        <span>
+          {label}{" "}
+          <button
+            type="button"
+            aria-label={label + " 잠금"}
+            aria-pressed={locked}
+            className="min-h-11 rounded-full border border-line px-3 text-xs"
+            onClick={() => {
+              const next = !locked;
+              setLocked(next);
+              try {
+                localStorage.setItem("voice-grok-slider-lock:" + label, next ? "1" : "0");
+              } catch {
+                /* The current lock still applies without persistence. */
+              }
+            }}
+          >
+            {locked ? "잠금 해제" : "잠금"}
+          </button>
+        </span>
         <span className="text-fg tabular-nums">{display}</span>
       </span>
       <input
+        aria-label={label}
+        disabled={locked}
         type="range"
         min={min}
         max={max}
@@ -3998,92 +4127,7 @@ function Slider({
         onChange={(e) => onChange(Number(e.target.value))}
         className="h-11 accent-primary"
       />
-    </label>
-  );
-}
-
-function wantsVideo(text: string) {
-  const compact = text.replace(/\s+/g, "");
-  if (/안보|안떠|안뜨|어디|이상|깨져|안나/.test(compact)) return false;
-  if (
-    /(영상|동영상|비디오|클립)/.test(compact) &&
-    /(만들|찍어|생성|보여|해봐|해줘|하나)/.test(compact)
-  )
-    return true;
-  return /(영상|동영상|비디오)(로|을|를)?$/.test(compact) && compact.length > 4;
-}
-
-function videoSeconds(text: string) {
-  const found = text.match(/(\d+)\s*초/);
-  const seconds = found ? Number(found[1]) : 5;
-  return Math.min(8, Math.max(2, seconds || 5));
-}
-
-function videoPrompt(text: string, history: { role: string; content: string }[]) {
-  const cleaned = text
-    .replace(/\d+\s*초(짜리)?/g, " ")
-    .replace(/짧은 영상|동영상|비디오|클립|영상/g, " ")
-    .replace(
-      /베이스로|기반으로|만들어\s*봐|만들어봐|만들어\s*줘|만들어줘|해\s*봐|해봐|해\s*줘|하나/g,
-      " ",
-    )
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!isVagueSubject(cleaned) && cleaned.length > 1) return cleaned.slice(0, 400);
-  for (let i = history.length - 1; i >= 0; i--) {
-    const content = history[i].content.replace(/\s+/g, " ").trim();
-    if (!content || isAside(content) || wantsVideo(content) || wantsImage(content)) continue;
-    return content.slice(0, 400);
-  }
-  return (cleaned || "짧은 장면이 살짝 움직인다").slice(0, 400);
-}
-
-function wantsImage(text: string) {
-  const compact = text.replace(/\s+/g, "");
-  if (/안보|안떠|안뜨|어디|이상|깨져|안나|없대|없어/.test(compact)) return false;
-  if (/그려(줘|줄|봐|라|주|요)/.test(compact)) return true;
-  if (
-    /(셀카|그림|이미지|사진|일러스트).{0,8}(만들어|그려|생성해|보내|보여|찍어|달라)/.test(compact)
-  ) {
-    return !/누구|언제|왜|뭐야|맞아/.test(compact);
-  }
-  if (/(셀카|사진|그림|이미지).{0,4}(줘|봐)$/.test(compact)) return true;
-  if (/(이미지|그림|사진|일러스트|셀카)(로|을|를)?$/.test(compact) && compact.length > 4)
-    return true;
-  return /\b(draw|illustrat\w*|generate)\b.{0,24}\b(image|picture|photo)\b/i.test(text);
-}
-
-function imagePrompt(text: string, history: { role: string; content: string }[]) {
-  const cleaned = text
-    .replace(/^[가-힣]{1,8}[야아]\s+/, " ")
-    .replace(
-      /그려\s*줘|그려줘|그려\s*줄래|그려\s*주라|그려봐|그려\s*봐|그려라|그림으로|이미지로|이미지\s*생성|만들어\s*줘|만들어줘|보내\s*줘|보내줘|보내\s*봐|보내봐|보여\s*줘|보여줘|보여\s*봐|보여봐|찍어\s*줘|찍어줘|찍어\s*봐|찍어봐|찍어/g,
-      " ",
-    )
-    .replace(/(이미지|그림|일러스트)(로|을|를)?$/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!isVagueSubject(cleaned)) return cleaned.slice(0, 400);
-  for (let i = history.length - 1; i >= 0; i--) {
-    const content = history[i].content.replace(/\s+/g, " ").trim();
-    if (!content || isAside(content)) continue;
-    if (history[i].role === "user" && wantsImage(content)) continue;
-    return content.slice(0, 400);
-  }
-  return (cleaned || text).slice(0, 400);
-}
-
-function isVagueSubject(cleaned: string) {
-  const compact = cleaned.replace(/\s+/g, "");
-  if (!compact) return true;
-  return /^(그거|이거|저거|방금|방금말한(거|것|장면)?|그것|어떤(이미지|그림|사진)?|이미지|그림|사진|하나|장면)$/.test(
-    compact,
-  );
-}
-
-function isAside(content: string) {
-  return /이미지를 만들 수 없|글로만 대화|그림을 만들었|이미지를 만들었|화면에서 볼 수|화면에서 바로/.test(
-    content,
+    </div>
   );
 }
 

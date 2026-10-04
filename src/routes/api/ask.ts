@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PERSONA_INSTRUCTIONS_LIMIT } from "@/lib/persona-memory";
-import { askInstructions, askTurns, needsFacts } from "@/lib/ask-prompt";
+import { imageInput, askInstructions, askTurns, needsFacts } from "@/lib/ask-prompt";
 
 function spoken(text: string) {
   return text
@@ -34,6 +34,8 @@ async function streamAnswer(
   history: { role: "user" | "assistant"; content: string }[],
   persona: string,
   memory: string,
+  image?: string,
+  signal?: AbortSignal,
 ) {
   const apiKey = process.env.XAI_API_KEY;
   if (!apiKey) return Response.json({ error: "그록에게 물어볼 수 없습니다." }, { status: 503 });
@@ -44,16 +46,19 @@ async function streamAnswer(
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    signal: AbortSignal.timeout(20000),
+    signal: signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(20000)])
+      : AbortSignal.timeout(20000),
     body: JSON.stringify({
       model: "grok-4.5",
+      store: false,
       stream: true,
       max_output_tokens: facts ? 140 : 90,
       ...(facts ? { max_tool_calls: 1, tools: [{ type: "web_search" }] } : {}),
       input: [
         { role: "system", content: askInstructions(persona, false, facts, memory) },
         ...history.map((item) => ({ role: item.role, content: item.content })),
-        { role: "user", content: message },
+        { role: "user", content: imageInput(message, image) },
       ],
     }),
   });
@@ -118,7 +123,13 @@ export const Route = createFileRoute("/api/ask")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        let body: { message?: unknown; history?: unknown; persona?: unknown; memory?: unknown };
+        let body: {
+          message?: unknown;
+          history?: unknown;
+          persona?: unknown;
+          memory?: unknown;
+          image?: unknown;
+        };
         try {
           body = (await request.json()) as typeof body;
         } catch {
@@ -150,6 +161,8 @@ export const Route = createFileRoute("/api/ask")({
             String(body.memory ?? "")
               .trim()
               .slice(0, 12000),
+            typeof body.image === "string" ? body.image.slice(0, 4000) : undefined,
+            request.signal,
           );
         } catch {
           return Response.json({ error: "그록에게 연결하지 못했습니다." }, { status: 502 });

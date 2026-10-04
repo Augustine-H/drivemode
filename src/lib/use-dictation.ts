@@ -525,7 +525,7 @@ export function useDictation({
       const level = rmsOf(analyser, buf);
       const now = Date.now();
       const tooLong = now - item.started > 29000;
-      if (level > (callbacks.current.verifyAudio ? 0.008 : 0.02)) {
+      if (level > (callbacks.current.verifyAudio || callbacks.current.forceRecord ? 0.008 : 0.02)) {
         item.heard = true;
         item.quietSince = now;
         if (!tooLong) return;
@@ -718,6 +718,11 @@ export function useDictation({
         if (!paused && item.recorder.state === "paused") item.recorder.resume();
       }
       setHearing(!paused);
+      if (!paused && !recRef.current && !live.current && !busy.current) {
+        if (modeRef.current === "speech" && startSpeech()) return;
+        modeRef.current = "record";
+        void begin();
+      }
       return;
     }
     if (paused) {

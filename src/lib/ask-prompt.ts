@@ -30,3 +30,23 @@ export function askInstructions(persona: string, ack: boolean, facts: boolean, m
         : "검색하지 말고 바로 답한다. 소리 내어 읽을 한 문장, 길어도 두 문장. 서두 없이 답부터 말한다. 마크다운, 목록, 링크는 쓰지 않는다. 그림이나 영상을 만들었다고 말하지 않는다.",
   ].join(" ");
 }
+
+export function imageInput(message: string, image?: string) {
+  if (!image) return message;
+  try {
+    const url = new URL(image);
+    if (
+      url.protocol !== "https:" ||
+      url.username ||
+      url.password ||
+      /^(localhost|127\.|10\.|192\.168\.|\[|0\.)/.test(url.hostname)
+    )
+      return message;
+  } catch {
+    return message;
+  }
+  return [
+    { type: "input_image", image_url: image },
+    { type: "input_text", text: message },
+  ];
+}
