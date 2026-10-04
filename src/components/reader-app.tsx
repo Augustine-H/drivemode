@@ -1,3 +1,5 @@
+import { useMailReplies } from "@/lib/use-mail-replies";
+import { MailNotifications } from "@/components/mail-notifications";
 import {
   DEFAULT_ANNOUNCEMENTS,
   ANNOUNCEMENT_DEFAULTS_VERSION,
@@ -357,6 +359,38 @@ export function ReaderApp() {
   const personaRef = useRef("");
   const wakeOnRef = useRef(false);
   const settingsBase = useRef<SettingsSnap | null>(null);
+  useMailReplies({
+    enabled: hydrated,
+    busy: asking || deletingChats || deleteAllStage !== 0,
+    personas,
+    threads,
+    onError: setBanner,
+    onChat: (mail, text) => {
+      const at = Date.now();
+      setThreads((previous) => {
+        const history = previous[mail.personaId] ?? [];
+        const answerId = "mail-answer-" + mail.id;
+        if (history.some((turn) => turn.id === answerId)) return previous;
+        const next: Turn[] = [
+          ...history,
+          { id: "mail-user-" + mail.id, speaker: "me", text: mail.text, at: mail.createdAt },
+          {
+            id: answerId,
+            textOnly: true,
+            speaker: "grok",
+            text,
+            at,
+            personaId: mail.personaId,
+            personaName: mail.personaName,
+            voice: personas.find((p) => p.id === mail.personaId)?.voice,
+          },
+        ];
+        if (personaIdRef.current === mail.personaId) turnsNow.current = next;
+        return { ...previous, [mail.personaId]: next };
+      });
+      setBanner(mail.personaName + "에게서 챗 답장이 왔습니다.");
+    },
+  });
   const voiceIdentity = useVoiceIdentity();
   const dictation = useDictation({
     verifyAudio:
@@ -760,7 +794,7 @@ export function ReaderApp() {
               ? `「${wakeCall[0] ?? personaName}」라고 부르면 말하기가 켜집니다`
               : reader.status === "idle" && reader.turnIndex >= turns.length
                 ? "재생하면 마지막 페르소나 답변을 다시 듣습니다."
-                : (voiceOnly && active?.speaker === "grok"
+                : (voiceOnly && active?.speaker === "grok" && !active.textOnly
                     ? `${active.personaName || personaName || "그록"}의 음성 메시지`
                     : activeChunks[reader.chunkIndex]) ||
                   (reader.status === "playing"
@@ -2059,6 +2093,14 @@ export function ReaderApp() {
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <MailNotifications
+              onOpen={(id) => {
+                reader.stop();
+                dictation.stop();
+                selectPersona(id);
+                setMailboxOpen(true);
+              }}
+            />
             <button
               type="button"
               aria-label="설정"
@@ -2180,7 +2222,7 @@ export function ReaderApp() {
                               style={!mine ? { color } : undefined}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (voiceOnly && !mine) reader.playOne(index);
+                                if (voiceOnly && !mine && !turn.textOnly) reader.playOne(index);
                                 else reader.jump(index);
                               }}
                             >
@@ -2205,7 +2247,7 @@ export function ReaderApp() {
                               <button
                                 type="button"
                                 aria-label="이 말 수정"
-                                hidden={voiceOnly && !mine}
+                                hidden={voiceOnly && !mine && !turn.textOnly}
                                 className={
                                   "inline-flex size-9 items-center justify-center rounded-full " +
                                   (mine ? "text-ink/80" : "text-muted")
@@ -2233,7 +2275,7 @@ export function ReaderApp() {
                               </button>
                             </span>
                           </div>
-                          {voiceOnly && !mine ? (
+                          {voiceOnly && !mine && !turn.textOnly ? (
                             <div className="space-y-2">
                               <button
                                 type="button"
@@ -2321,7 +2363,11 @@ export function ReaderApp() {
                           ) : turn.image ? (
                             <img
                               src={turn.image}
-                              alt={voiceOnly && !mine ? "페르소나가 보낸 이미지" : turn.text}
+                              alt={
+                                voiceOnly && !mine && !turn.textOnly
+                                  ? "페르소나가 보낸 이미지"
+                                  : turn.text
+                              }
                               className="mt-3 w-full rounded-2xl bg-bg"
                             />
                           ) : null}

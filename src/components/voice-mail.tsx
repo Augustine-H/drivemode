@@ -1,3 +1,8 @@
+import {
+  loadMailAutoSettings,
+  MAIL_AUTO_SETTINGS_KEY,
+  mailReplyDue,
+} from "@/lib/mail-reply-policy";
 import { useEffect, useRef, useState } from "react";
 import { X, Mic, Square, Inbox } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -8,6 +13,8 @@ import {
   removeVoiceMail,
   updateVoiceMailText,
   MAIL_BYTES,
+  MAIL_CHANGED_EVENT,
+  updateMailReply,
   mailSpeechChunks,
   type VoiceMail,
 } from "@/lib/voice-mail";
@@ -108,6 +115,15 @@ export function VoiceMailBox({
   const [personaId, setPersonaId] = useState(
     personas.some((item) => item.id === initialId) ? initialId : personas[0].id,
   );
+  const [autoSettings, setAutoSettings] = useState(loadMailAutoSettings);
+  function saveAutoSettings(next: typeof autoSettings) {
+    try {
+      localStorage.setItem(MAIL_AUTO_SETTINGS_KEY, JSON.stringify(next));
+      setAutoSettings(next);
+    } catch {
+      setNote("자동 답장 설정을 저장하지 못했습니다.");
+    }
+  }
   const [mails, setMails] = useState<VoiceMail[]>([]);
   const [draft, setDraft] = useState<Blob | null>(null);
   const [text, setText] = useState("");
@@ -132,7 +148,9 @@ export function VoiceMailBox({
   }
   useEffect(() => {
     mounted.current = true;
-    void refresh().catch((error) => setNote(errorText(error)));
+    const changed = () => void refresh().catch((error) => setNote(errorText(error)));
+    changed();
+    window.addEventListener(MAIL_CHANGED_EVENT, changed);
     const hide = () => {
       if (!document.hidden) return;
       if (recorder.current?.state === "recording") recorder.current.stop();
@@ -143,6 +161,7 @@ export function VoiceMailBox({
     document.addEventListener("visibilitychange", hide);
     return () => {
       mounted.current = false;
+      window.removeEventListener(MAIL_CHANGED_EVENT, changed);
       document.removeEventListener("visibilitychange", hide);
       // This counter invalidates pending async work; it is not a DOM ref.
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -330,6 +349,49 @@ export function VoiceMailBox({
                 </select>
               </label>
               <section className="space-y-3 rounded-2xl border border-line p-4">
+                <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
+                  자동 답장 받기 (API)
+                  <input
+                    type="checkbox"
+                    checked={autoSettings.enabled}
+                    onChange={(e) =>
+                      saveAutoSettings({ ...autoSettings, enabled: e.target.checked })
+                    }
+                    className="size-5 accent-primary"
+                  />
+                </label>
+                <p className="text-sm text-muted">
+                  보낸 뒤 1~10분 사이에 무작위로 확인합니다. 앱을 닫으면 멈추고, 다시 열면 대기
+                  메일을 처리합니다. 음성만 남기면 자동으로 글자로 변환한 뒤 답장합니다.
+                  변환·답장·음성 생성은 xAI API를 사용합니다.
+                </p>
+                <label className="grid gap-2 text-sm">
+                  직접 확인한 Grok 구독 사용률 (%)
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    placeholder="모르면 비워 두세요"
+                    value={autoSettings.usagePercent ?? ""}
+                    onChange={(e) => {
+                      const value = e.target.value === "" ? null : Number(e.target.value);
+                      if (value === null || (Number.isFinite(value) && value >= 0 && value <= 100))
+                        saveAutoSettings({
+                          ...autoSettings,
+                          usagePercent: value,
+                          reportedAt: Date.now(),
+                        });
+                    }}
+                    className="min-h-11 rounded-xl border border-line bg-bg px-3"
+                  />
+                </label>
+                <p className="text-xs text-muted">
+                  사용률은 자동 조회되지 않습니다. 입력 후 1시간 동안만 적용합니다. 40% 미만이면 50%
+                  확률로 음성 메일, 그 외에는 챗으로 답장합니다. Grok 구독 한도와 별개로 xAI API
+                  비용이 발생할 수 있습니다. 자동 답장을 끄면 대기 메일도 처리를 멈춥니다.
+                </p>
+              </section>
+              <section className="space-y-3 rounded-2xl border border-line p-4">
                 <h3>{persona.name}에게 음성 메시지 남기기</h3>
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -408,6 +470,9 @@ export function VoiceMailBox({
                           id: crypto.randomUUID(),
                           personaId,
                           personaName: persona.name,
+                          reply: autoSettings.enabled
+                            ? { dueAt: mailReplyDue(Date.now()), status: "pending" }
+                            : undefined,
                           direction: "sent",
                           createdAt: Date.now(),
                           text: text.trim(),
@@ -472,6 +537,19 @@ export function VoiceMailBox({
                           {new Date(mail.createdAt).toLocaleString("ko-KR")}
                         </time>
                       </div>
+                      {mail.reply ? (
+                        <p className="text-xs text-muted">
+                          {mail.reply.status === "done"
+                            ? mail.reply.channel === "voice"
+                              ? "음성 메일로 답장 완료"
+                              : "챗으로 답장 완료"
+                            : mail.reply.status === "failed"
+                              ? `자동 답장 실패: ${mail.reply.error ?? "다시 시도하세요"}`
+                              : mail.reply.status === "processing"
+                                ? "답장 준비 중…"
+                                : "자동 답장 대기 · 앱이 열려 있을 때 처리"}
+                        </p>
+                      ) : null}
                       <MailAudio
                         parts={mail.audio}
                         heard={() => {
@@ -496,6 +574,25 @@ export function VoiceMailBox({
                         </p>
                       )}
                       <div className="flex flex-wrap gap-2">
+                        {mail.reply?.status === "failed" ? (
+                          <button
+                            disabled={busy || recording}
+                            className="min-h-11 rounded-full border border-line px-3 text-sm"
+                            onClick={() =>
+                              void job(async () => {
+                                await updateMailReply(mail.id, {
+                                  ...mail.reply!,
+                                  status: "pending",
+                                  dueAt: Date.now(),
+                                  error: undefined,
+                                });
+                                await refresh();
+                              })
+                            }
+                          >
+                            자동 답장 다시 시도 (API)
+                          </button>
+                        ) : null}
                         {mail.direction === "sent" ? (
                           <>
                             <button
@@ -526,19 +623,28 @@ export function VoiceMailBox({
                                 })
                               }
                             >
-                              이 메일 받아쓰기 (API)
+                              글자로 변환 (API)
                             </button>
                           </>
                         ) : null}
                         {mail.direction === "sent" ? (
                           <button
-                            disabled={busy || recording || !mail.text}
+                            disabled={
+                              busy || recording || !mail.text || mail.reply?.status === "processing"
+                            }
                             className="min-h-11 rounded-full border border-line px-3 text-sm"
                             onClick={() => {
-                              onReply(mail.text, mail.personaId);
+                              void updateMailReply(
+                                mail.id,
+                                mail.reply
+                                  ? { ...mail.reply, status: "done", channel: "chat" }
+                                  : undefined,
+                              )
+                                .then(() => onReply(mail.text, mail.personaId))
+                                .catch((error) => setNote(errorText(error)));
                             }}
                           >
-                            대화로 가져와 답하기 (API)
+                            답변 요청 (API)
                           </button>
                         ) : null}
                         <button

@@ -7,7 +7,22 @@ export type VoiceMail = {
   text: string;
   audio: Blob[];
   heard: boolean;
+  reply?: {
+    dueAt: number;
+    status: "pending" | "processing" | "failed" | "done";
+    leaseUntil?: number;
+    claimId?: string;
+    text?: string;
+    channel?: "chat" | "voice";
+    error?: string;
+  };
+  replyTo?: string;
 };
+export const MAIL_CHANGED_EVENT = "voice-grok-mail-changed";
+function notifyMailChange() {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(MAIL_CHANGED_EVENT));
+}
+
 export const MAIL_BYTES = 1_000_000;
 export const MAIL_COUNT = 40;
 const DB = "voice-grok-voice-mail";
@@ -63,6 +78,7 @@ async function transaction<T>(
     let result: T;
     tx.oncomplete = () => {
       db.close();
+      if (mode === "readwrite") notifyMailChange();
       resolve(result);
     };
     tx.onabort = tx.onerror = () => {
@@ -147,6 +163,85 @@ export function deleteVoiceMails(personaId?: string) {
       }
       if (cursor.value.personaId === personaId) cursor.delete();
       cursor.continue();
+    };
+  });
+}
+
+export async function updateMailReply(
+  id: string,
+  reply: VoiceMail["reply"],
+  expectedStatus?: string,
+  expectedClaim?: string,
+) {
+  return transaction<boolean>("readwrite", (store, done) => {
+    const request = store.get(id);
+    request.onsuccess = () => {
+      if (
+        !request.result ||
+        (expectedStatus && request.result.reply?.status !== expectedStatus) ||
+        (expectedClaim && request.result.reply?.claimId !== expectedClaim)
+      ) {
+        done(false);
+        return;
+      }
+      store.put({ ...request.result, reply });
+      done(true);
+    };
+  });
+}
+
+export function claimMailReply(id: string, now: number, claimId: string) {
+  return transaction<boolean>("readwrite", (store, done) => {
+    const request = store.get(id);
+    request.onsuccess = () => {
+      const mail = request.result as VoiceMail | undefined;
+      const reply = mail?.reply;
+      if (
+        !mail ||
+        !reply ||
+        reply.dueAt > now ||
+        reply.status === "done" ||
+        reply.status === "failed" ||
+        (reply.status === "processing" && (reply.leaseUntil ?? 0) > now)
+      ) {
+        done(false);
+        return;
+      }
+      store.put({
+        ...mail,
+        reply: { ...reply, status: "processing", leaseUntil: now + 180000, claimId },
+      });
+      done(true);
+    };
+  });
+}
+
+export function completeVoiceReply(sourceId: string, response: VoiceMail, claimId: string) {
+  validateMail(response);
+  return transaction<boolean>("readwrite", (store, done) => {
+    const source = store.get(sourceId);
+    source.onsuccess = () => {
+      if (
+        !source.result?.reply ||
+        source.result.reply.status !== "processing" ||
+        source.result.reply.claimId !== claimId
+      ) {
+        done(false);
+        return;
+      }
+      const count = store.count();
+      count.onsuccess = () => {
+        if (count.result >= MAIL_COUNT) {
+          done(false);
+          return;
+        }
+        store.put(response);
+        store.put({
+          ...source.result,
+          reply: { ...source.result.reply, status: "done", channel: "voice" },
+        });
+        done(true);
+      };
     };
   });
 }

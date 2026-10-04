@@ -10,6 +10,7 @@ export type Turn = {
   personaName?: string;
   personaId?: string;
   voice?: string;
+  textOnly?: boolean;
 };
 
 export type ParseMode = "labeled" | "alternating" | "empty";
