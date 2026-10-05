@@ -77,11 +77,18 @@ export function mediaGet<T>(store: MediaStore, key: IDBValidKey) {
     r.onsuccess = () => done(r.result);
   });
 }
-export function mediaPut<T>(store: MediaStore, key: IDBValidKey, value: T) {
-  return mediaTransaction<void>([store], "readwrite", (tx, done) => {
+export const MEMORY_BACKUP_SETTINGS_CHANGED = "voice-grok-memory-backup-settings-changed";
+export async function mediaPut<T>(store: MediaStore, key: IDBValidKey, value: T) {
+  await mediaTransaction<void>([store], "readwrite", (tx, done) => {
     tx.objectStore(store).put(value, key);
     done();
   });
+  if (
+    store === "settings" &&
+    ["export-folder", "memory-auto-folder", "memory-encrypted"].includes(String(key)) &&
+    typeof window !== "undefined"
+  )
+    window.dispatchEvent(new Event(MEMORY_BACKUP_SETTINGS_CHANGED));
 }
 export function mediaAll<T>(store: MediaStore) {
   return mediaTransaction<T[]>([store], "readonly", (tx, done) => {
