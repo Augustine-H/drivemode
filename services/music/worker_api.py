@@ -51,6 +51,7 @@ def create_app(worker: MusicWorker, token: str) -> FastAPI:
     def public_job(job):
         # Full tracebacks remain in the local ledger instead of ordinary API responses.
         result = dict(job)
+        result['request'] = {k: v for k, v in job['request'].items() if k != 'audioBase64'}
         if result.get("error"):
             result["error"] = {k: v for k, v in result["error"].items() if k != "traceback"}
         result["downloads"] = {kind: f"/v1/jobs/{job['id']}/audio/{kind}" for kind in job["artifacts"]}
@@ -67,7 +68,7 @@ def create_app(worker: MusicWorker, token: str) -> FastAPI:
     @app.post("/generate", include_in_schema=False)
     @app.post("/v1/jobs")
     def generate(body: GenerateRequest, response: Response):
-        job, created = worker.submit(body.model_dump())
+        job, created = worker.submit(body.model_dump(exclude_none=True))
         response.status_code = 202 if created else 200
         response.headers["Location"] = f"/v1/jobs/{job['id']}"
         return {"created": created, "job": public_job(job)}

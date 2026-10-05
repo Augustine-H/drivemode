@@ -8,6 +8,7 @@ import {
   type MusicConnection,
 } from "@/lib/music-client";
 import { musicStateLabel, type MusicRecord } from "@/lib/music-model";
+import { SongTools } from "./song-tools";
 
 export function MusicSettings({ onRecover }: { onRecover: (music: MusicRecord) => void }) {
   const [url, setUrl] = useState(""),
@@ -162,7 +163,7 @@ export function MusicSettings({ onRecover }: { onRecover: (music: MusicRecord) =
               <li key={job.id} className="rounded-xl border border-line p-3">
                 <p className="break-words text-fg">{job.request.prompt}</p>
                 <p className="mt-1 text-xs text-muted">
-                  {job.request.duration}초 · {musicStateLabel(job.state)}
+                  {job.request.duration}초 · {musicStateLabel(job.state, job.request.kind)}
                 </p>
                 <button
                   type="button"
@@ -191,6 +192,7 @@ export function MusicSettings({ onRecover }: { onRecover: (music: MusicRecord) =
             {notice}
           </p>
         ) : null}
+        <SongTools onRecover={onRecover} />
         {busy ? (
           <p role="status" className="text-muted">
             연결 확인 중…

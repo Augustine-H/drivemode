@@ -100,6 +100,8 @@ class NasBridge:
         job = self.data(self.worker.get(f"/v1/jobs/{local_id}"))
         result = {"localJobId": local_id, "workerState": job["state"], "artifacts": job["artifacts"],
                   "model": job.get("model"), "metrics": job.get("metrics"), "error": job.get("error")}
+        if job.get('recognition') is not None:
+            result['recognition'] = job['recognition']
         acknowledged = self.data(self.nas.post(f"/internal/jobs/{nas_id}/status", json=result))
         if job["state"] not in TERMINAL:
             return {"state": job["state"], "jobId": nas_id, "localJobId": local_id}

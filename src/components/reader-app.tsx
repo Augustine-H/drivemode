@@ -7,6 +7,7 @@ import { MusicJobCard } from "@/components/music-job";
 import {
   musicRequest,
   wantsMusic,
+  wantsSongRecognition,
   musicTerminal,
   musicStateLabel,
   type MusicRecord,
@@ -15,6 +16,7 @@ import {
   connection as musicConnection,
   cancelMusic,
   authorizeMusicRequest,
+  musicHealth,
 } from "@/lib/music-client";
 import { useStorageSnapshots } from "@/lib/use-storage-snapshots";
 import { ManagedMedia } from "@/components/managed-media";
@@ -1832,6 +1834,8 @@ export function ReaderApp() {
         const at = Date.now();
         const requestId = `chat-${crypto.randomUUID()}`;
         const request = musicRequest(text, requestId);
+        if (request.kind === "song" && !(await musicHealth()).supportedTasks?.includes("song"))
+          throw new Error("NAS에 보컬·인식 업데이트를 적용한 뒤 노래를 만들 수 있습니다.");
         authorizeMusicRequest(requestId);
         const mine: Turn = {
           id: `me-${requestId}`,
@@ -1856,6 +1860,12 @@ export function ReaderApp() {
       } catch (e) {
         setBanner(e instanceof Error ? e.message : "음악 생성 요청 오류");
       }
+      return;
+    }
+    if (!fromMail && !selectedMediaId && wantsSongRecognition(text) &&
+        (!audioAwareness.settings.enabled || /가사/.test(text))) {
+      setSheet("voice");
+      setBanner("‘음악 생성 · NAS 연결’의 노래 인식에서 파일을 선택하세요. 제목·가수 검색과 로컬 가사 받아쓰기를 선택할 수 있습니다.");
       return;
     }
     if (
@@ -2039,7 +2049,7 @@ export function ReaderApp() {
       ...prev,
       [room]: (prev[room] ?? []).map((t) =>
         t.id === messageId
-          ? { ...t, music, text: musicStateLabel(music.state), mediaIds: mediaIds ?? t.mediaIds }
+          ? { ...t, music, text: musicStateLabel(music.state, music.request.kind), mediaIds: mediaIds ?? t.mediaIds }
           : t,
       ),
     }));
@@ -2049,7 +2059,8 @@ export function ReaderApp() {
     setThreads((prev) => {
       if (
         (prev[room] ?? []).some(
-          (t) => t.music?.jobId === music.jobId && t.music?.source === music.source,
+          (t) => t.music?.source === music.source &&
+            (music.jobId ? t.music?.jobId === music.jobId : t.music?.request.requestId === music.request.requestId),
         )
       )
         return prev;
@@ -2060,7 +2071,7 @@ export function ReaderApp() {
           {
             id: `music-open-${crypto.randomUUID()}`,
             speaker: "grok",
-            text: musicStateLabel(music.state),
+            text: musicStateLabel(music.state, music.request.kind),
             textOnly: true,
             at: Date.now(),
             personaId: room,

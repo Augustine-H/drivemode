@@ -1,9 +1,17 @@
+import { audioIntent } from "./audio-tools.ts";
+
 export type MusicRequest = {
   requestId: string;
   prompt: string;
   duration: number;
   seed: number;
   bitrate: 320;
+  kind?: "song" | "recognition";
+  lyrics?: string;
+  audioBase64?: string;
+  identify?: boolean;
+  transcribe?: boolean;
+  fingerprintConsent?: boolean;
 };
 export type MusicRecord = { source: string; request: MusicRequest; jobId?: string; state?: string };
 export type MusicArtifact = { bytes: number; sha256: string; filename: string };
@@ -13,7 +21,14 @@ export type MusicJob = {
   request: MusicRequest;
   artifacts: Partial<Record<"wav" | "mp3", MusicArtifact>>;
   error?: { type?: string; message?: string } | null;
-  workerResult?: { error?: { message?: string } | null };
+  recognition?: RecognitionResult;
+  workerResult?: { error?: { message?: string } | null; recognition?: RecognitionResult };
+};
+export type RecognitionResult = {
+  transcription?: string;
+  titleMatch?: { title: string; artist: string } | null;
+  identificationError?: string;
+  warnings: string[];
 };
 export const musicTerminal = (state?: string) =>
   ["COMPLETED", "CANCELLED", "FAILED", "INTERRUPTED"].includes(state ?? "");
@@ -40,10 +55,14 @@ export function isMusicRecord(value: unknown): value is MusicRecord {
     r.seed >= 0 &&
     r.seed <= 2147483647 &&
     r.bitrate === 320 &&
+    (r.kind === undefined || r.kind === "song" || r.kind === "recognition") &&
+    (r.kind !== "song" || (typeof r.lyrics === "string" && r.lyrics.trim().length > 0 && r.lyrics.length <= 8000 && r.duration >= 10)) &&
+    (r.kind !== "recognition" || ((r.identify === true || r.transcribe === true) && r.duration <= 30 && (!r.identify || r.fingerprintConsent === true))) &&
     (v.jobId === undefined || /^[a-f0-9-]{36}$/.test(v.jobId)) &&
     (v.state === undefined ||
       [
         "QUEUED",
+        "DISPATCHED",
         "LOADING",
         "GENERATING",
         "VERIFYING_WAV",
@@ -61,10 +80,16 @@ export function wantsMusic(text: string) {
   const t = text.replace(/\s+/g, "");
   return (
     (/(?:음악|노래|곡|배경음|BGM|bgm)/.test(t) &&
-      /(?:만들어|만들자|생성해|생성하|작곡해|작곡하)/.test(t) &&
+      /(?:만들어|만들자|생성해|생성하|작곡해|작곡하|불러줘|불러봐)/.test(t) &&
       !/(?:만들수|만드는법|만드는방법|만들었|생성기능|생성방법)/.test(t)) ||
     /\b(?:create|generate|compose)\b.{0,60}\b(?:music|song|track)\b/i.test(text)
   );
+}
+export function wantsSongRecognition(text: string) {
+  const t = text.replace(/\s+/g, "");
+  if (/하지마|하지말|취소|중지/.test(t)) return false;
+  return audioIntent(text) === "identify_music" ||
+    /가사.*(?:받아써|받아쓰기|인식|글자로)/.test(t);
 }
 export function musicRequest(text: string, requestId: string): MusicRequest {
   const time = text.match(/(\d+(?:\.\d+)?)\s*(초|분|seconds?|minutes?)/i);
@@ -86,7 +111,11 @@ export function musicRequest(text: string, requestId: string): MusicRequest {
   ] as const;
   const matched = hints.filter(([pattern]) => pattern.test(text)).map(([, phrase]) => phrase);
   const vocal = /가사|보컬|노랫말/.test(text) && !/보컬\s*없|가사\s*없/.test(text);
-  if (vocal) throw new Error("현재는 연주곡 생성만 지원합니다. 보컬·가사 없이 요청해 주세요.");
+  if (vocal || /노래\s*불러/.test(text)) {
+    const lyrics = text.match(/(?:가사|노랫말)\s*[:：]\s*([\s\S]+)$/)?.[1]?.trim();
+    if (!lyrics) throw new Error("노래에 넣을 가사를 ‘가사:’ 뒤에 입력하거나 설정의 ‘보컬 노래 만들기’를 사용하세요.");
+    return songRequest(text.slice(0, text.indexOf(lyrics)), lyrics, duration, requestId);
+  }
   const prompt = `Instrumental music, no vocals. ${matched.join(", ")}${matched.length ? ". " : ""}${text.trim()}`;
   if (prompt.length > 2000) throw new Error("음악 설명을 1,800자 이내로 줄여 주세요.");
   return {
@@ -96,6 +125,14 @@ export function musicRequest(text: string, requestId: string): MusicRequest {
     seed: crypto.getRandomValues(new Uint32Array(1))[0] & 0x7fffffff,
     bitrate: 320,
   };
+}
+export function songRequest(prompt: string, lyrics: string, duration: number, requestId: string): MusicRequest {
+  if (!prompt.trim() || prompt.length > 2000 || !lyrics.trim() || lyrics.length > 8000)
+    throw new Error("곡 설명은 2,000자, 가사는 8,000자 이내로 입력하세요.");
+  if (!Number.isInteger(duration) || duration < 10 || duration > 120)
+    throw new Error("보컬 노래는 10~120초로 만들 수 있습니다.");
+  return { requestId, prompt: prompt.trim(), lyrics: lyrics.trim(), kind: "song", duration,
+    seed: crypto.getRandomValues(new Uint32Array(1))[0] & 0x7fffffff, bitrate: 320 };
 }
 export function musicUrl(raw: string) {
   const u = new URL(raw.trim());
@@ -111,7 +148,9 @@ export function musicUrl(raw: string) {
     throw new Error("Tailscale NAS의 HTTPS 주소를 입력해 주세요. 주소에 키를 넣지 마세요.");
   return u.origin;
 }
-export const musicStateLabel = (state?: string): string =>
+export const musicStateLabel = (state?: string, kind?: MusicRequest['kind']): string =>
+  kind === "recognition" && state === "COMPLETED" ? "노래 인식 완료" :
+  kind === "recognition" && state === "GENERATING" ? "노래 인식 중" :
   (
     ({
       QUEUED: "생성 대기",

@@ -117,6 +117,7 @@ class JobStore:
                 job["state"] = "CANCELLED" if job["state"] == "QUEUED" else "CANCEL_REQUESTED"
                 if job["state"] == "CANCELLED":
                     job["finishedAt"] = now()
+                    job['request'].pop('audioBase64', None)
                 self.write(db, job)
             return job
 
@@ -126,6 +127,7 @@ class JobStore:
             job = self.read(db, job_id)
             job["state"] = "FAILED" if error else ("CANCELLED" if job["cancelRequested"] else "COMPLETED")
             job["finishedAt"] = now()
+            job['request'].pop('audioBase64', None)
             if error:
                 job["error"] = error
                 job["failedAtStage"] = job.get("stage")
@@ -141,6 +143,7 @@ class JobStore:
                 job = json.loads(row[0])
                 job.update(state="INTERRUPTED", finishedAt=now(),
                            error={"type": "WorkerRestart", "message": "WORKER_INTERRUPTED: existing files preserved; submit a new requestId to retry."})
+                job['request'].pop('audioBase64', None)
                 self.write(db, job)
         return len(rows)
 

@@ -45,6 +45,7 @@ class WorkerResult(BaseModel):
     model: dict | None = None
     metrics: dict | None = None
     error: dict | None = None
+    recognition: dict | None = None
 
 
 def read_secret(path: str) -> str:
@@ -89,6 +90,7 @@ def create_nas_app(directory: Path, client_token: str, bridge_token: str,
 
     def public(job):
         result = dict(job)
+        result['request'] = {k: v for k, v in job['request'].items() if k != 'audioBase64'}
         result["downloads"] = {kind: f"/v1/jobs/{job['id']}/audio/{kind}" for kind in job["artifacts"]}
         return result
 
@@ -100,7 +102,7 @@ def create_nas_app(directory: Path, client_token: str, bridge_token: str,
     def enqueue(body: GenerateRequest, response: Response):
         if shutil.disk_usage(directory).free < min_free_bytes:
             raise JobError("INSUFFICIENT_DISK_SPACE", 507)
-        job, created = app.state.store.enqueue(body.model_dump())
+        job, created = app.state.store.enqueue(body.model_dump(exclude_none=True))
         response.status_code = 202 if created else 200
         return {"created": created, "job": public(job)}
 

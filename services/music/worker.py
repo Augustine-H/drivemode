@@ -6,6 +6,10 @@ import shutil
 import threading
 import time
 import uuid
+import subprocess
+import sys
+import json
+import gc
 
 from filelock import FileLock
 from benchmark import ResourceMonitor
@@ -62,6 +66,10 @@ class MusicWorker:
         with self.guard:
             if self.stop.is_set() or self.error or not self.thread or not self.thread.is_alive():
                 raise JobError("WORKER_UNAVAILABLE", 503)
+            if request.get('kind') in {'song', 'recognition'}:
+                from vocal_models import prepared
+                if not prepared(request['kind']):
+                    raise JobError('MODEL_NOT_PREPARED', 503)
             if shutil.disk_usage(self.directory).free < self.min_free_bytes:
                 raise JobError("INSUFFICIENT_DISK_SPACE", 507)
             result = self.store.enqueue(request)
@@ -112,6 +120,9 @@ class MusicWorker:
             folder.mkdir(parents=True, exist_ok=True)
             if self.store.get(job_id)["cancelRequested"]:
                 self.store.finish(job_id)
+                return
+            if request.get('kind') in {'song', 'recognition'}:
+                self._extended(job, folder)
                 return
             with self.guard:
                 self.model_state = "LOADING" if self.model_metadata is None else "READY"
@@ -165,3 +176,47 @@ class MusicWorker:
             final_job = self.store.get(job_id)
             atomic_json(folder / "job.json", final_job)
             logger.info("jobId=%s state=%s", job_id, final_job["state"])
+
+    def _extended(self, job, folder):
+        # The same queue and process lock serialize all GPU models. Release the
+        # instrument model before starting an isolated dependency environment.
+        import torch
+        if isinstance(self.provider, StableAudioLocalProvider):
+            self.provider.model = None
+            self.provider.metadata = {}
+        gc.collect()
+        torch.cuda.empty_cache()
+        with self.guard:
+            self.model_metadata = None
+            self.model_state = 'LOADING'
+        request_path = folder / 'vocal-request.json'
+        atomic_json(request_path, job['request'])
+        self.store.update(job['id'], stage='GENERATING')
+        try:
+            with (folder / 'vocal-runtime.log').open('w', encoding='utf-8') as log:
+                completed = subprocess.run([sys.executable, str(Path(__file__).with_name('vocal_runtime.py')),
+                                            str(request_path), str(folder)], stdout=log, stderr=log,
+                                            timeout=1800, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+            if completed.returncode:
+                error_path = folder / 'vocal-error.json'
+                detail = json.loads(error_path.read_text(encoding='utf-8')) if error_path.exists() else {'message': 'VOCAL_RUNTIME_FAILED'}
+                raise RuntimeError(detail.get('message', 'VOCAL_RUNTIME_FAILED'))
+            result = json.loads((folder / 'vocal-result.json').read_text(encoding='utf-8'))
+            self.store.update(job['id'], model=result['model'], metrics=result['metrics'])
+            if 'recognition' in result:
+                self.store.update(job['id'], recognition=result['recognition'])
+            else:
+                wav = result['wav']
+                if abs(wav['duration'] - job['request']['duration']) > 0.1:
+                    raise RuntimeError('WAV_DURATION_MISMATCH')
+                self.store.update(job['id'], stage='ENCODING', artifacts={'wav': wav})
+                if not self.store.get(job['id'])['cancelRequested']:
+                    mp3 = encode_mp3(folder / 'original.wav', folder / 'preview.mp3', job['request']['bitrate'])
+                    if abs(mp3['decoded']['duration'] - job['request']['duration']) > 0.1:
+                        raise RuntimeError('MP3_DURATION_MISMATCH')
+                    self.store.update(job['id'], artifacts={'wav': wav, 'mp3': mp3})
+            self.store.finish(job['id'])
+        finally:
+            request_path.unlink(missing_ok=True)
+            with self.guard:
+                self.model_state = 'UNLOADED'

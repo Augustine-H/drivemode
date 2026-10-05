@@ -128,7 +128,7 @@ async function request(path: string, options: RequestInit = {}, config?: MusicCo
 }
 export async function musicHealth(
   config?: MusicConnection,
-): Promise<{ workerState: string; heartbeatAgeSeconds?: number }> {
+): Promise<{ workerState: string; heartbeatAgeSeconds?: number; supportedTasks?: string[] }> {
   const h = await (await request("/health", {}, config)).json();
   if (h.service !== "voice-grok-nas-music") throw new Error("음악 서비스 주소가 아닙니다.");
   return h;

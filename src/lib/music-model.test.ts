@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { musicRequest, wantsMusic, musicUrl, isMusicRecord } from "./music-model.ts";
+import { musicRequest, wantsMusic, musicUrl, isMusicRecord, songRequest } from "./music-model.ts";
 import { buildBackup } from "./nangdok-backup.ts";
 import { makeMemoryArchive, parseMemoryArchive } from "./storage-backup.ts";
 import { newMedia } from "./media-model.ts";
@@ -31,6 +31,7 @@ test("private NAS URLs and restored job records reject unsafe or malformed input
   const source = "https://nas.example.ts.net:8443";
   const request = musicRequest("피아노 음악 만들어줘", "chat-test");
   assert(isMusicRecord({ source, request, state: "QUEUED" }));
+  assert(isMusicRecord({ source, request, state: "DISPATCHED" }));
   assert(!isMusicRecord({ source, request: { ...request, duration: 121 } }));
   assert(!isMusicRecord({ source, request, jobId: "../../secrets" }));
   for (const value of [
@@ -40,6 +41,16 @@ test("private NAS URLs and restored job records reject unsafe or malformed input
     "https://user:pass@nas.example.ts.net",
   ])
     assert.throws(() => musicUrl(value));
+});
+test("vocal requests preserve supplied lyrics and never substitute speech", () => {
+  assert(wantsMusic("노래 불러줘"));
+  assert.throws(() => musicRequest("노래 불러줘", "x"), /가사/);
+  const song = musicRequest("피아노 노래 30초 불러줘. 가사: [Verse]\n오늘도 빛나는 작은 꿈", "x");
+  assert.equal(song.kind, "song");
+  assert.equal(song.lyrics, "[Verse]\n오늘도 빛나는 작은 꿈");
+  assert(!song.prompt.includes("Instrumental"));
+  assert.throws(() => songRequest("pop", "가사", 5, "x"));
+  assert(isMusicRecord({ source: "https://nas.example.ts.net", request: song }));
 });
 test("memory archive preserves music job references without carrying connection credentials", async () => {
   const music = {

@@ -38,6 +38,7 @@ class NasStore(JobStore):
         age = (datetime.now(timezone.utc) - datetime.fromisoformat(heartbeat["seenAt"])).total_seconds() if heartbeat else None
         fresh = age is not None and 0 <= age <= 30
         return {"service": "voice-grok-nas-music", "queue": self.counts(),
+                "supportedTasks": ["instrumental", "song", "recognition"],
                 "workerState": ("READY" if heartbeat["ready"] else "UNAVAILABLE") if fresh else "UNKNOWN",
                 "lastHeartbeat": heartbeat, "heartbeatAgeSeconds": round(age, 1) if age is not None else None,
                 "wolEnabled": False, "apiCostUsd": 0}
@@ -57,7 +58,10 @@ class NasStore(JobStore):
                 expected = result["artifacts"].get(kind)
                 if not expected or expected["sha256"] != artifact["sha256"]:
                     raise JobError("ARTIFACT_CHANGED", 409)
-            if result["workerState"] == "COMPLETED" and set(result["artifacts"]) != {"wav", "mp3"}:
+            recognition = job['request'].get('kind') == 'recognition'
+            if result['workerState'] == 'COMPLETED' and recognition and (not result.get('recognition') or result['artifacts']):
+                raise JobError('RECOGNITION_RESULT_MISSING', 409)
+            if result["workerState"] == "COMPLETED" and not recognition and set(result["artifacts"]) != {"wav", "mp3"}:
                 raise JobError("COMPLETED_AUDIO_MISSING", 409)
             job["workerResult"] = result
             job["workerState"] = result["workerState"]
@@ -103,6 +107,7 @@ class NasStore(JobStore):
                     raise JobError("ARCHIVE_FILE_MISSING", 409)
             job["state"] = "CANCELLED" if job["cancelRequested"] and result["workerState"] == "COMPLETED" else result["workerState"]
             job["finishedAt"] = now()
+            job['request'].pop('audioBase64', None)
             # Write recoverable metadata before committing terminal state.
             atomic_json(self.directory / "media" / job_id / "metadata.json", job)
             self.write(db, job)

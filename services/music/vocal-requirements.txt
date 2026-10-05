@@ -1,0 +1,7 @@
+# Install into .music-runtime/vocal-deps, never upgrade the Stable Audio venv.
+diffusers==0.40.0
+accelerate==1.15.0
+Pillow==12.3.0
+requests==2.34.2
+importlib-metadata==9.0.1
+shazamio==0.8.1

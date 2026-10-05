@@ -37,6 +37,7 @@ export function MusicJobCard({
   const record = useRef(music);
   record.current = music;
   const effectiveState = job?.state ?? music.state;
+  const recognition = job?.recognition ?? job?.workerResult?.recognition;
   const selectedJob = useRef<MusicJob | undefined>(undefined);
   selectedJob.current = job;
   useEffect(() => {
@@ -119,8 +120,8 @@ export function MusicJobCard({
               blob,
               filename: `${completed.id}.mp3`,
               description: completed.request.prompt,
-              provider: "stable_audio_local",
-              model: "stabilityai/stable-audio-3-small-music",
+              provider: completed.request.kind === "song" ? "ace_step_local" : "stable_audio_local",
+              model: completed.request.kind === "song" ? "ACE-Step/acestep-v15-xl-turbo-diffusers" : "stabilityai/stable-audio-3-small-music",
               personaId: room,
               refs: [{ conversationId: room, messageId, personaId: room }],
             });
@@ -168,9 +169,9 @@ export function MusicJobCard({
       className="mt-3 space-y-3 rounded-2xl border border-line bg-bg p-4 text-fg"
     >
       <div role="status" aria-live="polite">
-        <p className="font-medium">{musicStateLabel(effectiveState)}</p>
+        <p className="font-medium">{musicStateLabel(effectiveState, music.request.kind)}</p>
         <p className="mt-1 text-xs text-muted">
-          {music.request.duration}초 · 연주곡 · MP3 320 kbps
+          {music.request.duration}초 · {music.request.kind === "recognition" ? "노래 인식" : music.request.kind === "song" ? "한국어 보컬 · MP3 320 kbps" : "연주곡 · MP3 320 kbps"}
         </p>
       </div>
       {effectiveState === "QUEUED" ? (
@@ -191,6 +192,15 @@ export function MusicJobCard({
       {localId ? (
         <div onPlayCapture={onPlay}>
           <ManagedMedia id={localId} type="music" />
+        </div>
+      ) : null}
+      {recognition ? (
+        <div className="space-y-2 rounded-xl border border-line p-3 text-sm" aria-label="노래 인식 결과">
+          {music.request.identify ? <p>{recognition.titleMatch
+            ? `${recognition.titleMatch.title} · ${recognition.titleMatch.artist}`
+            : recognition.identificationError ? `곡 검색 오류: ${recognition.identificationError}` : "일치하는 제목·가수를 찾지 못했습니다."}</p> : null}
+          {music.request.transcribe ? <p className="whitespace-pre-wrap">{recognition.transcription || "받아쓴 가사가 없습니다."}</p> : null}
+          {recognition.warnings.map((warning, i) => <p key={i} className="text-muted">{warning}</p>)}
         </div>
       ) : null}
       <div className="flex flex-wrap gap-2 text-sm">
@@ -259,6 +269,8 @@ export function MusicJobCard({
                   blob,
                   filename: `${job.id}.wav`,
                   description: job.request.prompt,
+                  provider: job.request.kind === "song" ? "ace_step_local" : "stable_audio_local",
+                  model: job.request.kind === "song" ? "ACE-Step/acestep-v15-xl-turbo-diffusers" : "stabilityai/stable-audio-3-small-music",
                   personaId: room,
                   refs: [{ conversationId: room, messageId, personaId: room }],
                 });

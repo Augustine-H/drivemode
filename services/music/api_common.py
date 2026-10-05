@@ -1,9 +1,12 @@
 """Shared wire contract and authenticated HTTP boundary for music services."""
 import secrets
 import re
+import base64
+import io
+import wave
 from typing import Literal
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 class GenerateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
@@ -12,6 +15,38 @@ class GenerateRequest(BaseModel):
     duration: int = Field(ge=1, le=120)
     seed: int = Field(default=1042, ge=0, le=2147483647)
     bitrate: Literal[128, 192, 256, 320] = 320
+    kind: Literal['song', 'recognition'] | None = None
+    lyrics: str | None = Field(default=None, max_length=8000)
+    audioBase64: str | None = Field(default=None, max_length=1400000)
+    identify: bool | None = None
+    transcribe: bool | None = None
+    fingerprintConsent: bool | None = None
+
+    @model_validator(mode='after')
+    def task_contract(self):
+        if self.kind == 'song':
+            if not self.lyrics or not self.lyrics.strip() or self.duration < 10:
+                raise ValueError('Song requires lyrics and at least 10 seconds')
+        elif self.lyrics is not None:
+            raise ValueError('Lyrics require song mode')
+        if self.kind == 'recognition':
+            if not self.audioBase64 or not (self.identify or self.transcribe):
+                raise ValueError('Recognition requires audio and a selected task')
+            if self.duration > 30 or (self.identify and self.fingerprintConsent is not True):
+                raise ValueError('Recognition limit or fingerprint consent missing')
+            try:
+                raw = base64.b64decode(self.audioBase64, validate=True)
+                with wave.open(io.BytesIO(raw), 'rb') as audio:
+                    frames = audio.getnframes()
+                    if len(raw) > 1024 * 1024 or audio.getnchannels() != 1 or audio.getframerate() != 16000 or audio.getsampwidth() != 2 or not 16000 <= frames <= 480000:
+                        raise ValueError('Invalid recognition WAV')
+                    if len(audio.readframes(frames)) != frames * 2:
+                        raise ValueError('Truncated recognition WAV')
+            except Exception as error:
+                raise ValueError('Recognition requires mono 16 kHz PCM WAV, 1–30 seconds') from error
+        elif any(v is not None for v in (self.audioBase64, self.identify, self.transcribe, self.fingerprintConsent)):
+            raise ValueError('Recognition fields require recognition mode')
+        return self
 
     @field_validator("prompt")
     @classmethod
@@ -77,7 +112,7 @@ class ApiBoundary:
             if event["type"] == "http.disconnect":
                 return
             body.extend(event.get("body", b""))
-            if len(body) > 16384:
+            if len(body) > 1500000:
                 return await JSONResponse({"error": "BODY_TOO_LARGE"}, 413)(scope, receive, send)
             if not event.get("more_body", False):
                 break
