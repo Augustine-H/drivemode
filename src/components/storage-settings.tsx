@@ -386,7 +386,7 @@ export function StorageSettings({
                         });
                         if (item.ingestState !== "complete") throw new Error(item.error);
                         setNotice(
-                          "원본 파일을 보관했습니다. 음악 생성 서비스는 연결되지 않았습니다.",
+                          "원본 파일을 보관했습니다. 음악 생성 연결은 음악 생성 설정에서 확인하세요.",
                         );
                       });
                   }}

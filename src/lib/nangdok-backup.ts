@@ -1,6 +1,7 @@
 import { cleanMemoryState, emptyMemoryState, type MemoryState } from "./memory-engine.ts";
 import type { Turn } from "@/lib/transcript";
 import { cleanPersonaKnowledge, type PersonaKnowledge } from "./persona-memory.ts";
+import { isMusicRecord } from "./music-model.ts";
 
 const SETTING_KEYS = [
   "rate",
@@ -52,6 +53,7 @@ function isTurn(value: unknown): value is Turn {
     (turn.speaker === "me" || turn.speaker === "grok") &&
     typeof turn.text === "string" &&
     typeof turn.id === "string" &&
+    (turn.music === undefined || isMusicRecord(turn.music)) &&
     (turn.image === undefined ||
       (typeof turn.image === "string" && /^(https:\/\/|media:[a-zA-Z0-9_-]+$)/.test(turn.image))) &&
     (turn.video === undefined ||

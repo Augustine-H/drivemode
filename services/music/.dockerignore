@@ -1,0 +1,6 @@
+__pycache__
+tests
+nas/data
+nas/secrets
+*.dpapi
+*.log

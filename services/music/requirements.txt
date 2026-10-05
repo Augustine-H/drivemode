@@ -1,0 +1,6 @@
+# Official inference source inspected on 2026-10-05. Pin the source commit.
+stable-audio-3 @ git+https://github.com/Stability-AI/stable-audio-3.git@3a82c807b69cf4b7c5c05270011a5d5e47abac18
+psutil==7.2.2
+imageio-ffmpeg==0.6.0
+fastapi==0.142.2
+uvicorn==0.54.0

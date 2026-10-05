@@ -3,3 +3,12 @@ node_modules/
 .github_repo
 .env
 .env.*
+.music-runtime/
+.grok/music-*.log
+services/music/.venv/
+services/music/data/
+services/music/__pycache__/
+services/music/tests/__pycache__/
+services/music/nas/data/
+services/music/nas/secrets/
+services/music/nas/__pycache__/

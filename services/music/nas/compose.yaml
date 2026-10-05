@@ -1,0 +1,52 @@
+services:
+  music-init:
+    image: python:3.12-slim
+    user: "0:0"
+    command: ["python", "-B", "/setup/initialize.py"]
+    restart: "no"
+    read_only: true
+    network_mode: none
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - .:/setup
+  music-service:
+    image: voice-grok-music-service:browser-v1
+    depends_on:
+      music-init:
+        condition: service_completed_successfully
+    build:
+      context: ..
+      dockerfile: nas/Dockerfile
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    ports:
+      - "127.0.0.1:8094:8094"
+    environment:
+      MUSIC_DATA_ROOT: /data
+      MUSIC_CLIENT_TOKEN_FILE: /run/secrets/client_token
+      MUSIC_BRIDGE_TOKEN_FILE: /run/secrets/bridge_token
+      MUSIC_ALLOWED_HOSTS: ${MUSIC_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      MUSIC_ALLOWED_ORIGINS: https://drivemode.grok.me,http://127.0.0.1:8080,http://127.0.0.1:8081
+    volumes:
+      - ./data:/data
+      - ./secrets:/run/secrets:ro
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    mem_limit: 384m
+    # DS218+ DSM kernel lacks CPU CFS quota support; no hard CPU quota.
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import pathlib,urllib.request; k=pathlib.Path('/run/secrets/client_token').read_text().strip(); r=urllib.request.Request('http://127.0.0.1:8094/health',headers={'Authorization':'Bearer '+k}); urllib.request.urlopen(r,timeout=5).close()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s

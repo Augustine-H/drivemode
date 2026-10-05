@@ -19,6 +19,7 @@ export type Turn = {
   mediaDescription?: string;
   mediaRef?: string;
   mediaIds?: string[];
+  music?: import("./music-model").MusicRecord;
   responseStatus?: "complete" | "partial" | "cancelled";
   relay?: {
     fromId: string;

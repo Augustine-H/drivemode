@@ -2,6 +2,20 @@ import { erasePersonaConversations } from "@/lib/room-context";
 import { selectRecent } from "@/lib/context-budget";
 import { MemorySettings } from "@/components/memory-settings";
 import { StorageSettings } from "@/components/storage-settings";
+import { MusicSettings } from "@/components/music-settings";
+import { MusicJobCard } from "@/components/music-job";
+import {
+  musicRequest,
+  wantsMusic,
+  musicTerminal,
+  musicStateLabel,
+  type MusicRecord,
+} from "@/lib/music-model";
+import {
+  connection as musicConnection,
+  cancelMusic,
+  authorizeMusicRequest,
+} from "@/lib/music-client";
 import { useStorageSnapshots } from "@/lib/use-storage-snapshots";
 import { ManagedMedia } from "@/components/managed-media";
 import { questionMedia } from "@/lib/media-input";
@@ -1789,6 +1803,62 @@ export function ReaderApp() {
       return;
     }
     if (
+      !fromMail &&
+      !selectedMediaId &&
+      /음악|노래|곡/.test(text) &&
+      /생성.*취소|만들.*취소|음악.*취소/.test(text)
+    ) {
+      const latest = [...(threads[id] ?? [])]
+        .reverse()
+        .find((t) => t.music && !musicTerminal(t.music.state));
+      if (!latest?.music?.jobId) {
+        setBanner(
+          "취소할 음악 작업이 없거나 접수 결과를 확인 중입니다. 작업 카드에서 상태를 확인하세요.",
+        );
+        return;
+      }
+      try {
+        const job = await cancelMusic(latest.music.jobId);
+        updateMusic(id, latest.id, { ...latest.music, state: job.state });
+        setComposer("");
+      } catch (e) {
+        setBanner(e instanceof Error ? e.message : "음악 취소 요청 실패");
+      }
+      return;
+    }
+    if (!fromMail && !selectedMediaId && wantsMusic(text)) {
+      try {
+        const c = await musicConnection();
+        const at = Date.now();
+        const requestId = `chat-${crypto.randomUUID()}`;
+        const request = musicRequest(text, requestId);
+        authorizeMusicRequest(requestId);
+        const mine: Turn = {
+          id: `me-${requestId}`,
+          speaker: "me",
+          text,
+          at,
+          audience: [...audience],
+        };
+        const reply: Turn = {
+          id: `gk-${requestId}`,
+          speaker: "grok",
+          text: "음악 생성 요청을 확인하고 있습니다.",
+          textOnly: true,
+          at,
+          personaId: id,
+          personaName: active?.name,
+          music: { source: c.url, request, state: "QUEUED" },
+        };
+        setThreads((prev) => ({ ...prev, [id]: [...(prev[id] ?? []), mine, reply] }));
+        setComposer("");
+        setBanner(null);
+      } catch (e) {
+        setBanner(e instanceof Error ? e.message : "음악 생성 요청 오류");
+      }
+      return;
+    }
+    if (
       !target &&
       groupMembers.length >= 2 &&
       (selectedMediaId || (!wantsImage(text) && !wantsVideo(text)))
@@ -1955,6 +2025,52 @@ export function ReaderApp() {
     }
   }
   askRef.current = ask;
+  function updateMusic(room: string, messageId: string, music: MusicRecord, mediaIds?: string[]) {
+    const previous = threads[room]?.find((turn) => turn.id === messageId)?.music;
+    if (
+      music.state === "COMPLETED" &&
+      previous?.state !== "COMPLETED" &&
+      personaIdRef.current === room
+    )
+      setBanner(
+        `${music.request.duration}초 음악이 완성됐습니다. 작업 카드에서 재생·다운로드할 수 있습니다.`,
+      );
+    setThreads((prev) => ({
+      ...prev,
+      [room]: (prev[room] ?? []).map((t) =>
+        t.id === messageId
+          ? { ...t, music, text: musicStateLabel(music.state), mediaIds: mediaIds ?? t.mediaIds }
+          : t,
+      ),
+    }));
+  }
+  function recoverMusic(music: MusicRecord) {
+    const room = personaIdRef.current;
+    setThreads((prev) => {
+      if (
+        (prev[room] ?? []).some(
+          (t) => t.music?.jobId === music.jobId && t.music?.source === music.source,
+        )
+      )
+        return prev;
+      return {
+        ...prev,
+        [room]: [
+          ...(prev[room] ?? []),
+          {
+            id: `music-open-${crypto.randomUUID()}`,
+            speaker: "grok",
+            text: musicStateLabel(music.state),
+            textOnly: true,
+            at: Date.now(),
+            personaId: room,
+            music,
+          },
+        ],
+      };
+    });
+    setSheet(null);
+  }
   wakeHandler.current = (rest, id) => {
     if (filterAnnouncements && isAnnouncement(rest, announcementLines)) {
       setBanner("안내 문장을 무시했습니다.");
@@ -3151,7 +3267,18 @@ export function ReaderApp() {
                               className="mt-3 w-full rounded-2xl bg-bg"
                             />
                           ) : null}
-                          {turn.mediaIds?.length ? (
+                          {turn.music ? (
+                            <MusicJobCard
+                              music={turn.music}
+                              room={personaId}
+                              messageId={turn.id}
+                              onUpdate={(music, mediaIds) =>
+                                updateMusic(personaId, turn.id, music, mediaIds)
+                              }
+                              onPlay={() => reader.stop()}
+                            />
+                          ) : null}
+                          {turn.mediaIds?.length && !turn.music ? (
                             <ManagedMedia
                               id={turn.mediaIds[0]}
                               type={turn.video ? "video" : "image"}
@@ -4430,6 +4557,7 @@ export function ReaderApp() {
                   metrics={memoryMetrics}
                   personaId={personaId}
                 />
+                <MusicSettings onRecover={recoverMusic} />
                 <StorageSettings
                   items={mediaLibrary.items}
                   error={mediaLibrary.error}

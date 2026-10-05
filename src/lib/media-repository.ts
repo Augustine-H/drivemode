@@ -129,11 +129,11 @@ export function ingestMedia(input: Ingest) {
     return ingestLocked(input);
   });
 }
-export async function retryMedia(id: string) {
+export async function retryMedia(id: string, blob?: Blob) {
   return withMediaLock(async () => {
     const item = await getMedia(id);
     if (!item) throw new Error("기록이 없습니다.");
-    return ingestLocked({ id, type: item.type, origin: item.origin, url: item.remoteUrl }, item);
+    return ingestLocked({ id, type: item.type, origin: item.origin, url: item.remoteUrl, blob }, item);
   });
 }
 export async function readMediaBlob(id: string) {
