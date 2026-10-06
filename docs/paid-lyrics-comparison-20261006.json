@@ -1,0 +1,141 @@
+{
+  "date": "2026-10-06",
+  "state": "AWAITING_CREDENTIALS",
+  "productVersion": "1.28.2",
+  "actualPaidApiCalls": 0,
+  "audioTransmittedExternally": false,
+  "plan": {
+    "maximumCalls": 9,
+    "callsPerProvider": 3,
+    "secondsPerProvider": 90.968,
+    "estimatedUsdPerHour": {
+      "xai": 0.1,
+      "openai": 0.27,
+      "elevenlabs": 0.22
+    },
+    "maximumEstimatedUsd": 0.1,
+    "estimatedUsdAllThree": 0.014909,
+    "automaticRetries": false,
+    "referenceAndSongNameSent": false
+  },
+  "cases": [
+    {
+      "case": "ko-user",
+      "language": "ko",
+      "seconds": 30.0,
+      "waveSha256": "9e13b6822a453e5b01490711a32a9bffd44f247db31dfac172f1cfb2d150f7b5",
+      "referenceStatus": "User recording; supplied lyrics exceed an unverified endpoint; no whole-clip CER until interval verified"
+    },
+    {
+      "case": "en-auld",
+      "language": "en",
+      "seconds": 25.0,
+      "waveSha256": "982afa01394f9c4c3094c53648a53256f439c883a3632f9d0f59c6da02148fe8",
+      "referenceStatus": "Previously frozen 25-second excerpt; source timed lyrics"
+    },
+    {
+      "case": "ja-pretender",
+      "language": "ja",
+      "seconds": 35.968,
+      "waveSha256": "70e00b91436bba3babbc259a171f928877af04cf5de550d28c1b869d6ffddc50",
+      "referenceStatus": "Previously evaluated whole 35.968-second user recording; user-provided Japanese text, no new native listening audit"
+    }
+  ],
+  "localBaseline": {
+    "state": "COMPLETED",
+    "referenceUsedForInference": false,
+    "results": [
+      {
+        "case": "ko-user",
+        "language": "ko",
+        "seconds": 30.0,
+        "waveSha256": "9e13b6822a453e5b01490711a32a9bffd44f247db31dfac172f1cfb2d150f7b5",
+        "apiElapsedSeconds": 61.04,
+        "metrics": {
+          "totalSeconds": 53.778,
+          "peakAllocatedMiB": 4066.65,
+          "peakReservedMiB": 4130.0,
+          "resources": {
+            "peakProcessRamMiB": 4355.62,
+            "gpuUtilizationPeakPercent": 42,
+            "gpuMemoryDevicePeakMiB": 5635,
+            "gpuSamples": 27,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          }
+        },
+        "referenceStatus": "User recording; supplied lyrics exceed an unverified endpoint; no whole-clip CER until interval verified"
+      },
+      {
+        "case": "en-auld",
+        "language": "en",
+        "seconds": 25.0,
+        "waveSha256": "982afa01394f9c4c3094c53648a53256f439c883a3632f9d0f59c6da02148fe8",
+        "apiElapsedSeconds": 14.323,
+        "metrics": {
+          "totalSeconds": 10.328,
+          "peakAllocatedMiB": 4038.52,
+          "peakReservedMiB": 4102.0,
+          "resources": {
+            "peakProcessRamMiB": 3870.55,
+            "gpuUtilizationPeakPercent": 46,
+            "gpuMemoryDevicePeakMiB": 5607,
+            "gpuSamples": 16,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          }
+        },
+        "score": {
+          "unit": "words",
+          "referenceUnits": 21,
+          "hypothesisUnits": 21,
+          "errors": 1,
+          "substitutions": 1,
+          "deletions": 0,
+          "insertions": 0,
+          "errorRate": 0.047619047619047616,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
+      },
+      {
+        "case": "ja-pretender",
+        "language": "ja",
+        "seconds": 35.968,
+        "waveSha256": "70e00b91436bba3babbc259a171f928877af04cf5de550d28c1b869d6ffddc50",
+        "apiElapsedSeconds": 17.352,
+        "metrics": {
+          "totalSeconds": 13.578,
+          "peakAllocatedMiB": 4066.65,
+          "peakReservedMiB": 4130.0,
+          "resources": {
+            "peakProcessRamMiB": 3724.14,
+            "gpuUtilizationPeakPercent": 56,
+            "gpuMemoryDevicePeakMiB": 5640,
+            "gpuSamples": 22,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          }
+        },
+        "score": {
+          "unit": "characters",
+          "referenceUnits": 104,
+          "hypothesisUnits": 104,
+          "errors": 5,
+          "substitutions": 3,
+          "deletions": 1,
+          "insertions": 1,
+          "errorRate": 0.04807692307692308,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
+      }
+    ]
+  },
+  "verification": {
+    "credentialDpapiRoundTrip": true,
+    "plaintextNotInEncryptedFile": true,
+    "emptyKeySaveRejected": true,
+    "mockTransportOrderAndNoReferenceHints": true,
+    "duplicateRequestsSkippedInMock": true,
+    "mockCallsAreNotPaidResults": true
+  }
+}
