@@ -3,6 +3,18 @@ from recognition_text import checked_transcription, subtitle_credit_only, checke
 
 
 class RecognitionText(unittest.TestCase):
+    def test_real_repeated_chorus_is_preserved_with_uncertainty_warning(self):
+        for text in [('우리의 꿈을 노래해요 오늘의 마음을 기억해\n' * 4),
+                     ('ร้องเพลงด้วยกันในวันนี้\n' * 4),
+                     ('We sing together under the stars\n' * 4)]:
+            result, warnings = checked_lyrics(text)
+            self.assertEqual(result, text.strip())
+            self.assertTrue(warnings)
+
+    def test_partial_loop_does_not_erase_other_audible_words(self):
+        text = '처음 들리는 가사\n' + '아 ' * 200
+        self.assertEqual(checked_lyrics(text)[0], text.strip())
+
     def test_new_lyrics_decoder_preserves_words_and_excludes_credits_or_loops(self):
         self.assertEqual(checked_lyrics('날 바라보는 너를 느끼듯이'), ('날 바라보는 너를 느끼듯이', []))
         for text in ['한글자막 by 다른 이름', '아 ' * 200]:

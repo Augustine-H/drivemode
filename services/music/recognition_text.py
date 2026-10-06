@@ -1,6 +1,21 @@
 """Conservative output checks for locally decoded song samples."""
 import re
 import zlib
+import unicodedata
+
+
+def repetition_check(text):
+    """Compression is an uncertainty signal, not proof that a chorus is invalid."""
+    encoded = text.encode('utf-8')
+    if len(encoded) <= 40 or len(encoded) / len(zlib.compress(encoded)) <= 2.4:
+        return False, []
+    compact = ''.join(c for c in unicodedata.normalize('NFKC', text).casefold()
+                      if unicodedata.category(c)[0] in 'LNM')
+    # Restrict deletion to a whole-result, tiny motif repeated excessively.
+    # Repeated phrases/verses and UTF-8-heavy Thai lyrics remain available.
+    if len(compact) >= 96 and re.fullmatch(r'(.{1,3})\1{31,}', compact, flags=re.DOTALL):
+        return True, ['짧은 글자가 과도하게 반복 생성되어 받아쓰기 결과를 제외했습니다. 보컬이 또렷한 구간으로 다시 시도하세요.']
+    return False, ['반복이 많은 인식 결과입니다. 오인식 또는 정상 후렴일 수 있어 가사를 보존했습니다. 구간 원문과 실제 노래를 비교하세요.']
 
 
 def subtitle_credit_only(text):
@@ -22,10 +37,10 @@ def checked_transcription(decode):
         if subtitle_credit_only(text):
             text = ''
             warnings.append('재시도에서도 자막 출처 문구가 나와 받아쓰기 결과를 제외했습니다.')
-    encoded = text.encode('utf-8')
-    if len(encoded) > 40 and len(encoded) / len(zlib.compress(encoded)) > 2.4:
+    exclude, repetition_warnings = repetition_check(text)
+    warnings.extend(repetition_warnings)
+    if exclude:
         text = ''
-        warnings.append('반복된 글자·문장이 생성되어 받아쓰기 결과를 제외했습니다. 보컬이 또렷한 구간으로 다시 시도하세요.')
     return text, warnings, retried
 
 
@@ -34,7 +49,5 @@ def checked_lyrics(text):
     text = text.strip()
     if subtitle_credit_only(text):
         return '', ['자막 출처 문구가 의심되어 받아쓰기 결과를 제외했습니다.']
-    encoded = text.encode('utf-8')
-    if len(encoded) > 40 and len(encoded) / len(zlib.compress(encoded)) > 2.4:
-        return '', ['반복된 글자·문장이 생성되어 받아쓰기 결과를 제외했습니다. 보컬이 또렷한 구간으로 다시 시도하세요.']
-    return text, []
+    exclude, warnings = repetition_check(text)
+    return ('' if exclude else text), warnings
