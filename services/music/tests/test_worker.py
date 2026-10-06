@@ -13,6 +13,7 @@ from filelock import Timeout
 from job_store import JobError, JobStore
 from worker import MusicWorker
 from worker_api import create_app
+from vocal_conditioning import VocalInputLimit
 
 TOKEN = "unit-test-credential-" + "a" * 44
 
@@ -197,6 +198,19 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.worker.store.get(second["id"])["state"], "QUEUED")
         self.assertEqual(self.client.get("/health", headers=self.headers).status_code, 503)
         self.assertEqual(self.post(request("third")).status_code, 503)
+
+    def test_rejected_song_input_does_not_stop_next_job(self):
+        with patch('vocal_models.prepared', return_value=True), patch.object(
+                self.worker, '_extended', side_effect=VocalInputLimit('VOCAL_LYRICS_TOKEN_LIMIT: rejected')):
+            body = dict(request('invalid-song', duration=30), kind='song', lyrics='test input')
+            first = self.post(body).json()['job']
+            failed = wait_terminal(self.worker.store, first['id'])
+            self.assertEqual(failed['state'], 'FAILED')
+            self.assertEqual(failed['error']['type'], 'VocalInputLimit')
+        self.assertEqual(self.client.get('/health', headers=self.headers).status_code, 200)
+        self.provider.release.set()
+        second = self.post(request('valid-after-rejection')).json()['job']
+        self.assertEqual(wait_terminal(self.worker.store, second['id'])['state'], 'COMPLETED')
 
     def test_second_process_lock_and_disk_guard(self):
         other = MusicWorker(self.directory, provider=ControlledProvider(), lock_path=self.directory / "gpu.lock")

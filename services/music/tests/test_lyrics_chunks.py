@@ -7,7 +7,7 @@ from unittest.mock import patch
 import numpy as np
 import soundfile as sf
 from api_common import GenerateRequest
-from lyrics_chunks import windows, merge
+from lyrics_chunks import windows, merge, normalized_positions
 from vocal_runtime import recognition
 
 
@@ -20,6 +20,13 @@ def body(seconds=36, **kwargs):
 
 
 class FullFileLyrics(unittest.TestCase):
+    def test_thai_tone_marks_are_not_erased_when_matching_boundaries(self):
+        self.assertNotEqual(normalized_positions('ไทยนี้รักสงบ')[0],
+                            normalized_positions('ไทยนีรักสงบ')[0])
+        text, uncertain = merge('ไทยนี้รักสงบ', 'ไทยนีรักสงบไป')
+        self.assertTrue(uncertain)
+        self.assertEqual(text, 'ไทยนี้รักสงบ\nไทยนีรักสงบไป')
+
     def test_audio_boundaries_and_overlap(self):
         self.assertEqual(list(windows(36 * 16000)), [(0, 480000), (432000, 576000)])
         for frames in (16000, 480000, 480001, 600 * 16000):

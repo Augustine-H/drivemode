@@ -17,7 +17,9 @@ def normalized_positions(text):
     chars, positions = [], []
     for i, char in enumerate(text):
         for c in unicodedata.normalize('NFKC', char).casefold():
-            if c.isalnum():
+            # Thai vowels/tone marks are meaningful characters, even though
+            # Python's isalnum() excludes their Unicode combining-mark category.
+            if unicodedata.category(c)[0] in 'LNM':
                 chars.append(c)
                 positions.append(i + 1)
     return ''.join(chars), positions

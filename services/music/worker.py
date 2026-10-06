@@ -17,6 +17,7 @@ from diagnostics import safe_error
 from job_store import JobError, JobStore
 from provider import StableAudioLocalProvider, atomic_json, encode_mp3, save_audio
 from worker_auth import local_directory
+from vocal_conditioning import VocalInputLimit
 
 logger = logging.getLogger("music.worker")
 
@@ -167,7 +168,7 @@ class MusicWorker:
         except Exception as error:
             detail = safe_error(error)
             self.store.finish(job_id, error=detail)
-            if stage in {"LOADING", "GENERATING"}:
+            if stage in {"LOADING", "GENERATING"} and not isinstance(error, VocalInputLimit):
                 # CUDA/model failures need inspection before touching the GPU again.
                 with self.guard:
                     self.error = detail
@@ -224,7 +225,11 @@ class MusicWorker:
             if process.returncode:
                 error_path = folder / 'vocal-error.json'
                 detail = json.loads(error_path.read_text(encoding='utf-8')) if error_path.exists() else {'message': 'VOCAL_RUNTIME_FAILED'}
-                raise RuntimeError(detail.get('message', 'VOCAL_RUNTIME_FAILED'))
+                message = detail.get('message', 'VOCAL_RUNTIME_FAILED')
+                if (job['request'].get('kind') == 'song' and detail.get('type') == 'VocalInputLimit'
+                        and message.startswith(('VOCAL_PROMPT_TOKEN_LIMIT:', 'VOCAL_LYRICS_TOKEN_LIMIT:'))):
+                    raise VocalInputLimit(message)
+                raise RuntimeError(message)
             result = json.loads((folder / 'vocal-result.json').read_text(encoding='utf-8'))
             progress_path = folder / 'recognition-progress.json'
             if progress_path.exists():
