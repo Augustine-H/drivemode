@@ -16,14 +16,19 @@ export function ManagedMedia({
     [status, setStatus] = useState("원본을 불러오는 중…");
   useEffect(() => {
     let stopped = false,
+      owned = "",
+      loadedKey = "",
+      generation = 0;
+    function clearSource() {
+      if (owned) URL.revokeObjectURL(owned);
       owned = "";
-    async function load() {
-      if (owned) {
-        URL.revokeObjectURL(owned);
-        owned = "";
-      }
+      loadedKey = "";
       setUrl("");
+    }
+    async function load() {
+      const current = ++generation;
       if (!id) {
+        clearSource();
         if (fallback && !fallback.startsWith("media:")) {
           setUrl(fallback);
           setStatus("링크 원본 · 로컬 저장 미확인");
@@ -32,25 +37,37 @@ export function ManagedMedia({
       }
       try {
         const item = await getMedia(id);
+        if (stopped || current !== generation) return;
         if (item?.lifecycle === "deleted") {
+          clearSource();
           setStatus("기록은 있지만 원본은 삭제되었습니다.");
           return;
         }
         if (item?.lifecycle === "trashed") {
+          clearSource();
           setStatus("앱 휴지통에 있습니다. 라이브러리에서 복원하세요.");
           return;
         }
         const blob = await readMediaBlob(id);
-        if (stopped) return;
+        if (stopped || current !== generation) return;
         if (blob) {
+          // Library maintenance and unrelated imports must not restart playback.
+          const key = JSON.stringify([item?.fileRevision, item?.checksum, item?.storageKey, blob.size, blob.type]);
+          if (owned && key === loadedKey) return;
+          clearSource();
           owned = URL.createObjectURL(blob);
+          loadedKey = key;
           setUrl(owned);
           setStatus("");
         } else {
+          clearSource();
           setStatus(item?.error ?? "로컬 원본 없음 · 백업에서 복원하세요.");
         }
       } catch (e) {
-        if (!stopped) setStatus(e instanceof Error ? e.message : "원본을 열지 못했습니다.");
+        if (!stopped && current === generation) {
+          clearSource();
+          setStatus(e instanceof Error ? e.message : "원본을 열지 못했습니다.");
+        }
       }
     }
     void load();

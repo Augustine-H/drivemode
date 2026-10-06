@@ -99,7 +99,8 @@ class NasBridge:
             health = {"acceptingJobs": False, "sessionId": "worker-unreachable"}
         assigned = self.data(self.nas.post("/internal/worker/poll", json={
             "ready": bool(health.get("acceptingJobs")), "sessionId": health.get("sessionId", "unknown"),
-            "transcriptionProviders": health.get('transcriptionProviders', ['qwen'])}))["job"]
+            "transcriptionProviders": health.get('transcriptionProviders', ['qwen']),
+            "generationProviders": health.get('generationProviders', ['local'])}))["job"]
         if not assigned:
             return {"state": "IDLE", "workerReady": bool(health.get("acceptingJobs"))}
         nas_id = str(UUID(assigned["id"]))

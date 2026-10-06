@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from recognition_languages import TranscriptionLanguage
 from transcription_providers import TranscriptionProvider
+from generation_providers import GenerationProvider
 
 class GenerateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
@@ -27,9 +28,20 @@ class GenerateRequest(BaseModel):
     transcriptionProvider: TranscriptionProvider | None = None
     paidAudioConsent: bool | None = None
     fingerprintConsent: bool | None = None
+    generationProvider: GenerationProvider | None = None
+    paidGenerationConsent: bool | None = None
 
     @model_validator(mode='after')
     def task_contract(self):
+        if self.generationProvider is not None and self.kind == 'recognition':
+            raise ValueError('Generation provider requires generation mode')
+        if self.generationProvider == 'elevenlabs':
+            if self.paidGenerationConsent is not True or self.duration < 10:
+                raise ValueError('Paid generation requires consent and at least 10 seconds')
+            if self.lyrics and len(self.lyrics) > 4000:
+                raise ValueError('Paid lyrics limit is 4000 characters')
+        elif self.paidGenerationConsent is not None:
+            raise ValueError('Generation consent requires a paid generation provider')
         if self.kind != 'recognition' and self.duration > 120:
             raise ValueError('Music generation limit is 120 seconds')
         if self.kind == 'song':

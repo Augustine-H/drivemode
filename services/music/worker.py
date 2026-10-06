@@ -69,7 +69,7 @@ class MusicWorker:
                 raise JobError("WORKER_UNAVAILABLE", 503)
             if request.get('kind') in {'song', 'recognition'}:
                 from vocal_models import prepared
-                paid = request.get('kind') == 'recognition' and request.get('transcriptionProvider', 'qwen') != 'qwen'
+                paid = request.get('generationProvider') == 'elevenlabs' or (request.get('kind') == 'recognition' and request.get('transcriptionProvider', 'qwen') != 'qwen')
                 if not paid and not prepared(request['kind']):
                     raise JobError('MODEL_NOT_PREPARED', 503)
             if shutil.disk_usage(self.directory).free < self.min_free_bytes:
@@ -87,7 +87,8 @@ class MusicWorker:
                     "modelState": self.model_state, "activeJobId": self.active_job_id,
                     "queue": self.store.counts(), "capacity": self.capacity,
                     "model": self.model_metadata, "error": self.error,
-                    "offline": True, "apiCostUsd": 0, "transcriptionProviders": available()}
+                    "offline": True, "apiCostUsd": 0, "transcriptionProviders": available(),
+                    "generationProviders": ['local', 'elevenlabs'] if 'elevenlabs' in available() else ['local']}
 
     def _run(self):
         try:
@@ -122,6 +123,19 @@ class MusicWorker:
         try:
             folder.mkdir(parents=True, exist_ok=True)
             if self.store.get(job_id)["cancelRequested"]:
+                self.store.finish(job_id)
+                return
+            if request.get('generationProvider') == 'elevenlabs':
+                stage = 'PAID_GENERATION'
+                from paid_generation import generate
+                from generation_providers import MUSIC_MODEL
+                self.store.update(job_id, stage='GENERATING', model={'provider': 'elevenlabs', 'model': MUSIC_MODEL, 'local': False})
+                wav, paid_call = generate(request, folder, lambda: self.store.get(job_id)['cancelRequested'])
+                self.store.update(job_id, artifacts={'wav': wav}, metrics={'paidGeneration': paid_call})
+                if not self.store.get(job_id)['cancelRequested']:
+                    self.store.update(job_id, stage='ENCODING')
+                    mp3 = encode_mp3(folder / 'original.wav', folder / 'preview.mp3', request['bitrate'])
+                    self.store.update(job_id, artifacts={'wav': wav, 'mp3': mp3})
                 self.store.finish(job_id)
                 return
             if request.get('kind') in {'song', 'recognition'}:

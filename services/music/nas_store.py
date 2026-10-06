@@ -8,6 +8,7 @@ from provider import atomic_json
 from recognition_languages import TranscriptionLanguage
 from typing import get_args
 from transcription_providers import PAID, PRICING_CHECKED
+from generation_providers import MUSIC_PRICING
 
 
 class NasStore(JobStore):
@@ -16,11 +17,12 @@ class NasStore(JobStore):
         with self.connect() as db:
             db.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
 
-    def poll(self, ready: bool, session_id: str, transcription_providers=None):
+    def poll(self, ready: bool, session_id: str, transcription_providers=None, generation_providers=None):
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             heartbeat = {"seenAt": now(), "ready": ready, "sessionId": session_id,
-                         "transcriptionProviders": transcription_providers or ['qwen']}
+                         "transcriptionProviders": transcription_providers or ['qwen'],
+                         "generationProviders": generation_providers or ['local']}
             db.execute("INSERT OR REPLACE INTO settings VALUES ('heartbeat',?)", (json.dumps(heartbeat),))
             row = db.execute("SELECT document FROM jobs WHERE state NOT IN ('QUEUED','COMPLETED','FAILED','CANCELLED','INTERRUPTED') ORDER BY rowid LIMIT 1").fetchone()
             if row:
@@ -47,6 +49,8 @@ class NasStore(JobStore):
                 "fullFileTranscriptionMaxSeconds": 600,
                 "transcriptionProviders": heartbeat.get('transcriptionProviders', ['qwen']) if fresh else ['qwen'],
                 "paidTranscriptionPricing": {"checkedAt": PRICING_CHECKED, "providers": PAID, "actualBillKnown": False},
+                "generationProviders": heartbeat.get('generationProviders', ['local']) if fresh else ['local'],
+                "paidGenerationPricing": MUSIC_PRICING,
                 "workerState": ("READY" if heartbeat["ready"] else "UNAVAILABLE") if fresh else "UNKNOWN",
                 "lastHeartbeat": heartbeat, "heartbeatAgeSeconds": round(age, 1) if age is not None else None,
                 "wolEnabled": False, "apiCostUsd": 0}

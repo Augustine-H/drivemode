@@ -43,6 +43,10 @@ export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => v
   const [provider, setProvider] = useState<TranscriptionProvider>("qwen"), [paidConsent, setPaidConsent] = useState(false);
   const [availableProviders, setAvailableProviders] = useState<string[]>(["qwen"]), [pricing, setPricing] = useState<PaidPricing>();
   const [fileSeconds, setFileSeconds] = useState<number>();
+  const [generationProvider, setGenerationProvider] = useState<"local" | "elevenlabs">("local");
+  const [generationConsent, setGenerationConsent] = useState(false);
+  const [generationProviders, setGenerationProviders] = useState<string[]>(["local"]);
+  const [generationPricing, setGenerationPricing] = useState<{ estimatedUsdPerMinute: number; checkedAt: string }>();
   const [supportedLanguages, setSupportedLanguages] = useState<string[]>([]);
   const [fullFile, setFullFile] = useState(true), [fullFileLimit, setFullFileLimit] = useState(0);
   const [consent, setConsent] = useState(false), [busy, setBusy] = useState(false), [notice, setNotice] = useState("");
@@ -89,6 +93,8 @@ export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => v
         setSupportedLanguages(h.transcriptionLanguages ?? []);
         setAvailableProviders(h.transcriptionProviders ?? ["qwen"]);
         setPricing(h.paidTranscriptionPricing);
+        setGenerationProviders(h.generationProviders ?? ["local"]);
+        setGenerationPricing(h.paidGenerationPricing);
         setFullFileLimit(h.fullFileTranscriptionMaxSeconds ?? 0);
         setServiceNotice(ready ? "" : "NAS에 보컬·인식 업데이트를 적용한 뒤 사용할 수 있습니다.");
       } catch (error) {
@@ -98,6 +104,7 @@ export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => v
     void check(); window.addEventListener(MUSIC_CONNECTION_CHANGED, check);
     return () => { stopped = true; window.removeEventListener(MUSIC_CONNECTION_CHANGED, check); };
   }, []);
+  useEffect(() => { setGenerationConsent(false); }, [prompt, lyrics, duration, generationProvider]);
   useEffect(() => {
     setFileSeconds(undefined); setPaidConsent(false);
     if (!file) { setPreview(""); return; }
@@ -166,7 +173,7 @@ export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => v
     setBusy(true); setNotice("");
     try {
       const c = await connection(), request = await make();
-      if (request.kind === "song") {
+      if (request.kind !== "recognition") {
         authorizeMusicRequest(request.requestId);
         onRecover({ source: c.url, request, state: "QUEUED" });
         return;
@@ -191,15 +198,44 @@ export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => v
   const paid = transcribe && provider !== "qwen";
   const estimatedSeconds = Math.min(fileSeconds ?? (fullFile ? 600 : 30), fullFile ? 600 : 30);
   const estimatedCost = estimatedTranscriptionCost(provider, estimatedSeconds, pricing);
+  const paidGeneration = generationProvider === "elevenlabs";
+  const generationCost = generationPricing ? duration / 60 * generationPricing.estimatedUsdPerMinute : undefined;
+  const generationBlocked = busy || !serviceReady || (paidGeneration && (!generationConsent || !generationProviders.includes("elevenlabs") || generationCost === undefined));
+  function generationRequest(song: boolean): MusicRequest {
+    const request = songRequest(prompt, song ? lyrics : "instrumental", duration, `generation-${crypto.randomUUID()}`);
+    if (!song) { delete request.kind; delete request.lyrics; }
+    if (paidGeneration && song && lyrics.length > 4000) throw new Error("유료 보컬 가사는 4,000자 이내로 입력하세요.");
+    return { ...request, generationProvider, ...(paidGeneration ? { paidGenerationConsent: true } : {}) };
+  }
   return <div className="space-y-4 border-t border-line pt-4">
     {serviceNotice ? <p role="status" className="text-muted">{serviceNotice}</p> : null}
+    <details><summary className="min-h-11 cursor-pointer font-medium">음악·보컬 생성 모델 선택</summary>
+      <div className="mt-3 space-y-3">
+        <label className="block">생성 모델<select aria-label="음악 생성 모델" className={input} disabled={busy} value={generationProvider} onChange={e => setGenerationProvider(e.target.value as "local" | "elevenlabs")}>
+          <option value="local">로컬 · API 비용 없음</option>
+          <option value="elevenlabs" disabled={!generationProviders.includes("elevenlabs")}>ElevenLabs · Music v2.5{generationProviders.includes("elevenlabs") ? "" : " · NAS 업데이트 또는 키 연결 필요"}</option>
+        </select></label>
+        {paidGeneration ? <div className="space-y-2 rounded-xl border border-line p-3">
+          <p className="text-muted">{duration}초 기준 예상 {generationCost === undefined ? "비용 확인 불가" : `$${generationCost.toFixed(3)}`}. {generationPricing?.checkedAt} 표시 단가이며 계정 요금제·실제 청구액과 다를 수 있습니다. 음악 API 권한은 키 등록과 별개입니다.</p>
+          <p className="text-muted">곡 설명과 가사를 ElevenLabs에 한 번 전송합니다. 실패 시 자동 재시도·유료 전환을 하지 않습니다. 전송 후 취소해도 비용이 발생할 수 있습니다. WAV는 공급자 MP3를 디코딩한 파일입니다.</p>
+          <label className="flex min-h-11 items-start gap-2"><input aria-label="유료 음악 생성 동의" type="checkbox" checked={generationConsent} disabled={busy} onChange={e => setGenerationConsent(e.target.checked)}/>설명·직접 쓴 가사를 전송하고 유료 생성하는 데 동의합니다.</label>
+        </div> : <p className="text-muted">연주곡은 Stable Audio, 보컬은 ACE-Step으로 PC에서 생성합니다. 채팅·음성 명령은 계속 로컬 모델을 사용합니다.</p>}
+      </div>
+    </details>
+    <details><summary className="min-h-11 cursor-pointer font-medium">연주곡 만들기</summary>
+      <div className="mt-3 space-y-3">
+        <label className="block">곡 분위기<input aria-label="연주곡 분위기" className={input} value={prompt} onChange={e => setPrompt(e.target.value)} maxLength={2000}/></label>
+        <label className="block">길이 (10~120초)<input aria-label="연주곡 길이" type="number" min={10} max={120} className={input} value={duration} onChange={e => setDuration(Number(e.target.value))}/></label>
+        <button className="min-h-11 rounded-xl bg-primary px-4 text-ink disabled:opacity-50" disabled={generationBlocked || !prompt.trim()} onClick={() => void submit(async () => generationRequest(false))}>연주곡 생성</button>
+      </div>
+    </details>
     <details><summary className="min-h-11 cursor-pointer font-medium">보컬 노래 만들기</summary>
       <div className="mt-3 space-y-3">
         <p className="text-muted">직접 쓴 한국어 가사로 새 노래를 만듭니다. 특정 가수의 목소리를 복제하지 않습니다.</p>
         <label className="block">곡 분위기<input aria-label="보컬 곡 분위기" className={input} value={prompt} onChange={e => setPrompt(e.target.value)} maxLength={2000}/></label>
         <label className="block">가사<textarea aria-label="노래 가사" className={input + " min-h-32"} value={lyrics} onChange={e => setLyrics(e.target.value)} maxLength={8000} placeholder={"[Verse]\n여기에 직접 쓴 가사를 입력하세요\n[Chorus]\n후렴 가사"}/></label>
         <label className="block">길이 (10~120초)<input aria-label="보컬 노래 길이" type="number" min={10} max={120} className={input} value={duration} onChange={e => setDuration(Number(e.target.value))}/></label>
-        <button className="min-h-11 rounded-xl bg-primary px-4 text-ink disabled:opacity-50" disabled={busy || !serviceReady || !lyrics.trim()} onClick={() => void submit(async () => songRequest(prompt, lyrics, duration, `song-${crypto.randomUUID()}`))}>보컬 노래 생성</button>
+        <button className="min-h-11 rounded-xl bg-primary px-4 text-ink disabled:opacity-50" disabled={generationBlocked || !lyrics.trim()} onClick={() => void submit(async () => generationRequest(true))}>보컬 노래 생성</button>
       </div>
     </details>
     <details><summary className="min-h-11 cursor-pointer font-medium">노래 제목·가수 찾기 / 가사 받아쓰기</summary>

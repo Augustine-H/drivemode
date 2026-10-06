@@ -21,6 +21,7 @@ import uvicorn
 
 from api_common import ApiBoundary, GenerateRequest
 from transcription_providers import TranscriptionProvider
+from generation_providers import GenerationProvider
 from job_store import JobError
 from nas_store import NasStore
 from provider import file_hash
@@ -31,6 +32,7 @@ class Poll(BaseModel):
     ready: bool
     sessionId: str = Field(min_length=1, max_length=100)
     transcriptionProviders: list[TranscriptionProvider] = Field(default_factory=lambda: ['qwen'], max_length=4)
+    generationProviders: list[GenerationProvider] = Field(default_factory=lambda: ['local'], max_length=2)
 
 
 class Artifact(BaseModel):
@@ -139,7 +141,7 @@ def create_nas_app(directory: Path, client_token: str, bridge_token: str,
 
     @app.post("/internal/worker/poll")
     def poll(body: Poll):
-        job = app.state.store.poll(body.ready, body.sessionId, body.transcriptionProviders)
+        job = app.state.store.poll(body.ready, body.sessionId, body.transcriptionProviders, body.generationProviders)
         return {"job": job, "pollAfterSeconds": 3}
 
     @app.post("/internal/jobs/{job_id}/status")

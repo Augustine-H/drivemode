@@ -1,0 +1,156 @@
+{
+  "date": "2026-10-06",
+  "provider": "elevenlabs",
+  "model": "music_v2_5",
+  "planConfirmedInAccount": "Starter",
+  "authorizedRequests": 2,
+  "automaticRetries": false,
+  "estimatedSuccessfulGenerationUsd": 0.15,
+  "actualBillKnown": false,
+  "calls": [
+    {
+      "kind": "instrumental",
+      "requestedSeconds": 30,
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "generationAndWavDecodeSeconds": 9.079,
+      "estimatedUsd": 0.075,
+      "nasArchiveHashMatched": true,
+      "files": {
+        "wav": {
+          "bytes": 7948844,
+          "sha256": "9529f666cdd22853e8efc9d3bb0b4f7576ea81296870022eda4a77304bef9cdb",
+          "audio": {
+            "verified": true,
+            "frames": 1324800,
+            "sampleRate": 44100,
+            "channels": 2,
+            "duration": 30.040816326530614,
+            "rms": 0.08292651284011564,
+            "peak": 0.6942349672317505
+          }
+        },
+        "mp3": {
+          "bytes": 1203765,
+          "sha256": "884a86751cc377b3e52fbe076903afc45a93a503a5e67091beb3c1b09b1f6bd2",
+          "audio": {
+            "verified": true,
+            "frames": 1324800,
+            "sampleRate": 44100,
+            "channels": 2,
+            "duration": 30.040816326530614,
+            "rms": 0.08293085015451214,
+            "peak": 0.6977829337120056
+          }
+        }
+      }
+    },
+    {
+      "kind": "song",
+      "requestedSeconds": 30,
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "generationAndWavDecodeSeconds": 4.484,
+      "estimatedUsd": 0.075,
+      "nasArchiveHashMatched": true,
+      "files": {
+        "wav": {
+          "bytes": 7948844,
+          "sha256": "4db66d09174b0a513b9a35cb9c6a97d06efa107074137ec089fb9481f4708b2d",
+          "audio": {
+            "verified": true,
+            "frames": 1324800,
+            "sampleRate": 44100,
+            "channels": 2,
+            "duration": 30.040816326530614,
+            "rms": 0.1707536929630213,
+            "peak": 0.940893292427063
+          }
+        },
+        "mp3": {
+          "bytes": 1203765,
+          "sha256": "2edabbcabb9b4e55acfe48e2db4fbbb3b88bb9d589baf771db7988283ec7f4ed",
+          "audio": {
+            "verified": true,
+            "frames": 1324800,
+            "sampleRate": 44100,
+            "channels": 2,
+            "duration": 30.040816326530614,
+            "rms": 0.1707553323028219,
+            "peak": 0.9421384334564209
+          }
+        }
+      }
+    }
+  ],
+  "previousFreePlanTest": {
+    "date": "2026-10-06",
+    "provider": "elevenlabs",
+    "model": "music_v2_5",
+    "authorizedRequests": 2,
+    "automaticRetries": false,
+    "actualBillKnown": false,
+    "calls": [
+      {
+        "kind": "instrumental",
+        "requestedSeconds": 30,
+        "httpStatus": 402,
+        "elapsedSeconds": 0.356,
+        "state": "FAILED",
+        "artifacts": []
+      },
+      {
+        "kind": "song",
+        "requestedSeconds": 30,
+        "httpStatus": 402,
+        "elapsedSeconds": 0.333,
+        "state": "FAILED",
+        "providerErrorCode": "limited_access",
+        "reason": "Music API is unavailable for free users; a paid plan is required",
+        "artifacts": []
+      }
+    ],
+    "audioValidation": "not possible; no audio generated",
+    "nextRequirement": "User activates an eligible paid Music API plan; then authorizes new generation tests"
+  },
+  "vocalVerification": {
+    "state": "COMPLETED",
+    "transcription": "햇살이 참가에 머무는 아침, 작은 꿈 하나를 품고 걸어다. 바람이 불어도 멈추지 않을게. 오늘의 날을 믿고 노래해. 우리의 내일은 조금 더 환하게, 마음의 별빛을 따라 걸어가.\n내.",
+    "score": {
+      "unit": "characters",
+      "referenceUnits": 67,
+      "hypothesisUnits": 68,
+      "errors": 5,
+      "substitutions": 4,
+      "deletions": 0,
+      "insertions": 1,
+      "errorRate": 0.07462686567164178,
+      "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+    },
+    "referenceUsedForInference": false,
+    "audioTransmittedExternally": false
+  },
+  "vocalQualityLimit": "Local ASR comparison confirms Korean lyrical content but is not a human listening or pronunciation quality rating.",
+  "browserPlayback": {
+    "instrumental": {
+      "playedThroughSeconds": 30.040816,
+      "ended": true,
+      "mediaError": null
+    },
+    "song": {
+      "playedThroughSeconds": 30.040816,
+      "ended": true,
+      "mediaError": null
+    },
+    "refreshRegression": {
+      "beforeSeconds": 8.087025,
+      "afterSeconds": 12.760561,
+      "sameSource": true,
+      "paused": false,
+      "mediaError": null
+    },
+    "fullDurationDecodeVerified": true,
+    "productionBuildVerifiedOnSeparatePreview": true,
+    "previousPreviewRestartPolicyBlocked": true
+  }
+}

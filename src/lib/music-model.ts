@@ -18,6 +18,8 @@ export type MusicRequest = {
   paidAudioConsent?: boolean;
   fingerprintConsent?: boolean;
   fullFile?: boolean;
+  generationProvider?: "local" | "elevenlabs";
+  paidGenerationConsent?: boolean;
 };
 export const MAX_EDITED_LYRICS = 60000;
 export type EditedLyrics = { original: string; text: string; updatedAt: string; partial: boolean };
@@ -41,7 +43,9 @@ export type MusicJob = {
   error?: { type?: string; message?: string } | null;
   recognition?: RecognitionResult;
   progress?: RecognitionProgress;
-  workerResult?: { error?: { message?: string } | null; recognition?: RecognitionResult; progress?: RecognitionProgress };
+  model?: { provider?: string; model?: string };
+  metrics?: { paidGeneration?: { elapsedSeconds: number; estimatedUsd: number; wavSource: string } };
+  workerResult?: { error?: { message?: string } | null; recognition?: RecognitionResult; progress?: RecognitionProgress; model?: { provider?: string; model?: string }; metrics?: { paidGeneration?: { elapsedSeconds: number; estimatedUsd: number; wavSource: string } } };
 };
 export type RecognitionProgress = { completedChunks: number; totalChunks: number; processedSeconds: number; totalSeconds: number };
 export type RecognitionResult = {
@@ -84,6 +88,9 @@ export function isMusicRecord(value: unknown): value is MusicRecord {
     (r.kind !== "song" || (typeof r.lyrics === "string" && r.lyrics.trim().length > 0 && r.lyrics.length <= 8000 && r.duration >= 10)) &&
     (r.kind !== "recognition" || ((r.identify === true || r.transcribe === true) && r.duration <= (r.fullFile === true && r.transcribe === true ? 600 : 30) && (!r.identify || r.fingerprintConsent === true))) &&
     (r.fullFile === undefined || (typeof r.fullFile === "boolean" && r.kind === "recognition" && (!r.fullFile || r.transcribe === true))) &&
+    (r.generationProvider === undefined || (r.kind !== "recognition" && ["local", "elevenlabs"].includes(r.generationProvider))) &&
+    (r.generationProvider !== "elevenlabs" || (r.paidGenerationConsent === true && r.duration >= 10 && (!r.lyrics || r.lyrics.length <= 4000))) &&
+    (r.paidGenerationConsent === undefined || (typeof r.paidGenerationConsent === "boolean" && r.generationProvider === "elevenlabs")) &&
     (r.transcriptionLanguage === undefined || (r.kind === "recognition" && r.transcribe === true && isTranscriptionLanguage(r.transcriptionLanguage))) &&
     (r.transcriptionProvider === undefined || (r.kind === "recognition" && r.transcribe === true && isTranscriptionProvider(r.transcriptionProvider))) &&
     (!(r.transcriptionProvider && r.transcriptionProvider !== "qwen") || r.paidAudioConsent === true) &&

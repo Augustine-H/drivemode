@@ -122,8 +122,8 @@ export function MusicJobCard({
               blob,
               filename: `${completed.id}.mp3`,
               description: completed.request.prompt,
-              provider: completed.request.kind === "song" ? "ace_step_local" : "stable_audio_local",
-              model: completed.request.kind === "song" ? "ACE-Step/acestep-v15-xl-turbo-diffusers" : "stabilityai/stable-audio-3-small-music",
+              provider: completed.request.generationProvider === "elevenlabs" ? "elevenlabs" : completed.request.kind === "song" ? "ace_step_local" : "stable_audio_local",
+              model: completed.request.generationProvider === "elevenlabs" ? "music_v2_5" : completed.request.kind === "song" ? "ACE-Step/acestep-v15-xl-turbo-diffusers" : "stabilityai/stable-audio-3-small-music",
               personaId: room,
               refs: [{ conversationId: room, messageId, personaId: room }],
             });
@@ -176,6 +176,11 @@ export function MusicJobCard({
           {music.request.duration}초 · {music.request.kind === "recognition" ? "노래 인식" : music.request.kind === "song" ? "한국어 보컬 · MP3 320 kbps" : "연주곡 · MP3 320 kbps"}
         </p>
       </div>
+      {music.request.generationProvider === "elevenlabs" ? <div className="space-y-1 rounded-xl border border-line p-3 text-sm" aria-label="유료 음악 생성 정보">
+        <p>ElevenLabs · Music v2.5 · 유료 생성</p>
+        <p className="text-muted">WAV는 공급자 MP3를 디코딩한 파일입니다. MP3 320 kbps 변환은 원본의 음질을 높이지 않습니다.</p>
+        {(job?.metrics?.paidGeneration ?? job?.workerResult?.metrics?.paidGeneration) ? <p className="text-muted">예상 ${((job?.metrics?.paidGeneration ?? job?.workerResult?.metrics?.paidGeneration)!.estimatedUsd).toFixed(3)} · 실제 청구액 미확인</p> : null}
+      </div> : null}
       {effectiveState === "QUEUED" ? (
         <p className="text-sm text-muted">
           Worker가 준비되면 시작합니다. PC 전원·연결 상태는 설정에서 확인하세요.
@@ -286,8 +291,8 @@ export function MusicJobCard({
                   blob,
                   filename: `${job.id}.wav`,
                   description: job.request.prompt,
-                  provider: job.request.kind === "song" ? "ace_step_local" : "stable_audio_local",
-                  model: job.request.kind === "song" ? "ACE-Step/acestep-v15-xl-turbo-diffusers" : "stabilityai/stable-audio-3-small-music",
+                  provider: job.request.generationProvider === "elevenlabs" ? "elevenlabs" : job.request.kind === "song" ? "ace_step_local" : "stable_audio_local",
+                  model: job.request.generationProvider === "elevenlabs" ? "music_v2_5" : job.request.kind === "song" ? "ACE-Step/acestep-v15-xl-turbo-diffusers" : "stabilityai/stable-audio-3-small-music",
                   personaId: room,
                   refs: [{ conversationId: room, messageId, personaId: room }],
                 });
