@@ -20,6 +20,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 import uvicorn
 
 from api_common import ApiBoundary, GenerateRequest
+from transcription_providers import TranscriptionProvider
 from job_store import JobError
 from nas_store import NasStore
 from provider import file_hash
@@ -29,6 +30,7 @@ class Poll(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     ready: bool
     sessionId: str = Field(min_length=1, max_length=100)
+    transcriptionProviders: list[TranscriptionProvider] = Field(default_factory=lambda: ['qwen'], max_length=4)
 
 
 class Artifact(BaseModel):
@@ -137,7 +139,7 @@ def create_nas_app(directory: Path, client_token: str, bridge_token: str,
 
     @app.post("/internal/worker/poll")
     def poll(body: Poll):
-        job = app.state.store.poll(body.ready, body.sessionId)
+        job = app.state.store.poll(body.ready, body.sessionId, body.transcriptionProviders)
         return {"job": job, "pollAfterSeconds": 3}
 
     @app.post("/internal/jobs/{job_id}/status")

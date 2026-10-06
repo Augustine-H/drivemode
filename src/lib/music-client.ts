@@ -1,4 +1,5 @@
 import { musicUrl, type MusicArtifact, type MusicJob, type MusicRequest } from "./music-model";
+import type { PaidPricing } from "./transcription-providers";
 export const MUSIC_CONNECTION_CHANGED = "voice-grok-music-connection-changed";
 export type MusicConnection = { url: string; token: string };
 let current: MusicConnection | undefined;
@@ -128,7 +129,7 @@ async function request(path: string, options: RequestInit = {}, config?: MusicCo
 }
 export async function musicHealth(
   config?: MusicConnection,
-): Promise<{ workerState: string; heartbeatAgeSeconds?: number; supportedTasks?: string[]; transcriptionLanguages?: string[]; fullFileTranscriptionMaxSeconds?: number }> {
+): Promise<{ workerState: string; heartbeatAgeSeconds?: number; supportedTasks?: string[]; transcriptionLanguages?: string[]; fullFileTranscriptionMaxSeconds?: number; transcriptionProviders?: string[]; paidTranscriptionPricing?: PaidPricing }> {
   const h = await (await request("/health", {}, config)).json();
   if (h.service !== "voice-grok-nas-music") throw new Error("음악 서비스 주소가 아닙니다.");
   return h;

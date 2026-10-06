@@ -1,5 +1,6 @@
 import { audioIntent } from "./audio-tools.ts";
 import { isTranscriptionLanguage, type TranscriptionLanguage } from "./recognition-languages.ts";
+import { isTranscriptionProvider, type TranscriptionProvider } from "./transcription-providers.ts";
 
 export type MusicRequest = {
   requestId: string;
@@ -13,6 +14,8 @@ export type MusicRequest = {
   identify?: boolean;
   transcribe?: boolean;
   transcriptionLanguage?: TranscriptionLanguage;
+  transcriptionProvider?: TranscriptionProvider;
+  paidAudioConsent?: boolean;
   fingerprintConsent?: boolean;
   fullFile?: boolean;
 };
@@ -44,6 +47,8 @@ export type RecognitionProgress = { completedChunks: number; totalChunks: number
 export type RecognitionResult = {
   transcription?: string;
   transcriptionLanguage?: TranscriptionLanguage;
+  transcriptionProvider?: TranscriptionProvider;
+  paidCall?: { provider: TranscriptionProvider; estimatedUsd: number; actualBillKnown: boolean; elapsedSeconds: number; httpStatus?: number };
   titleMatch?: { title: string; artist: string } | null;
   identificationError?: string;
   warnings: string[];
@@ -80,6 +85,9 @@ export function isMusicRecord(value: unknown): value is MusicRecord {
     (r.kind !== "recognition" || ((r.identify === true || r.transcribe === true) && r.duration <= (r.fullFile === true && r.transcribe === true ? 600 : 30) && (!r.identify || r.fingerprintConsent === true))) &&
     (r.fullFile === undefined || (typeof r.fullFile === "boolean" && r.kind === "recognition" && (!r.fullFile || r.transcribe === true))) &&
     (r.transcriptionLanguage === undefined || (r.kind === "recognition" && r.transcribe === true && isTranscriptionLanguage(r.transcriptionLanguage))) &&
+    (r.transcriptionProvider === undefined || (r.kind === "recognition" && r.transcribe === true && isTranscriptionProvider(r.transcriptionProvider))) &&
+    (!(r.transcriptionProvider && r.transcriptionProvider !== "qwen") || r.paidAudioConsent === true) &&
+    (r.paidAudioConsent === undefined || (typeof r.paidAudioConsent === "boolean" && r.transcriptionProvider !== undefined && r.transcriptionProvider !== "qwen")) &&
     (v.jobId === undefined || /^[a-f0-9-]{36}$/.test(v.jobId)) &&
     (v.state === undefined ||
       [

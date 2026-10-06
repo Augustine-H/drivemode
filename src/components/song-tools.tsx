@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { connection, submitMusic, authorizeMusicRequest, musicHealth, MUSIC_CONNECTION_CHANGED } from "@/lib/music-client";
 import { songRequest, type MusicRecord, type MusicRequest } from "@/lib/music-model";
 import { recognitionLanguages, type TranscriptionLanguage } from "@/lib/recognition-languages";
+import { transcriptionProviders, estimatedTranscriptionCost, type TranscriptionProvider, type PaidPricing } from "@/lib/transcription-providers";
 
 async function sampleWav(file: File, fullFile = false) {
   if (file.size > 32 * 1024 * 1024) throw new Error("32MB 이하의 오디오 파일을 선택하세요.");
@@ -39,6 +40,9 @@ export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => v
   const [duration, setDuration] = useState(30), [file, setFile] = useState<File>();
   const [identify, setIdentify] = useState(false), [transcribe, setTranscribe] = useState(true);
   const [language, setLanguage] = useState<TranscriptionLanguage>("ko");
+  const [provider, setProvider] = useState<TranscriptionProvider>("qwen"), [paidConsent, setPaidConsent] = useState(false);
+  const [availableProviders, setAvailableProviders] = useState<string[]>(["qwen"]), [pricing, setPricing] = useState<PaidPricing>();
+  const [fileSeconds, setFileSeconds] = useState<number>();
   const [supportedLanguages, setSupportedLanguages] = useState<string[]>([]);
   const [fullFile, setFullFile] = useState(true), [fullFileLimit, setFullFileLimit] = useState(0);
   const [consent, setConsent] = useState(false), [busy, setBusy] = useState(false), [notice, setNotice] = useState("");
@@ -83,6 +87,8 @@ export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => v
         const ready = h.supportedTasks?.includes("song") === true && h.supportedTasks.includes("recognition");
         setServiceReady(ready);
         setSupportedLanguages(h.transcriptionLanguages ?? []);
+        setAvailableProviders(h.transcriptionProviders ?? ["qwen"]);
+        setPricing(h.paidTranscriptionPricing);
         setFullFileLimit(h.fullFileTranscriptionMaxSeconds ?? 0);
         setServiceNotice(ready ? "" : "NAS에 보컬·인식 업데이트를 적용한 뒤 사용할 수 있습니다.");
       } catch (error) {
@@ -93,6 +99,7 @@ export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => v
     return () => { stopped = true; window.removeEventListener(MUSIC_CONNECTION_CHANGED, check); };
   }, []);
   useEffect(() => {
+    setFileSeconds(undefined); setPaidConsent(false);
     if (!file) { setPreview(""); return; }
     const url = URL.createObjectURL(file); setPreview(url);
     return () => URL.revokeObjectURL(url);
@@ -168,7 +175,7 @@ export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => v
       // reselected identical sample reuses it; raw audio is never persisted here.
       const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(request.audioBase64)));
       const sampleHash = Array.from(digest, b => b.toString(16).padStart(2, "0")).join("");
-      const pendingKey = `voice-grok-recognition-pending:${c.url}:${sampleHash}:${request.identify}:${request.transcribe}:${request.transcriptionLanguage ?? "ko"}:${request.fullFile ?? false}`;
+      const pendingKey = `voice-grok-recognition-pending:${c.url}:${sampleHash}:${request.identify}:${request.transcribe}:${request.transcriptionLanguage ?? "ko"}:${request.fullFile ?? false}:${request.transcriptionProvider ?? "qwen"}`;
       const previous = sessionStorage.getItem(pendingKey);
       if (previous && /^[A-Za-z0-9_.:-]{1,100}$/.test(previous)) request.requestId = previous;
       sessionStorage.setItem(pendingKey, request.requestId);
@@ -181,6 +188,9 @@ export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => v
     } catch (e) { setNotice(e instanceof Error ? e.message : "요청 실패"); }
     finally { if (mounted.current) setBusy(false); }
   }
+  const paid = transcribe && provider !== "qwen";
+  const estimatedSeconds = Math.min(fileSeconds ?? (fullFile ? 600 : 30), fullFile ? 600 : 30);
+  const estimatedCost = estimatedTranscriptionCost(provider, estimatedSeconds, pricing);
   return <div className="space-y-4 border-t border-line pt-4">
     {serviceNotice ? <p role="status" className="text-muted">{serviceNotice}</p> : null}
     <details><summary className="min-h-11 cursor-pointer font-medium">보컬 노래 만들기</summary>
@@ -210,11 +220,19 @@ export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => v
           {recording ? <p role="status">{trackMuted ? "브라우저의 마이크 입력이 음소거 상태입니다." : level < -60 ? "소리가 거의 없습니다. 휴대폰을 마이크 가까이 놓고 음량 막대가 움직이는지 확인하세요." : "마이크에 소리가 들어오고 있습니다."}</p> : null}
         </div> : null}
         {file ? <p className="break-words text-muted">선택한 샘플: {file.name}</p> : null}
-        {preview ? <audio aria-label="인식 샘플 미리 듣기" className="w-full max-w-full" controls src={preview}/> : null}
+        {preview ? <audio aria-label="인식 샘플 미리 듣기" className="w-full max-w-full" controls src={preview} onLoadedMetadata={e => { const seconds = e.currentTarget.duration; if (Number.isFinite(seconds) && seconds > 0) setFileSeconds(seconds); }}/> : null}
         <label className="flex min-h-11 items-center gap-2"><input type="checkbox" disabled={busy || recording} checked={transcribe} onChange={e => setTranscribe(e.target.checked)}/>가사 받아쓰기</label>
         {transcribe ? <div className="space-y-2">
+          <label className="block">받아쓰기 모델<select aria-label="받아쓰기 모델" className={input} disabled={busy || recording} value={provider} onChange={e => { setProvider(e.target.value as TranscriptionProvider); setPaidConsent(false); }}>
+            {transcriptionProviders.map(([id, label]) => <option key={id} value={id} disabled={!availableProviders.includes(id)}>{label}{availableProviders.includes(id) ? "" : " · 연결되지 않음"}</option>)}
+          </select></label>
+          {paid ? <div className="space-y-2 rounded-xl border border-line p-3">
+            <p className="text-muted">{fileSeconds ? "선택 구간" : "최대 길이"} {Math.ceil(estimatedSeconds)}초 기준 예상 비용: {estimatedCost === undefined ? "확인할 수 없음" : `약 $${estimatedCost.toFixed(5)}`}. {pricing?.checkedAt} 표시 단가 기준이며 실제 청구액·계정 요금제와 다를 수 있습니다.</p>
+            <p className="text-muted">선택한 공급자에 음원 파일을 전송합니다. 파일 전체는 한 요청으로 처리합니다. 실패하거나 응답이 불확실해도 자동 재시도·다른 모델 전환은 하지 않습니다. 전송 후 취소해도 비용이 발생할 수 있습니다.</p>
+            <label className="flex min-h-11 items-start gap-2"><input type="checkbox" aria-label="유료 음원 전송 동의" disabled={busy || recording} checked={paidConsent} onChange={e => setPaidConsent(e.target.checked)}/>선택한 공급자에 음원을 전송하고 유료 받아쓰기를 실행하는 데 동의합니다.</label>
+          </div> : <p className="text-muted">개인 Windows에서 처리합니다. 받아쓰기 API 비용이 없습니다.</p>}
           <label className="flex min-h-11 items-center gap-2"><input type="checkbox" disabled={busy || recording} checked={fullFile} onChange={e => setFullFile(e.target.checked)}/>파일 전체 받아쓰기</label>
-          <p className="text-muted">{fullFile ? "겹치는 구간으로 나눠 인식한 뒤 가사를 합칩니다. 접수 후 화면을 닫아도 처리는 계속됩니다. 취소하면 진행 중인 구간을 마친 뒤 중단합니다." : "처음 30초만 받아씁니다."}</p>
+          <p className="text-muted">{fullFile ? paid ? "파일 전체를 선택한 API에 한 번 전송합니다. 최대 10분이며 접수 후 화면을 닫아도 처리는 계속됩니다." : "겹치는 구간으로 나눠 인식한 뒤 가사를 합칩니다. 접수 후 화면을 닫아도 처리는 계속됩니다. 취소하면 진행 중인 구간을 마친 뒤 중단합니다." : "처음 30초만 받아씁니다."}</p>
           {fullFile && fullFileLimit < 600 ? <p role="status" className="text-muted">NAS 음악 API의 전체 파일 업데이트가 필요합니다. 처음 30초 인식은 전체 받아쓰기를 해제하면 사용할 수 있습니다.</p> : null}
           <label className="block">가사 언어<select aria-label="가사 언어" className={input} disabled={busy || recording} value={language} onChange={e => setLanguage(e.target.value as TranscriptionLanguage)}>
             {recognitionLanguages.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
@@ -224,7 +242,7 @@ export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => v
         </div> : null}
         <label className="flex min-h-11 items-center gap-2"><input type="checkbox" disabled={busy || recording} checked={identify} onChange={e => setIdentify(e.target.checked)}/>제목·가수 찾기</label>
         {identify ? <label className="flex min-h-11 items-start gap-2"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)}/>곡 검색용 오디오 지문을 Shazam에 전송하는 데 동의합니다. 비공식 연결이므로 검색 실패·서비스 중단이 발생할 수 있습니다.</label> : null}
-        <button className="min-h-11 rounded-xl bg-primary px-4 text-ink disabled:opacity-50" disabled={busy || !serviceReady || recording || !file || !(identify || transcribe) || (identify && !consent) || (transcribe && fullFile && fullFileLimit < 600) || (transcribe && language !== "ko" && !supportedLanguages.includes(language))} onClick={() => void submit(async () => ({ requestId: `recognition-${crypto.randomUUID()}`, prompt: "노래 인식", kind: "recognition", seed: 1042, bitrate: 320, identify, transcribe, ...(transcribe && fullFile ? { fullFile: true } : {}), ...(transcribe && supportedLanguages.includes(language) ? { transcriptionLanguage: language } : {}), fingerprintConsent: identify && consent, ...await sampleWav(file!, transcribe && fullFile) }))}>선택한 노래 인식</button>
+        <button className="min-h-11 rounded-xl bg-primary px-4 text-ink disabled:opacity-50" disabled={busy || !serviceReady || recording || !file || !(identify || transcribe) || (identify && !consent) || (paid && (!paidConsent || estimatedCost === undefined || !availableProviders.includes(provider))) || (transcribe && fullFile && fullFileLimit < 600) || (transcribe && language !== "ko" && !supportedLanguages.includes(language))} onClick={() => void submit(async () => ({ requestId: `recognition-${crypto.randomUUID()}`, prompt: "노래 인식", kind: "recognition", seed: 1042, bitrate: 320, identify, transcribe, ...(transcribe ? { transcriptionProvider: provider } : {}), ...(paid ? { paidAudioConsent: paidConsent } : {}), ...(transcribe && fullFile ? { fullFile: true } : {}), ...(transcribe && supportedLanguages.includes(language) ? { transcriptionLanguage: language } : {}), fingerprintConsent: identify && consent, ...await sampleWav(file!, transcribe && fullFile) }))}>선택한 노래 인식</button>
       </div>
     </details>
     {busy ? <p role="status">준비·접수 중…</p> : null}

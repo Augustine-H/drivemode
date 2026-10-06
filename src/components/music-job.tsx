@@ -205,7 +205,8 @@ export function MusicJobCard({
           {music.request.identify ? <p>{recognition.titleMatch
             ? `${recognition.titleMatch.title} · ${recognition.titleMatch.artist}`
             : recognition.identificationError ? `곡 검색 오류: ${recognition.identificationError}` : "일치하는 제목·가수를 찾지 못했습니다."}</p> : null}
-          {music.request.transcribe ? <div><p className="mb-2 font-medium">AI 인식 원문</p><p className="whitespace-pre-wrap break-words">{recognition.transcription || "받아쓴 가사가 없습니다."}</p></div> : null}
+          {music.request.transcribe ? <div><p className="mb-2 font-medium">AI 인식 원문 · {recognition.transcriptionProvider ?? music.request.transcriptionProvider ?? "qwen"}</p><p className="whitespace-pre-wrap break-words">{recognition.transcription || "받아쓴 가사가 없습니다."}</p></div> : null}
+          {recognition.paidCall ? <p className="text-muted">유료 요청: {recognition.paidCall.elapsedSeconds}초 · 예상 ${recognition.paidCall.estimatedUsd.toFixed(6)} · 실제 청구액 미확인</p> : null}
           {recognition.warnings.map((warning, i) => <p key={i} className="text-muted">{warning}</p>)}
           {recognition.segments && recognition.segments.length > 1 ? <details>
             <summary className="min-h-11 cursor-pointer">구간별 인식 원문 확인</summary>

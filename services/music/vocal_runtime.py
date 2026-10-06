@@ -35,6 +35,19 @@ def recognition(request, folder=None):
     result = {'warnings': []}
     if request.get('transcribe'):
         language = request.get('transcriptionLanguage') or 'ko'
+        if request.get('transcriptionProvider', 'qwen') != 'qwen':
+            from paid_transcription import transcribe
+            if folder is None:
+                raise ValueError('PAID_JOB_FOLDER_REQUIRED')
+            text, receipt = transcribe(raw, request['transcriptionProvider'], language, len(audio) / 16000,
+                                      consent=request.get('paidAudioConsent'), folder=folder)
+            result.update(transcription=text, transcriptionLanguage=language,
+                          transcriptionProvider=request['transcriptionProvider'], paidCall=receipt)
+            result['warnings'].append('유료 API 받아쓰기입니다. 반주·발음에 따라 가사가 틀릴 수 있습니다. 표시 비용은 추정이며 실제 청구액과 다를 수 있습니다.')
+        else:
+            result['transcriptionProvider'] = 'qwen'
+    if request.get('transcribe') and request.get('transcriptionProvider', 'qwen') == 'qwen':
+        language = request.get('transcriptionLanguage') or 'ko'
         ranges = list(windows(len(audio)))
         if folder:
             atomic_json(folder / 'recognition-progress.json', {'completedChunks': 0, 'totalChunks': len(ranges), 'processedSeconds': 0, 'totalSeconds': round(len(audio) / 16000, 3)})
@@ -89,6 +102,14 @@ def recognition(request, folder=None):
 
 
 def run(request, folder):
+    if request['kind'] == 'recognition' and request.get('transcriptionProvider', 'qwen') != 'qwen':
+        from transcription_providers import PAID
+        provider = request['transcriptionProvider']
+        recognized = recognition(request, folder)
+        atomic_json(folder / 'vocal-result.json', {'recognition': recognized,
+                    'model': {'provider': provider, 'model': PAID[provider]['model']},
+                    'metrics': {'paidCall': recognized.get('paidCall')}})
+        return
     import torch
     from benchmark import ResourceMonitor
     if not torch.cuda.is_available():

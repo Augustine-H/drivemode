@@ -8,6 +8,7 @@ from typing import Literal
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from recognition_languages import TranscriptionLanguage
+from transcription_providers import TranscriptionProvider
 
 class GenerateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
@@ -23,6 +24,8 @@ class GenerateRequest(BaseModel):
     identify: bool | None = None
     transcribe: bool | None = None
     transcriptionLanguage: TranscriptionLanguage | None = None
+    transcriptionProvider: TranscriptionProvider | None = None
+    paidAudioConsent: bool | None = None
     fingerprintConsent: bool | None = None
 
     @model_validator(mode='after')
@@ -35,6 +38,12 @@ class GenerateRequest(BaseModel):
         elif self.lyrics is not None:
             raise ValueError('Lyrics require song mode')
         if self.kind == 'recognition':
+            if self.transcriptionProvider is not None and self.transcribe is not True:
+                raise ValueError('Transcription provider requires transcription')
+            if self.transcriptionProvider in {'xai', 'openai', 'elevenlabs'} and self.paidAudioConsent is not True:
+                raise ValueError('Paid transcription requires explicit audio consent')
+            if self.paidAudioConsent is not None and self.transcriptionProvider not in {'xai', 'openai', 'elevenlabs'}:
+                raise ValueError('Paid consent requires a paid provider')
             if self.transcriptionLanguage is not None and self.transcribe is not True:
                 raise ValueError('Transcription language requires transcription')
             if not self.audioBase64 or not (self.identify or self.transcribe):
@@ -54,7 +63,7 @@ class GenerateRequest(BaseModel):
                         raise ValueError('Truncated recognition WAV')
             except Exception as error:
                 raise ValueError('Recognition requires mono 16 kHz PCM WAV within the selected duration limit') from error
-        elif any(v is not None for v in (self.audioBase64, self.identify, self.transcribe, self.fingerprintConsent, self.transcriptionLanguage, self.fullFile)):
+        elif any(v is not None for v in (self.audioBase64, self.identify, self.transcribe, self.fingerprintConsent, self.transcriptionLanguage, self.transcriptionProvider, self.paidAudioConsent, self.fullFile)):
             raise ValueError('Recognition fields require recognition mode')
         return self
 

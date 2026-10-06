@@ -69,7 +69,8 @@ class MusicWorker:
                 raise JobError("WORKER_UNAVAILABLE", 503)
             if request.get('kind') in {'song', 'recognition'}:
                 from vocal_models import prepared
-                if not prepared(request['kind']):
+                paid = request.get('kind') == 'recognition' and request.get('transcriptionProvider', 'qwen') != 'qwen'
+                if not paid and not prepared(request['kind']):
                     raise JobError('MODEL_NOT_PREPARED', 503)
             if shutil.disk_usage(self.directory).free < self.min_free_bytes:
                 raise JobError("INSUFFICIENT_DISK_SPACE", 507)
@@ -78,6 +79,7 @@ class MusicWorker:
             return result
 
     def health(self):
+        from paid_credentials import available
         with self.guard:
             accepting = bool(self.thread and self.thread.is_alive() and not self.stop.is_set() and not self.error)
             return {"service": "voice-grok-music-worker", "version": 1,
@@ -85,7 +87,7 @@ class MusicWorker:
                     "modelState": self.model_state, "activeJobId": self.active_job_id,
                     "queue": self.store.counts(), "capacity": self.capacity,
                     "model": self.model_metadata, "error": self.error,
-                    "offline": True, "apiCostUsd": 0}
+                    "offline": True, "apiCostUsd": 0, "transcriptionProviders": available()}
 
     def _run(self):
         try:
@@ -123,6 +125,8 @@ class MusicWorker:
                 self.store.finish(job_id)
                 return
             if request.get('kind') in {'song', 'recognition'}:
+                if request.get('kind') == 'recognition' and request.get('transcriptionProvider', 'qwen') != 'qwen':
+                    stage = 'PAID_TRANSCRIPTION'
                 self._extended(job, folder)
                 return
             with self.guard:
@@ -181,14 +185,17 @@ class MusicWorker:
     def _extended(self, job, folder):
         # The same queue and process lock serialize all GPU models. Release the
         # instrument model before starting an isolated dependency environment.
-        import torch
-        if isinstance(self.provider, StableAudioLocalProvider):
-            self.provider.model = None
-            self.provider.metadata = {}
-        gc.collect()
-        torch.cuda.empty_cache()
+        paid = job['request'].get('kind') == 'recognition' and job['request'].get('transcriptionProvider', 'qwen') != 'qwen'
+        if not paid:
+            import torch
+            if isinstance(self.provider, StableAudioLocalProvider):
+                self.provider.model = None
+                self.provider.metadata = {}
+            gc.collect()
+            torch.cuda.empty_cache()
         with self.guard:
-            self.model_metadata = None
+            if not paid:
+                self.model_metadata = None
             self.model_state = 'LOADING'
         request_path = folder / 'vocal-request.json'
         atomic_json(request_path, job['request'])
@@ -251,4 +258,4 @@ class MusicWorker:
         finally:
             request_path.unlink(missing_ok=True)
             with self.guard:
-                self.model_state = 'UNLOADED'
+                self.model_state = 'READY' if self.model_metadata else 'UNLOADED'

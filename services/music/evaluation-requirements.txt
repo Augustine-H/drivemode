@@ -1,0 +1,2 @@
+# Optional evaluation tooling; not required by production transcription.
+pykakasi==2.3.0

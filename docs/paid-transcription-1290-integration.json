@@ -1,0 +1,40 @@
+{
+  "version": "1.29.0",
+  "scope": "Three UI/NAS/Windows/API integration calls using the same existing 30-second Japanese microphone sample; no new accuracy benchmark",
+  "calls": [
+    {
+      "provider": "openai",
+      "seconds": 30.0,
+      "httpStatus": 200,
+      "elapsedSeconds": 2.332,
+      "estimatedUsd": 0.00225,
+      "actualBillKnown": false,
+      "state": "COMPLETED",
+      "inputScrubbed": true,
+      "textCharacters": 105
+    },
+    {
+      "provider": "xai",
+      "seconds": 30.0,
+      "httpStatus": 200,
+      "elapsedSeconds": 1.333,
+      "estimatedUsd": 0.000833,
+      "actualBillKnown": false,
+      "state": "COMPLETED",
+      "inputScrubbed": true,
+      "textCharacters": 107
+    },
+    {
+      "provider": "elevenlabs",
+      "seconds": 30.0,
+      "httpStatus": 200,
+      "elapsedSeconds": 1.734,
+      "estimatedUsd": 0.001833,
+      "actualBillKnown": false,
+      "state": "COMPLETED",
+      "inputScrubbed": true,
+      "textCharacters": 105
+    }
+  ],
+  "estimatedTotalUsd": 0.004916
+}
