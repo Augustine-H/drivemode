@@ -2,7 +2,7 @@
 
 ## 2026-10-06 한국어·영어·일본어 실제 유료 API 비교
 
-사용자가 세 API 키 등록을 완료한 뒤 한국어 30초, 영어 25초, 일본어 35.968초의 동일 입력으로 실제 요청 9회를 실행했고 모두 HTTP 200으로 완료했다. 영어 WER은 Qwen/xAI 4.76%, OpenAI 0%, ElevenLabs 9.52%. 일본어 엄격 CER은 Qwen 4.81%, xAI 6.73%, OpenAI/ElevenLabs 11.54%였지만 영문/가타카나 표기 차이를 구분한 사후 보조 분석은 Qwen/OpenAI/ElevenLabs 1.92% 동률이다. 한국어 사용자 확인 구간 CER은 Qwen/ElevenLabs 13.24%, xAI 23.53%, OpenAI 27.94%. 보조 WER은 ElevenLabs가 Qwen보다 단어 오류 1개 적었다. 제품 1.28.2의 기본 Qwen을 유지한다.
+사용자가 세 API 키 등록을 완료한 뒤 한국어 30초, 영어 25초, 일본어 35.968초의 동일 입력으로 실제 요청 9회를 실행했고 모두 HTTP 200으로 완료했다. 영어 엄격 WER은 Qwen/xAI 4.76%, OpenAI 0%, ElevenLabs 9.52%였으나 차이는 old/auld 표기뿐이고 사후 표기 동등성 진단은 모두 0%다. 일본어 엄격 CER은 Qwen 4.81%, xAI 6.73%, OpenAI/ElevenLabs 11.54%였지만 영문/가타카나 표기 차이를 구분한 사후 보조 분석은 Qwen/OpenAI/ElevenLabs 1.92% 동률이다. 한국어 사용자 확인 구간 CER은 Qwen/ElevenLabs 13.24%, xAI 23.53%, OpenAI 27.94%. 보조 WER은 ElevenLabs가 Qwen보다 단어 오류 1개 적었다. 제품 1.28.2의 기본 Qwen을 유지한다.
 
 유료 요청의 단일 응답 시간은 0.833–3.945초였다. 표시 단가에 따른 전체 비용 추정은 약 $0.015이며 실제 청구 내역은 미확인이다. 실제 음원 전송은 사용자 요청한 세 공급자 비교에 한정했고 자동 재시도·모델 대체·정답 힌트는 사용하지 않았다.
 

@@ -122,6 +122,21 @@
           "insertions": 0,
           "errorRate": 0.047619047619047616,
           "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        },
+        "supplementaryOrthographicAnalysis": {
+          "postHoc": true,
+          "policy": "Post-hoc whole-word old/auld dialectal spelling analysis only; strict frozen-reference WER unchanged",
+          "score": {
+            "unit": "words",
+            "referenceUnits": 21,
+            "hypothesisUnits": 21,
+            "errors": 0,
+            "substitutions": 0,
+            "deletions": 0,
+            "insertions": 0,
+            "errorRate": 0.0,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          }
         }
       },
       {
@@ -237,6 +252,21 @@
         "insertions": 0,
         "errorRate": 0.047619047619047616,
         "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementaryOrthographicAnalysis": {
+        "postHoc": true,
+        "policy": "Post-hoc whole-word old/auld dialectal spelling analysis only; strict frozen-reference WER unchanged",
+        "score": {
+          "unit": "words",
+          "referenceUnits": 21,
+          "hypothesisUnits": 21,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "errorRate": 0.0,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
       }
     },
     {
@@ -359,6 +389,21 @@
         "insertions": 0,
         "errorRate": 0.0,
         "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementaryOrthographicAnalysis": {
+        "postHoc": true,
+        "policy": "Post-hoc whole-word old/auld dialectal spelling analysis only; strict frozen-reference WER unchanged",
+        "score": {
+          "unit": "words",
+          "referenceUnits": 21,
+          "hypothesisUnits": 21,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "errorRate": 0.0,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
       }
     },
     {
@@ -474,6 +519,21 @@
         "insertions": 0,
         "errorRate": 0.09523809523809523,
         "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementaryOrthographicAnalysis": {
+        "postHoc": true,
+        "policy": "Post-hoc whole-word old/auld dialectal spelling analysis only; strict frozen-reference WER unchanged",
+        "score": {
+          "unit": "words",
+          "referenceUnits": 21,
+          "hypothesisUnits": 21,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "errorRate": 0.0,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
       }
     },
     {
@@ -523,7 +583,7 @@
     "One file per language, one request per provider; not statistical evidence of general singing accuracy",
     "Korean reference finalized by user after inference; partial last word retained; not supplied to models",
     "English folk song is not modern commercial pop",
-    "Japanese literal orthographic-equivalence diagnostic is post-hoc; strict score remains primary",
+    "Japanese and English literal orthographic-equivalence diagnostics are post-hoc; strict score remains primary",
     "Local baseline first request includes model cold loading; network API timing includes remote processing",
     "Listed rate estimate is not an actual account bill"
   ],
