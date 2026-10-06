@@ -1,0 +1,575 @@
+{
+  "date": "2026-10-06",
+  "state": "COMPLETED",
+  "productVersion": "1.28.2",
+  "productModelChanged": false,
+  "actualPaidApiCalls": 9,
+  "audioTransmittedExternally": true,
+  "actualBillKnown": false,
+  "automaticRetries": false,
+  "referenceUsedForInference": false,
+  "frozen": {
+    "frozenAtUnix": 1791286966.3889866,
+    "inferenceStarted": false,
+    "manifestSha256": "d9d976e13584df73127bef9b6ae11e4fb336df2c0b6e404e11b499c7186a6f00",
+    "policySha256": "07f31f0c0e71052d4aef273ea9dd2e1b07d5ff83b3d32448b7bd043eee38748a",
+    "evaluationCodeSha256": "5128dad1f8ede23f4078e9880dc9a89d825fb925c263c21c0b3bf70863feceb9"
+  },
+  "scoringPolicy": {
+    "primaryUnits": {
+      "ko": "characters",
+      "en": "words",
+      "ja": "characters"
+    },
+    "normalization": "Existing product lyrics_evaluation.py NFKC/casefold and LNM; full-file omissions and repeats counted",
+    "japaneseSupplementary": "pykakasi==2.3.0 whole-text conversion to hiragana for reference and hypothesis; reading dictionary may be wrong; diagnostic only, no replacements customized to output",
+    "englishEquivalence": false,
+    "referenceHintsSent": false,
+    "postHoc": false
+  },
+  "plan": {
+    "state": "PREPARED",
+    "date": "2026-10-06",
+    "source": "User authorized next independent ko/en/ja comparison",
+    "maximumCalls": 9,
+    "callsPerProvider": 3,
+    "secondsPerProvider": 96.3226875,
+    "estimatedUsdPerHour": {
+      "xai": 0.1,
+      "openai": 0.27,
+      "elevenlabs": 0.22
+    },
+    "maximumEstimatedUsd": 0.1,
+    "automaticRetries": false,
+    "referenceAndSongNameSent": false,
+    "credentialsInGit": false,
+    "apiCalled": false,
+    "estimatedUsdAllThree": 0.015786
+  },
+  "cases": [
+    {
+      "case": "ko-gtsinger-pop",
+      "language": "ko",
+      "seconds": 32.2986875,
+      "waveSha256": "2f2f0283ac696ff37a038ed822c66b567b1adf5d35efd8d8fd79f3e8adb4e88d",
+      "sourceRevision": "dc6c01fc093514f1e8137f98437328118c937128",
+      "parts": [
+        {
+          "sourceFile": "Korean/KO-Soprano-1/Breathy/all about you/Control_Group/0000.wav",
+          "sourceSha256": "0a3a87af9cdef5f866470dfeca1f9df507b79d4e4015da180d12afd38c210a69",
+          "annotationSha256": "a2402c8d2632c1c7b21d0e0bce0a7082fac89c34c0d01427b15cef0aba2cb5c7",
+          "seconds": 8.447,
+          "referenceSha256": "501d496c5ce3cc98e0614ac4227e91e2189dcde3b6e372374e7ca3bce4f0b1a9"
+        },
+        {
+          "sourceFile": "Korean/KO-Soprano-1/Breathy/all about you/Control_Group/0001.wav",
+          "sourceSha256": "ac80c75671d8cbe9872dfceb89e0df39f0af260cb5bffa5e3bcfacd99a39d51d",
+          "annotationSha256": "e8793b9f591d3637e80bc388c5e697ccf2039e57881e0c7a7e553062488873a8",
+          "seconds": 9.532,
+          "referenceSha256": "143667b2bc304b7d3de80e13acb7c330db132a03625d9b8893184238ad19b060"
+        },
+        {
+          "sourceFile": "Korean/KO-Soprano-1/Breathy/all about you/Control_Group/0002.wav",
+          "sourceSha256": "75a75cc6d1a05dce1a46af3ac2640f5b58a4ccc1df0fb6e8aa087e6947dbb50e",
+          "annotationSha256": "14b811ebe0e4aba40a4995596e707833723b37d132941c52594d9bb30749de75",
+          "seconds": 14.3196875,
+          "referenceSha256": "6e73770dd4a098331ff88783824a3e06a0f00b3d28680617fbb6424ea92d8cec"
+        }
+      ],
+      "referenceStatus": "Published annotation frozen before inference; no independent native listening audit; Korean/Japanese annotations pending refinement by source authors",
+      "style": "human solo pop rendition, unaccompanied, constructed concatenation of three segmented recordings",
+      "trainingOverlap": "unknown for Qwen and proprietary providers; new to this local evaluation, not a proven model-training holdout",
+      "referenceSha256": "7f7165d3d60d7389e0a697000466edd1eb24fbdc64fbe5eb9a7f0d02e3610965"
+    },
+    {
+      "case": "en-gtsinger-pop",
+      "language": "en",
+      "seconds": 31.386,
+      "waveSha256": "1bee1e463bd4f823478060165724f2582a839206e351531f36f5a5e5eaa40d96",
+      "sourceRevision": "dc6c01fc093514f1e8137f98437328118c937128",
+      "parts": [
+        {
+          "sourceFile": "English/EN-Alto-1/Breathy/let it go/Control_Group/0000.wav",
+          "sourceSha256": "46684859a2161eff23b3b872ef17399858d8085d6c32a59eebe1421c625ae29e",
+          "annotationSha256": "3e8a07afc33181a2c1bc26d5c311503c97c7ee0db5c7e200c6672280a287ecce",
+          "seconds": 8.451,
+          "referenceSha256": "445a204a9d7c08a5335b03b69f8ddfb27a1111fc7270e79d9daff58fd8a06672"
+        },
+        {
+          "sourceFile": "English/EN-Alto-1/Breathy/let it go/Control_Group/0001.wav",
+          "sourceSha256": "bf84eb022c6b86ccf6570742c99eb6804af25533fc7ee0c5845441d0a1233622",
+          "annotationSha256": "acc4d575c0dab81e64bd5198b48a7dce019755e4727662e0563a248d67c64f15",
+          "seconds": 13.623,
+          "referenceSha256": "6ea50846ae45909b5ea2b6e811b4e8d3eb52f81575d0f9eba64da06a9a2cb047"
+        },
+        {
+          "sourceFile": "English/EN-Alto-1/Breathy/let it go/Control_Group/0002.wav",
+          "sourceSha256": "42e0b4502feec1bce60632ae24db48b961ba68c2d7de5c82c2f109655231e4a6",
+          "annotationSha256": "fabc4b016b23510de0572e8aa55ee02babe41df7dcd2481a1e2e4c2429af7022",
+          "seconds": 9.312,
+          "referenceSha256": "4627bfdee5d27a495780b423e49e5e16d43de531f5f7f6b6310e288caa3c32c8"
+        }
+      ],
+      "referenceStatus": "Published annotation frozen before inference; no independent native listening audit; Korean/Japanese annotations pending refinement by source authors",
+      "style": "human solo pop rendition, unaccompanied, constructed concatenation of three segmented recordings",
+      "trainingOverlap": "unknown for Qwen and proprietary providers; new to this local evaluation, not a proven model-training holdout",
+      "referenceSha256": "3ffa3333bacf3c727f41676e2c941787c3639ff19bab60e3b792ce946ab08c88"
+    },
+    {
+      "case": "ja-gtsinger-pop",
+      "language": "ja",
+      "seconds": 32.638,
+      "waveSha256": "7aaaa96f7f68abe69ac2d6b7c5f46af2c5cf60ae6328314223596c5dd3dabbcf",
+      "sourceRevision": "dc6c01fc093514f1e8137f98437328118c937128",
+      "parts": [
+        {
+          "sourceFile": "Japanese/JA-Soprano-1/Breathy/ただいま/Control_Group/0000.wav",
+          "sourceSha256": "a3e3368ff76a8e974f5dbbe654d036c167b5597fd7b2347ce1dd455c79b0e68f",
+          "annotationSha256": "3beb3a730e7c2fdb3072f6d47de369e24ace128b135ede9dec37739b9d00aeae",
+          "seconds": 9.354,
+          "referenceSha256": "b8cbafe21cbbeacbdeaf28aae331df12002975a593b255dea5f2eba608b56ddf"
+        },
+        {
+          "sourceFile": "Japanese/JA-Soprano-1/Breathy/ただいま/Control_Group/0001.wav",
+          "sourceSha256": "95ffc3d7e1860ba1e66854fbd4d9191d55725646e2dd6dff885dbc9d6ac1acb5",
+          "annotationSha256": "93ecf7ad2bb89fab346cfc5bde90b57aecf74acb444d5a7a184bf906a7b0cf0f",
+          "seconds": 11.834,
+          "referenceSha256": "2d4a44d5b4123d1ed92d20ff84b77de7dd2be51abeacf4da194a5467355a81bd"
+        },
+        {
+          "sourceFile": "Japanese/JA-Soprano-1/Breathy/ただいま/Control_Group/0002.wav",
+          "sourceSha256": "d0ac84556434c1b873fb04924ef2d82a3efb9f9eaaa7b9dc1c45d522bb1df86a",
+          "annotationSha256": "8264038b00d7c68b0d8a17389dc0805bc7d98d9156b08a5eb22703f7dddb048c",
+          "seconds": 11.45,
+          "referenceSha256": "7e15f542a56435c86743d1e7bd03cbabbc76036c4994d114013fb1df9e773900"
+        }
+      ],
+      "referenceStatus": "Published annotation frozen before inference; no independent native listening audit; Korean/Japanese annotations pending refinement by source authors",
+      "style": "human solo pop rendition, unaccompanied, constructed concatenation of three segmented recordings",
+      "trainingOverlap": "unknown for Qwen and proprietary providers; new to this local evaluation, not a proven model-training holdout",
+      "referenceSha256": "e094dd9b8e7f4303541c8b3d26fb3fbfcaf5f1989e7318d161cbb7ee4dcce90c"
+    }
+  ],
+  "results": [
+    {
+      "case": "ko-gtsinger-pop",
+      "language": "ko",
+      "seconds": 32.2986875,
+      "waveSha256": "2f2f0283ac696ff37a038ed822c66b567b1adf5d35efd8d8fd79f3e8adb4e88d",
+      "apiElapsedSeconds": 17.683,
+      "metrics": {
+        "totalSeconds": 13.319,
+        "peakAllocatedMiB": 4066.65,
+        "peakReservedMiB": 4130.0,
+        "resources": {
+          "peakProcessRamMiB": 4460.12,
+          "gpuUtilizationPeakPercent": 42,
+          "gpuMemoryDevicePeakMiB": 5659,
+          "gpuSamples": 20,
+          "gpuMetricsScope": "whole-device-including-other-apps",
+          "ramMeasurement": "sampled-process-working-set"
+        }
+      },
+      "score": {
+        "unit": "characters",
+        "referenceUnits": 54,
+        "hypothesisUnits": 69,
+        "errors": 31,
+        "substitutions": 14,
+        "deletions": 1,
+        "insertions": 16,
+        "errorRate": 0.5740740740740741,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "provider": "qwen"
+    },
+    {
+      "case": "en-gtsinger-pop",
+      "language": "en",
+      "seconds": 31.386,
+      "waveSha256": "1bee1e463bd4f823478060165724f2582a839206e351531f36f5a5e5eaa40d96",
+      "apiElapsedSeconds": 16.41,
+      "metrics": {
+        "totalSeconds": 12.663,
+        "peakAllocatedMiB": 4066.65,
+        "peakReservedMiB": 4130.0,
+        "resources": {
+          "peakProcessRamMiB": 3799.36,
+          "gpuUtilizationPeakPercent": 44,
+          "gpuMemoryDevicePeakMiB": 5693,
+          "gpuSamples": 20,
+          "gpuMetricsScope": "whole-device-including-other-apps",
+          "ramMeasurement": "sampled-process-working-set"
+        }
+      },
+      "score": {
+        "unit": "words",
+        "referenceUnits": 47,
+        "hypothesisUnits": 48,
+        "errors": 2,
+        "substitutions": 1,
+        "deletions": 0,
+        "insertions": 1,
+        "errorRate": 0.0425531914893617,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "provider": "qwen"
+    },
+    {
+      "case": "ja-gtsinger-pop",
+      "language": "ja",
+      "seconds": 32.638,
+      "waveSha256": "7aaaa96f7f68abe69ac2d6b7c5f46af2c5cf60ae6328314223596c5dd3dabbcf",
+      "apiElapsedSeconds": 14.299,
+      "metrics": {
+        "totalSeconds": 10.949,
+        "peakAllocatedMiB": 4066.65,
+        "peakReservedMiB": 4130.0,
+        "resources": {
+          "peakProcessRamMiB": 3771.84,
+          "gpuUtilizationPeakPercent": 46,
+          "gpuMemoryDevicePeakMiB": 5688,
+          "gpuSamples": 18,
+          "gpuMetricsScope": "whole-device-including-other-apps",
+          "ramMeasurement": "sampled-process-working-set"
+        }
+      },
+      "score": {
+        "unit": "characters",
+        "referenceUnits": 46,
+        "hypothesisUnits": 50,
+        "errors": 14,
+        "substitutions": 8,
+        "deletions": 1,
+        "insertions": 5,
+        "errorRate": 0.30434782608695654,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementaryReadingAnalysis": {
+        "postHoc": false,
+        "policy": "pykakasi==2.3.0 whole-text conversion to hiragana for reference and hypothesis; reading dictionary may be wrong; diagnostic only, no replacements customized to output",
+        "score": {
+          "unit": "characters",
+          "referenceUnits": 53,
+          "hypothesisUnits": 58,
+          "errors": 8,
+          "substitutions": 3,
+          "deletions": 0,
+          "insertions": 5,
+          "errorRate": 0.1509433962264151,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
+      },
+      "provider": "qwen"
+    },
+    {
+      "provider": "xai",
+      "model": "grok-voice-transcribe-2.0",
+      "case": "ko-gtsinger-pop",
+      "language": "ko",
+      "seconds": 32.2986875,
+      "waveSha256": "2f2f0283ac696ff37a038ed822c66b567b1adf5d35efd8d8fd79f3e8adb4e88d",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.000897185763888889,
+      "apiElapsedSeconds": 1.133,
+      "usage": null,
+      "reportedDuration": 32.299,
+      "detectedLanguage": null,
+      "score": {
+        "unit": "characters",
+        "referenceUnits": 54,
+        "hypothesisUnits": 55,
+        "errors": 16,
+        "substitutions": 13,
+        "deletions": 1,
+        "insertions": 2,
+        "errorRate": 0.2962962962962963,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      }
+    },
+    {
+      "provider": "xai",
+      "model": "grok-voice-transcribe-2.0",
+      "case": "en-gtsinger-pop",
+      "language": "en",
+      "seconds": 31.386,
+      "waveSha256": "1bee1e463bd4f823478060165724f2582a839206e351531f36f5a5e5eaa40d96",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.0008718333333333334,
+      "apiElapsedSeconds": 0.704,
+      "usage": null,
+      "reportedDuration": 31.386,
+      "detectedLanguage": null,
+      "score": {
+        "unit": "words",
+        "referenceUnits": 47,
+        "hypothesisUnits": 48,
+        "errors": 2,
+        "substitutions": 1,
+        "deletions": 0,
+        "insertions": 1,
+        "errorRate": 0.0425531914893617,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      }
+    },
+    {
+      "provider": "xai",
+      "model": "grok-voice-transcribe-2.0",
+      "case": "ja-gtsinger-pop",
+      "language": "ja",
+      "seconds": 32.638,
+      "waveSha256": "7aaaa96f7f68abe69ac2d6b7c5f46af2c5cf60ae6328314223596c5dd3dabbcf",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.0009066111111111111,
+      "apiElapsedSeconds": 0.906,
+      "usage": null,
+      "reportedDuration": 32.638,
+      "detectedLanguage": null,
+      "score": {
+        "unit": "characters",
+        "referenceUnits": 46,
+        "hypothesisUnits": 46,
+        "errors": 1,
+        "substitutions": 1,
+        "deletions": 0,
+        "insertions": 0,
+        "errorRate": 0.021739130434782608,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementaryReadingAnalysis": {
+        "postHoc": false,
+        "policy": "pykakasi==2.3.0 whole-text conversion to hiragana for reference and hypothesis; reading dictionary may be wrong; diagnostic only, no replacements customized to output",
+        "score": {
+          "unit": "characters",
+          "referenceUnits": 53,
+          "hypothesisUnits": 53,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "errorRate": 0.0,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-transcribe",
+      "case": "ko-gtsinger-pop",
+      "language": "ko",
+      "seconds": 32.2986875,
+      "waveSha256": "2f2f0283ac696ff37a038ed822c66b567b1adf5d35efd8d8fd79f3e8adb4e88d",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.0024224015625000004,
+      "apiElapsedSeconds": 2.382,
+      "usage": {
+        "type": "duration",
+        "seconds": 33
+      },
+      "reportedDuration": null,
+      "detectedLanguage": [
+        {
+          "code": "ko"
+        }
+      ],
+      "score": {
+        "unit": "characters",
+        "referenceUnits": 54,
+        "hypothesisUnits": 55,
+        "errors": 16,
+        "substitutions": 15,
+        "deletions": 0,
+        "insertions": 1,
+        "errorRate": 0.2962962962962963,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-transcribe",
+      "case": "en-gtsinger-pop",
+      "language": "en",
+      "seconds": 31.386,
+      "waveSha256": "1bee1e463bd4f823478060165724f2582a839206e351531f36f5a5e5eaa40d96",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.00235395,
+      "apiElapsedSeconds": 1.432,
+      "usage": {
+        "type": "duration",
+        "seconds": 32
+      },
+      "reportedDuration": null,
+      "detectedLanguage": [
+        {
+          "code": "en"
+        }
+      ],
+      "score": {
+        "unit": "words",
+        "referenceUnits": 47,
+        "hypothesisUnits": 48,
+        "errors": 2,
+        "substitutions": 1,
+        "deletions": 0,
+        "insertions": 1,
+        "errorRate": 0.0425531914893617,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-transcribe",
+      "case": "ja-gtsinger-pop",
+      "language": "ja",
+      "seconds": 32.638,
+      "waveSha256": "7aaaa96f7f68abe69ac2d6b7c5f46af2c5cf60ae6328314223596c5dd3dabbcf",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.0024478499999999997,
+      "apiElapsedSeconds": 2.445,
+      "usage": {
+        "type": "duration",
+        "seconds": 33
+      },
+      "reportedDuration": null,
+      "detectedLanguage": [
+        {
+          "code": "ja"
+        }
+      ],
+      "score": {
+        "unit": "characters",
+        "referenceUnits": 46,
+        "hypothesisUnits": 46,
+        "errors": 3,
+        "substitutions": 3,
+        "deletions": 0,
+        "insertions": 0,
+        "errorRate": 0.06521739130434782,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementaryReadingAnalysis": {
+        "postHoc": false,
+        "policy": "pykakasi==2.3.0 whole-text conversion to hiragana for reference and hypothesis; reading dictionary may be wrong; diagnostic only, no replacements customized to output",
+        "score": {
+          "unit": "characters",
+          "referenceUnits": 53,
+          "hypothesisUnits": 53,
+          "errors": 2,
+          "substitutions": 2,
+          "deletions": 0,
+          "insertions": 0,
+          "errorRate": 0.03773584905660377,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
+      }
+    },
+    {
+      "provider": "elevenlabs",
+      "model": "scribe_v2",
+      "case": "ko-gtsinger-pop",
+      "language": "ko",
+      "seconds": 32.2986875,
+      "waveSha256": "2f2f0283ac696ff37a038ed822c66b567b1adf5d35efd8d8fd79f3e8adb4e88d",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.0019738086805555556,
+      "apiElapsedSeconds": 1.832,
+      "usage": null,
+      "reportedDuration": null,
+      "detectedLanguage": "kor",
+      "score": {
+        "unit": "characters",
+        "referenceUnits": 54,
+        "hypothesisUnits": 54,
+        "errors": 6,
+        "substitutions": 4,
+        "deletions": 1,
+        "insertions": 1,
+        "errorRate": 0.1111111111111111,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      }
+    },
+    {
+      "provider": "elevenlabs",
+      "model": "scribe_v2",
+      "case": "en-gtsinger-pop",
+      "language": "en",
+      "seconds": 31.386,
+      "waveSha256": "1bee1e463bd4f823478060165724f2582a839206e351531f36f5a5e5eaa40d96",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.0019180333333333334,
+      "apiElapsedSeconds": 1.876,
+      "usage": null,
+      "reportedDuration": null,
+      "detectedLanguage": "eng",
+      "score": {
+        "unit": "words",
+        "referenceUnits": 47,
+        "hypothesisUnits": 48,
+        "errors": 3,
+        "substitutions": 2,
+        "deletions": 0,
+        "insertions": 1,
+        "errorRate": 0.06382978723404255,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      }
+    },
+    {
+      "provider": "elevenlabs",
+      "model": "scribe_v2",
+      "case": "ja-gtsinger-pop",
+      "language": "ja",
+      "seconds": 32.638,
+      "waveSha256": "7aaaa96f7f68abe69ac2d6b7c5f46af2c5cf60ae6328314223596c5dd3dabbcf",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.0019945444444444444,
+      "apiElapsedSeconds": 1.7,
+      "usage": null,
+      "reportedDuration": null,
+      "detectedLanguage": "jpn",
+      "score": {
+        "unit": "characters",
+        "referenceUnits": 46,
+        "hypothesisUnits": 45,
+        "errors": 3,
+        "substitutions": 2,
+        "deletions": 1,
+        "insertions": 0,
+        "errorRate": 0.06521739130434782,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementaryReadingAnalysis": {
+        "postHoc": false,
+        "policy": "pykakasi==2.3.0 whole-text conversion to hiragana for reference and hypothesis; reading dictionary may be wrong; diagnostic only, no replacements customized to output",
+        "score": {
+          "unit": "characters",
+          "referenceUnits": 53,
+          "hypothesisUnits": 52,
+          "errors": 2,
+          "substitutions": 1,
+          "deletions": 1,
+          "insertions": 0,
+          "errorRate": 0.03773584905660377,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
+      }
+    }
+  ],
+  "limitations": [
+    "One constructed case per language, one trial per route; not statistical evidence",
+    "Three complete numbered source segments concatenated, not an uninterrupted original recording",
+    "Unaccompanied human pop renditions, not commercial mixed recordings or user microphone captures",
+    "Published Korean/Japanese annotation refinement remains pending in official source README; no independent native listening audit",
+    "New to local evaluation; model-training overlap unknown for every evaluated provider",
+    "Japanese hiragana dictionary reading is supplementary and can select an incorrect reading",
+    "No provider VRAM/RAM observation and no actual billing verification"
+  ]
+}

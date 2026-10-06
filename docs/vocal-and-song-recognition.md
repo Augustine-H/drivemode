@@ -1,5 +1,14 @@
 # 보컬 생성 및 노래 인식
 
+## 2026-10-06 새 공개 가창 자료의 유료 API 추가 비교
+
+추론 전에 음원·정답·채점 기준을 고정한 새 한국어·영어·일본어 입력에서 유료 요청 9회를 추가했고 모두 HTTP 200으로 완료했다. 한국어 공개 주석 대비 CER은 Qwen 57.41%, xAI/OpenAI 29.63%, ElevenLabs 11.11%였다. 일본어 엄격 CER은 Qwen 30.43%, xAI 2.17%, OpenAI/ElevenLabs 6.52%였고 사전 고정한 히라가나 보조 진단에서도 xAI가 가장 낮았다. 영어 WER은 Qwen/xAI/OpenAI 4.26%, ElevenLabs 6.38%다.
+
+이 입력은 GTSinger의 무반주 현대 가창 분할 세 개를 연결한 자료로, 상업 원본 믹스나 실제 마이크와 구분한다. 한국어·일본어 공개 주석 정제와 독립 청취 검수가 남아 있고 모델 학습 중복은 미확인이다. Qwen 제품 출력의 구간 경계 중복도 점수에 포함됐다. 이번에는 개선 신호가 있지만 앞선 실사용 녹음 결과와 차이가 있어 기본 Qwen과 버전 1.28.2를 유지한다. 한국어 ElevenLabs·일본어 xAI를 추가 실사용 검증 후보로 둔다. 자동 유료 호출은 적용하지 않았다.
+
+- [추가 비교 결과와 한계](./paid-lyrics-modern-comparison-20261006.md)
+- [추가 집계 수치](./paid-lyrics-modern-comparison-20261006.json)
+
 ## 2026-10-06 한국어·영어·일본어 실제 유료 API 비교
 
 사용자가 세 API 키 등록을 완료한 뒤 한국어 30초, 영어 25초, 일본어 35.968초의 동일 입력으로 실제 요청 9회를 실행했고 모두 HTTP 200으로 완료했다. 영어 엄격 WER은 Qwen/xAI 4.76%, OpenAI 0%, ElevenLabs 9.52%였으나 차이는 old/auld 표기뿐이고 사후 표기 동등성 진단은 모두 0%다. 일본어 엄격 CER은 Qwen 4.81%, xAI 6.73%, OpenAI/ElevenLabs 11.54%였지만 영문/가타카나 표기 차이를 구분한 사후 보조 분석은 Qwen/OpenAI/ElevenLabs 1.92% 동률이다. 한국어 사용자 확인 구간 CER은 Qwen/ElevenLabs 13.24%, xAI 23.53%, OpenAI 27.94%. 보조 WER은 ElevenLabs가 Qwen보다 단어 오류 1개 적었다. 제품 1.28.2의 기본 Qwen을 유지한다.
