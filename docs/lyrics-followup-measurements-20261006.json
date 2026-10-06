@@ -1,0 +1,2160 @@
+{
+  "date": "2026-10-06",
+  "productVersion": "1.28.2",
+  "productModelChanged": false,
+  "audioTransmittedExternally": false,
+  "paidApiCalled": false,
+  "referenceUsedForInference": false,
+  "gpu": "RTX 4070 Ti 12 GB",
+  "method": {
+    "sampleRate": 16000,
+    "channels": 1,
+    "windowSeconds": 30,
+    "overlapSeconds": 3,
+    "qwenLanguage": "explicit",
+    "ACEAndVocalParseLanguage": "automatic",
+    "VietLyricsLanguage": "explicit Vietnamese",
+    "ThaiStudentLanguage": "explicit Thai",
+    "WhisperMaximumNewTokens": 440,
+    "referenceIndependentHumanListeningAudit": false,
+    "gpuMetricsScope": "whole device including other apps",
+    "ramMeasurement": "sampled inference process working set",
+    "bf16Backend": "GPU + CPU explicit placement; not a pure precision-only experiment"
+  },
+  "runs": {
+    "bf16-4533": {
+      "state": "INTERRUPTED_BY_USER",
+      "revision": "53062cf7d0e09d463d7fc4c218ce2ecb71400f29",
+      "loadSeconds": 5.1,
+      "loadResources": {
+        "peakProcessRamMiB": 5070.76,
+        "gpuUtilizationPeakPercent": 21,
+        "gpuMemoryDevicePeakMiB": 8985,
+        "gpuSamples": 9,
+        "gpuMetricsScope": "whole-device-including-other-apps",
+        "ramMeasurement": "sampled-process-working-set"
+      },
+      "checkpointLoad": {
+        "missingKeys": [],
+        "mismatchedKeys": [],
+        "unexpectedKeyCount": 1102,
+        "unusedModuleKeyCounts": {
+          "talker": 293,
+          "token2wav": 809
+        }
+      },
+      "parameterDevices": [
+        "cuda:0",
+        "meta"
+      ],
+      "deviceMap": {
+        "audio_tower": 0,
+        "visual": 0,
+        "model.embed_tokens": 0,
+        "model.layers.0": 0,
+        "model.layers.1": 0,
+        "model.layers.2": 0,
+        "model.layers.3": 0,
+        "model.layers.4": 0,
+        "model.layers.5": 0,
+        "model.layers.6": 0,
+        "model.layers.7": 0,
+        "model.layers.8": "cpu",
+        "model.layers.9": "cpu",
+        "model.layers.10": "cpu",
+        "model.layers.11": "cpu",
+        "model.layers.12": "cpu",
+        "model.layers.13": "cpu",
+        "model.layers.14": "cpu",
+        "model.layers.15": "cpu",
+        "model.layers.16": "cpu",
+        "model.layers.17": "cpu",
+        "model.layers.18": "cpu",
+        "model.layers.19": "cpu",
+        "model.layers.20": "cpu",
+        "model.layers.21": "cpu",
+        "model.layers.22": "cpu",
+        "model.layers.23": "cpu",
+        "model.layers.24": "cpu",
+        "model.layers.25": "cpu",
+        "model.layers.26": "cpu",
+        "model.layers.27": "cpu",
+        "model.norm": "cpu",
+        "model.rotary_emb": "cpu",
+        "lm_head": "cpu"
+      },
+      "workerRestartExitCode": 0,
+      "transformersVersion": "4.53.3",
+      "inputSystem": "checkpoint-chat-template-default",
+      "fullFiles": false,
+      "completedWholeFiles": 5,
+      "plannedWholeFiles": 6,
+      "notCompletedCases": [
+        "vi-citizens"
+      ],
+      "interruptionReason": "User prioritized new candidate comparison over remaining CPU-offloaded BF16 inference",
+      "results": [
+        {
+          "case": "vi-original",
+          "language": "vi",
+          "seconds": 62.1453125,
+          "score": {
+            "unit": "words",
+            "referenceUnits": 73,
+            "hypothesisUnits": 52,
+            "errors": 73,
+            "substitutions": 52,
+            "deletions": 21,
+            "insertions": 0,
+            "errorRate": 1.0,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 242.613,
+          "peakAllocatedMiB": 8454.49,
+          "resources": {
+            "peakProcessRamMiB": 14147.15,
+            "gpuUtilizationPeakPercent": 89,
+            "gpuMemoryDevicePeakMiB": 11341,
+            "gpuSamples": 427,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 359,
+          "waveSha256": "2c7884588d2ff630482db764d7285d2cf8a2501cb147cde495c6fe6258a658fb",
+          "referenceStatus": "scored using frozen paired reference",
+          "supplementaryCer": {
+            "unit": "characters",
+            "referenceUnits": 267,
+            "hypothesisUnits": 268,
+            "errors": 236,
+            "substitutions": 211,
+            "deletions": 12,
+            "insertions": 13,
+            "errorRate": 0.8838951310861424,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 70,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 57.0,
+              "generatedTokens": 82,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            },
+            {
+              "startSeconds": 54.0,
+              "endSeconds": 62.1453125,
+              "generatedTokens": 26,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "warnings": []
+        },
+        {
+          "case": "th-original",
+          "language": "th",
+          "seconds": 44.234,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 216,
+            "hypothesisUnits": 1550,
+            "errors": 1550,
+            "substitutions": 216,
+            "deletions": 0,
+            "insertions": 1334,
+            "errorRate": 7.175925925925926,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 735.954,
+          "peakAllocatedMiB": 8454.49,
+          "resources": {
+            "peakProcessRamMiB": 14147.29,
+            "gpuUtilizationPeakPercent": 90,
+            "gpuMemoryDevicePeakMiB": 11332,
+            "gpuSamples": 1291,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 2001,
+          "waveSha256": "a33995c6cf48b9dced998a711a30a4e72858810a4375c1aa94b97bbe375e1dbd",
+          "referenceStatus": "scored using frozen paired reference",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 512,
+              "tokenLimitReached": true,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 44.234,
+              "generatedTokens": 33,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "warnings": [
+            "반복이 많은 인식 결과입니다. 오인식 또는 정상 후렴일 수 있어 가사를 보존했습니다. 구간 원문과 실제 노래를 비교하세요."
+          ]
+        },
+        {
+          "case": "zh-original",
+          "language": "zh",
+          "seconds": 49.776,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 84,
+            "hypothesisUnits": 980,
+            "errors": 973,
+            "substitutions": 77,
+            "deletions": 0,
+            "insertions": 896,
+            "errorRate": 11.583333333333334,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 910.856,
+          "peakAllocatedMiB": 8454.49,
+          "resources": {
+            "peakProcessRamMiB": 14148.11,
+            "gpuUtilizationPeakPercent": 91,
+            "gpuMemoryDevicePeakMiB": 10359,
+            "gpuSamples": 1613,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 1143,
+          "waveSha256": "b1e0786a76d46a388c55c8640259ec10eea67452c7be7d7d2fab92c0334fa404",
+          "referenceStatus": "scored using frozen paired reference",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 512,
+              "tokenLimitReached": true,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 49.776,
+              "generatedTokens": 194,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "warnings": [
+            "반복이 많은 인식 결과입니다. 오인식 또는 정상 후렴일 수 있어 가사를 보존했습니다. 구간 원문과 실제 노래를 비교하세요."
+          ]
+        },
+        {
+          "case": "zh-cloud",
+          "language": "zh",
+          "seconds": 41.93525,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 24,
+            "hypothesisUnits": 1277,
+            "errors": 1277,
+            "substitutions": 24,
+            "deletions": 0,
+            "insertions": 1253,
+            "errorRate": 53.208333333333336,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 1328.501,
+          "peakAllocatedMiB": 8454.49,
+          "resources": {
+            "peakProcessRamMiB": 14149.93,
+            "gpuUtilizationPeakPercent": 93,
+            "gpuMemoryDevicePeakMiB": 11347,
+            "gpuSamples": 2348,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 1687,
+          "waveSha256": "6518d9b86584e8ec43e3f7e4e6841058e12abb465c4503dddd963e31692f806d",
+          "referenceStatus": "scored using frozen paired reference",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 512,
+              "tokenLimitReached": true,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 41.93525,
+              "generatedTokens": 512,
+              "tokenLimitReached": true,
+              "ambiguousBoundary": true
+            }
+          ],
+          "warnings": [
+            "반복이 많은 인식 결과입니다. 오인식 또는 정상 후렴일 수 있어 가사를 보존했습니다. 구간 원문과 실제 노래를 비교하세요."
+          ]
+        },
+        {
+          "case": "th-royal",
+          "language": "th",
+          "seconds": 91.23125,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 117,
+            "hypothesisUnits": 1114,
+            "errors": 1114,
+            "substitutions": 117,
+            "deletions": 0,
+            "insertions": 997,
+            "errorRate": 9.521367521367521,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 946.665,
+          "peakAllocatedMiB": 8454.49,
+          "resources": {
+            "peakProcessRamMiB": 14153.05,
+            "gpuUtilizationPeakPercent": 92,
+            "gpuMemoryDevicePeakMiB": 11358,
+            "gpuSamples": 1675,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 1399,
+          "waveSha256": "15f72ed1c9a9ce3067efb21a7b1fe1f957cee6db391be6523c40ef18915fb8e5",
+          "referenceStatus": "scored using frozen paired reference",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 86,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 57.0,
+              "generatedTokens": 100,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            },
+            {
+              "startSeconds": 54.0,
+              "endSeconds": 84.0,
+              "generatedTokens": 512,
+              "tokenLimitReached": true,
+              "ambiguousBoundary": true
+            },
+            {
+              "startSeconds": 81.0,
+              "endSeconds": 91.23125,
+              "generatedTokens": 44,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "warnings": [
+            "반복이 많은 인식 결과입니다. 오인식 또는 정상 후렴일 수 있어 가사를 보존했습니다. 구간 원문과 실제 노래를 비교하세요."
+          ]
+        }
+      ]
+    },
+    "qwen-baseline": {
+      "state": "COMPLETED",
+      "revision": "bcd2b5b7f32b480ab5790554cfa8347f246a14f3",
+      "loadSeconds": 42.875,
+      "loadResources": {
+        "peakProcessRamMiB": 4110.14,
+        "gpuUtilizationPeakPercent": 40,
+        "gpuMemoryDevicePeakMiB": 5979,
+        "gpuSamples": 11,
+        "gpuMetricsScope": "whole-device-including-other-apps",
+        "ramMeasurement": "sampled-process-working-set"
+      },
+      "workerRestartExitCode": 0,
+      "fullFiles": true,
+      "results": [
+        {
+          "case": "vi-original",
+          "language": "vi",
+          "seconds": 62.1453125,
+          "score": {
+            "unit": "words",
+            "referenceUnits": 73,
+            "hypothesisUnits": 18,
+            "errors": 71,
+            "substitutions": 16,
+            "deletions": 55,
+            "insertions": 0,
+            "errorRate": 0.9726027397260274,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 36.894,
+          "peakAllocatedMiB": 4074.77,
+          "resources": {
+            "peakProcessRamMiB": 1772.09,
+            "gpuUtilizationPeakPercent": 49,
+            "gpuMemoryDevicePeakMiB": 6407,
+            "gpuSamples": 66,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 87,
+          "waveSha256": "2c7884588d2ff630482db764d7285d2cf8a2501cb147cde495c6fe6258a658fb",
+          "referenceStatus": "scored using frozen paired reference",
+          "supplementaryCer": {
+            "unit": "characters",
+            "referenceUnits": 267,
+            "hypothesisUnits": 69,
+            "errors": 226,
+            "substitutions": 28,
+            "deletions": 198,
+            "insertions": 0,
+            "errorRate": 0.846441947565543,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 7,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 57.0,
+              "generatedTokens": 512,
+              "tokenLimitReached": true,
+              "ambiguousBoundary": true
+            },
+            {
+              "startSeconds": 54.0,
+              "endSeconds": 62.1453125,
+              "generatedTokens": 5,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "warnings": []
+        },
+        {
+          "case": "th-original",
+          "language": "th",
+          "seconds": 44.234,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 216,
+            "hypothesisUnits": 199,
+            "errors": 183,
+            "substitutions": 154,
+            "deletions": 23,
+            "insertions": 6,
+            "errorRate": 0.8472222222222222,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 7.582,
+          "peakAllocatedMiB": 4074.77,
+          "resources": {
+            "peakProcessRamMiB": 1778.39,
+            "gpuUtilizationPeakPercent": 45,
+            "gpuMemoryDevicePeakMiB": 6407,
+            "gpuSamples": 14,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 207,
+          "waveSha256": "a33995c6cf48b9dced998a711a30a4e72858810a4375c1aa94b97bbe375e1dbd",
+          "referenceStatus": "scored using frozen paired reference",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 93,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 44.234,
+              "generatedTokens": 42,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "warnings": [
+            "반복이 많은 인식 결과입니다. 오인식 또는 정상 후렴일 수 있어 가사를 보존했습니다. 구간 원문과 실제 노래를 비교하세요."
+          ]
+        },
+        {
+          "case": "zh-original",
+          "language": "zh",
+          "seconds": 49.776,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 84,
+            "hypothesisUnits": 93,
+            "errors": 10,
+            "substitutions": 1,
+            "deletions": 0,
+            "insertions": 9,
+            "errorRate": 0.11904761904761904,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 4.719,
+          "peakAllocatedMiB": 4074.77,
+          "resources": {
+            "peakProcessRamMiB": 1779.73,
+            "gpuUtilizationPeakPercent": 47,
+            "gpuMemoryDevicePeakMiB": 6407,
+            "gpuSamples": 9,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 113,
+          "waveSha256": "b1e0786a76d46a388c55c8640259ec10eea67452c7be7d7d2fab92c0334fa404",
+          "referenceStatus": "scored using frozen paired reference",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 36,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 49.776,
+              "generatedTokens": 41,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "warnings": []
+        },
+        {
+          "case": "zh-cloud",
+          "language": "zh",
+          "seconds": 41.93525,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 24,
+            "hypothesisUnits": 23,
+            "errors": 19,
+            "substitutions": 14,
+            "deletions": 3,
+            "insertions": 2,
+            "errorRate": 0.7916666666666666,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 1.902,
+          "peakAllocatedMiB": 4074.77,
+          "resources": {
+            "peakProcessRamMiB": 1782.86,
+            "gpuUtilizationPeakPercent": 77,
+            "gpuMemoryDevicePeakMiB": 6407,
+            "gpuSamples": 4,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 32,
+          "waveSha256": "6518d9b86584e8ec43e3f7e4e6841058e12abb465c4503dddd963e31692f806d",
+          "referenceStatus": "scored using frozen paired reference",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 19,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 41.93525,
+              "generatedTokens": 11,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "warnings": []
+        },
+        {
+          "case": "th-royal",
+          "language": "th",
+          "seconds": 91.23125,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 117,
+            "hypothesisUnits": 157,
+            "errors": 135,
+            "substitutions": 95,
+            "deletions": 0,
+            "insertions": 40,
+            "errorRate": 1.1538461538461537,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 6.29,
+          "peakAllocatedMiB": 4074.77,
+          "resources": {
+            "peakProcessRamMiB": 1795.09,
+            "gpuUtilizationPeakPercent": 68,
+            "gpuMemoryDevicePeakMiB": 6407,
+            "gpuSamples": 12,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 166,
+          "waveSha256": "15f72ed1c9a9ce3067efb21a7b1fe1f957cee6db391be6523c40ef18915fb8e5",
+          "referenceStatus": "scored using frozen paired reference",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 50,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 57.0,
+              "generatedTokens": 29,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            },
+            {
+              "startSeconds": 54.0,
+              "endSeconds": 84.0,
+              "generatedTokens": 18,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            },
+            {
+              "startSeconds": 81.0,
+              "endSeconds": 91.23125,
+              "generatedTokens": 11,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "warnings": []
+        },
+        {
+          "case": "vi-citizens",
+          "language": "vi",
+          "seconds": 67.0,
+          "score": {
+            "unit": "words",
+            "referenceUnits": 120,
+            "hypothesisUnits": 120,
+            "errors": 104,
+            "substitutions": 100,
+            "deletions": 2,
+            "insertions": 2,
+            "errorRate": 0.8666666666666667,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 9.287,
+          "peakAllocatedMiB": 4074.77,
+          "resources": {
+            "peakProcessRamMiB": 1789.94,
+            "gpuUtilizationPeakPercent": 42,
+            "gpuMemoryDevicePeakMiB": 6407,
+            "gpuSamples": 17,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 532,
+          "waveSha256": "4856c7b7a3c56468bdd8c90bee64ad2cd190b1838ca25e6df4308f116444d5fe",
+          "referenceStatus": "scored using frozen paired reference",
+          "supplementaryCer": {
+            "unit": "characters",
+            "referenceUnits": 420,
+            "hypothesisUnits": 407,
+            "errors": 289,
+            "substitutions": 228,
+            "deletions": 37,
+            "insertions": 24,
+            "errorRate": 0.6880952380952381,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 69,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 57.0,
+              "generatedTokens": 67,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            },
+            {
+              "startSeconds": 54.0,
+              "endSeconds": 67.0,
+              "generatedTokens": 27,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "warnings": []
+        }
+      ]
+    },
+    "nf4-4533": {
+      "state": "COMPLETED",
+      "revision": "53062cf7d0e09d463d7fc4c218ce2ecb71400f29",
+      "loadSeconds": 15.999,
+      "loadResources": {
+        "peakProcessRamMiB": 5675.0,
+        "gpuUtilizationPeakPercent": 51,
+        "gpuMemoryDevicePeakMiB": 8447,
+        "gpuSamples": 28,
+        "gpuMetricsScope": "whole-device-including-other-apps",
+        "ramMeasurement": "sampled-process-working-set"
+      },
+      "checkpointLoad": {
+        "missingKeys": [],
+        "mismatchedKeys": [],
+        "unexpectedKeyCount": 1102,
+        "unusedModuleKeyCounts": {
+          "talker": 293,
+          "token2wav": 809
+        }
+      },
+      "parameterDevices": [
+        "cuda:0"
+      ],
+      "deviceMap": {
+        "": 0
+      },
+      "workerRestartExitCode": 0,
+      "transformersVersion": "4.53.3",
+      "fullFiles": true,
+      "results": [
+        {
+          "case": "vi-original",
+          "language": "vi",
+          "seconds": 62.1453125,
+          "score": {
+            "unit": "words",
+            "referenceUnits": 73,
+            "hypothesisUnits": 53,
+            "errors": 73,
+            "substitutions": 53,
+            "deletions": 20,
+            "insertions": 0,
+            "errorRate": 1.0,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 13.968,
+          "peakAllocatedMiB": 6271.91,
+          "resources": {
+            "peakProcessRamMiB": 1932.25,
+            "gpuUtilizationPeakPercent": 99,
+            "gpuMemoryDevicePeakMiB": 8907,
+            "gpuSamples": 25,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 347,
+          "waveSha256": "2c7884588d2ff630482db764d7285d2cf8a2501cb147cde495c6fe6258a658fb",
+          "referenceStatus": "scored using frozen paired reference",
+          "supplementaryCer": {
+            "unit": "characters",
+            "referenceUnits": 267,
+            "hypothesisUnits": 253,
+            "errors": 231,
+            "substitutions": 193,
+            "deletions": 26,
+            "insertions": 12,
+            "errorRate": 0.8651685393258427,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 47,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 57.0,
+              "generatedTokens": 85,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            },
+            {
+              "startSeconds": 54.0,
+              "endSeconds": 62.1453125,
+              "generatedTokens": 26,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "warnings": []
+        },
+        {
+          "case": "th-original",
+          "language": "th",
+          "seconds": 44.234,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 216,
+            "hypothesisUnits": 1203,
+            "errors": 1203,
+            "substitutions": 216,
+            "deletions": 0,
+            "insertions": 987,
+            "errorRate": 5.569444444444445,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 39.984,
+          "peakAllocatedMiB": 6271.91,
+          "resources": {
+            "peakProcessRamMiB": 1931.75,
+            "gpuUtilizationPeakPercent": 92,
+            "gpuMemoryDevicePeakMiB": 8907,
+            "gpuSamples": 71,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 1707,
+          "waveSha256": "a33995c6cf48b9dced998a711a30a4e72858810a4375c1aa94b97bbe375e1dbd",
+          "referenceStatus": "scored using frozen paired reference",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 512,
+              "tokenLimitReached": true,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 44.234,
+              "generatedTokens": 24,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "warnings": [
+            "반복이 많은 인식 결과입니다. 오인식 또는 정상 후렴일 수 있어 가사를 보존했습니다. 구간 원문과 실제 노래를 비교하세요."
+          ]
+        },
+        {
+          "case": "zh-original",
+          "language": "zh",
+          "seconds": 49.776,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 84,
+            "hypothesisUnits": 645,
+            "errors": 645,
+            "substitutions": 84,
+            "deletions": 0,
+            "insertions": 561,
+            "errorRate": 7.678571428571429,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 51.773,
+          "peakAllocatedMiB": 6271.91,
+          "resources": {
+            "peakProcessRamMiB": 1919.04,
+            "gpuUtilizationPeakPercent": 51,
+            "gpuMemoryDevicePeakMiB": 8907,
+            "gpuSamples": 92,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 1079,
+          "waveSha256": "b1e0786a76d46a388c55c8640259ec10eea67452c7be7d7d2fab92c0334fa404",
+          "referenceStatus": "scored using frozen paired reference",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 512,
+              "tokenLimitReached": true,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 49.776,
+              "generatedTokens": 192,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "warnings": [
+            "반복이 많은 인식 결과입니다. 오인식 또는 정상 후렴일 수 있어 가사를 보존했습니다. 구간 원문과 실제 노래를 비교하세요."
+          ]
+        },
+        {
+          "case": "zh-cloud",
+          "language": "zh",
+          "seconds": 41.93525,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 24,
+            "hypothesisUnits": 1704,
+            "errors": 1704,
+            "substitutions": 24,
+            "deletions": 0,
+            "insertions": 1680,
+            "errorRate": 71.0,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 76.784,
+          "peakAllocatedMiB": 6271.91,
+          "resources": {
+            "peakProcessRamMiB": 1918.96,
+            "gpuUtilizationPeakPercent": 49,
+            "gpuMemoryDevicePeakMiB": 8907,
+            "gpuSamples": 137,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 2119,
+          "waveSha256": "6518d9b86584e8ec43e3f7e4e6841058e12abb465c4503dddd963e31692f806d",
+          "referenceStatus": "scored using frozen paired reference",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 512,
+              "tokenLimitReached": true,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 41.93525,
+              "generatedTokens": 512,
+              "tokenLimitReached": true,
+              "ambiguousBoundary": true
+            }
+          ],
+          "warnings": [
+            "반복이 많은 인식 결과입니다. 오인식 또는 정상 후렴일 수 있어 가사를 보존했습니다. 구간 원문과 실제 노래를 비교하세요."
+          ]
+        },
+        {
+          "case": "th-royal",
+          "language": "th",
+          "seconds": 91.23125,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 117,
+            "hypothesisUnits": 474,
+            "errors": 474,
+            "substitutions": 117,
+            "deletions": 0,
+            "insertions": 357,
+            "errorRate": 4.051282051282051,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 20.411,
+          "peakAllocatedMiB": 6271.91,
+          "resources": {
+            "peakProcessRamMiB": 1922.09,
+            "gpuUtilizationPeakPercent": 92,
+            "gpuMemoryDevicePeakMiB": 8907,
+            "gpuSamples": 37,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 589,
+          "waveSha256": "15f72ed1c9a9ce3067efb21a7b1fe1f957cee6db391be6523c40ef18915fb8e5",
+          "referenceStatus": "scored using frozen paired reference",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 53,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 57.0,
+              "generatedTokens": 97,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            },
+            {
+              "startSeconds": 54.0,
+              "endSeconds": 84.0,
+              "generatedTokens": 69,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            },
+            {
+              "startSeconds": 81.0,
+              "endSeconds": 91.23125,
+              "generatedTokens": 39,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "warnings": [
+            "반복이 많은 인식 결과입니다. 오인식 또는 정상 후렴일 수 있어 가사를 보존했습니다. 구간 원문과 실제 노래를 비교하세요."
+          ]
+        },
+        {
+          "case": "vi-citizens",
+          "language": "vi",
+          "seconds": 67.0,
+          "score": {
+            "unit": "words",
+            "referenceUnits": 120,
+            "hypothesisUnits": 622,
+            "errors": 616,
+            "substitutions": 114,
+            "deletions": 0,
+            "insertions": 502,
+            "errorRate": 5.133333333333334,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 78.939,
+          "peakAllocatedMiB": 6271.91,
+          "resources": {
+            "peakProcessRamMiB": 1920.78,
+            "gpuUtilizationPeakPercent": 88,
+            "gpuMemoryDevicePeakMiB": 8907,
+            "gpuSamples": 141,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 2874,
+          "waveSha256": "4856c7b7a3c56468bdd8c90bee64ad2cd190b1838ca25e6df4308f116444d5fe",
+          "referenceStatus": "scored using frozen paired reference",
+          "supplementaryCer": {
+            "unit": "characters",
+            "referenceUnits": 420,
+            "hypothesisUnits": 2046,
+            "errors": 1848,
+            "substitutions": 222,
+            "deletions": 0,
+            "insertions": 1626,
+            "errorRate": 4.4,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 512,
+              "tokenLimitReached": true,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 57.0,
+              "generatedTokens": 512,
+              "tokenLimitReached": true,
+              "ambiguousBoundary": true
+            },
+            {
+              "startSeconds": 54.0,
+              "endSeconds": 67.0,
+              "generatedTokens": 24,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "warnings": [
+            "반복이 많은 인식 결과입니다. 오인식 또는 정상 후렴일 수 있어 가사를 보존했습니다. 구간 원문과 실제 노래를 비교하세요."
+          ]
+        }
+      ]
+    },
+    "qwen-modern": {
+      "state": "COMPLETED",
+      "revision": "bcd2b5b7f32b480ab5790554cfa8347f246a14f3",
+      "loadSeconds": 43.63,
+      "loadResources": {
+        "peakProcessRamMiB": 4185.38,
+        "gpuUtilizationPeakPercent": 42,
+        "gpuMemoryDevicePeakMiB": 5396,
+        "gpuSamples": 11,
+        "gpuMetricsScope": "whole-device-including-other-apps",
+        "ramMeasurement": "sampled-process-working-set"
+      },
+      "workerRestartExitCode": 0,
+      "transformersVersion": "5.18.0",
+      "inputSystem": "Qwen3-ASR apply_transcription_request with explicit language",
+      "fullFiles": true,
+      "results": [
+        {
+          "case": "zh-modern-1",
+          "language": "zh",
+          "seconds": 8.0,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 11,
+            "hypothesisUnits": 11,
+            "errors": 0,
+            "substitutions": 0,
+            "deletions": 0,
+            "insertions": 0,
+            "errorRate": 0.0,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 2.94,
+          "peakAllocatedMiB": 3952.43,
+          "resources": {
+            "peakProcessRamMiB": 1788.88,
+            "gpuUtilizationPeakPercent": 42,
+            "gpuMemoryDevicePeakMiB": 5966,
+            "gpuSamples": 6,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 13,
+          "waveSha256": "97d9b996494fb3f2a040ba0275b3580e2bd993fecb523ab24e5ab8050e8fa29e",
+          "referenceStatus": "scored using frozen paired reference",
+          "candidateTrainingOverlap": {
+            "candidate": "VocalParse",
+            "exactPublishedTrainingAnnotationMatchCount": 1,
+            "trainingValidationSplitMembership": "not established"
+          },
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 8.0,
+              "generatedTokens": 12,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            }
+          ],
+          "warnings": []
+        },
+        {
+          "case": "zh-modern-2",
+          "language": "zh",
+          "seconds": 7.1,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 11,
+            "hypothesisUnits": 11,
+            "errors": 2,
+            "substitutions": 2,
+            "deletions": 0,
+            "insertions": 0,
+            "errorRate": 0.18181818181818182,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 0.817,
+          "peakAllocatedMiB": 3959.95,
+          "resources": {
+            "peakProcessRamMiB": 1792.58,
+            "gpuUtilizationPeakPercent": 23,
+            "gpuMemoryDevicePeakMiB": 6000,
+            "gpuSamples": 2,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 12,
+          "waveSha256": "c46c0c8bcf34a8edf457b032f74c50f54e211f4f3e1b7f2b051cc256bc48b359",
+          "referenceStatus": "scored using frozen paired reference",
+          "candidateTrainingOverlap": {
+            "candidate": "VocalParse",
+            "exactPublishedTrainingAnnotationMatchCount": 1,
+            "trainingValidationSplitMembership": "not established"
+          },
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 7.1,
+              "generatedTokens": 11,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            }
+          ],
+          "warnings": []
+        },
+        {
+          "case": "zh-modern-3",
+          "language": "zh",
+          "seconds": 12.46,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 38,
+            "hypothesisUnits": 38,
+            "errors": 4,
+            "substitutions": 4,
+            "deletions": 0,
+            "insertions": 0,
+            "errorRate": 0.10526315789473684,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 1.885,
+          "peakAllocatedMiB": 3973.22,
+          "resources": {
+            "peakProcessRamMiB": 1804.02,
+            "gpuUtilizationPeakPercent": 25,
+            "gpuMemoryDevicePeakMiB": 6088,
+            "gpuSamples": 4,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 42,
+          "waveSha256": "1b020e0c95ef56b79268096ecf8cc4af2bbc114df9eff227d7a13843900dfa22",
+          "referenceStatus": "scored using frozen paired reference",
+          "candidateTrainingOverlap": {
+            "candidate": "VocalParse",
+            "exactPublishedTrainingAnnotationMatchCount": 1,
+            "trainingValidationSplitMembership": "not established"
+          },
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 12.46,
+              "generatedTokens": 30,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            }
+          ],
+          "warnings": []
+        },
+        {
+          "case": "th-la-la-loy",
+          "language": "th",
+          "seconds": 29.9755,
+          "inferenceSeconds": 6.14,
+          "peakAllocatedMiB": 4074.77,
+          "resources": {
+            "peakProcessRamMiB": 1813.7,
+            "gpuUtilizationPeakPercent": 46,
+            "gpuMemoryDevicePeakMiB": 6305,
+            "gpuSamples": 11,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 178,
+          "waveSha256": "45e07f71a6f5a787b5afe8d6f2554b0650b04132479774a68c615872562052e0",
+          "referenceStatus": "not yet validated for exact preview interval",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 29.9755,
+              "generatedTokens": 103,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            }
+          ],
+          "warnings": [
+            "반복이 많은 인식 결과입니다. 오인식 또는 정상 후렴일 수 있어 가사를 보존했습니다. 구간 원문과 실제 노래를 비교하세요."
+          ]
+        },
+        {
+          "case": "vi-bua-yeu",
+          "language": "vi",
+          "seconds": 29.9523125,
+          "inferenceSeconds": 2.687,
+          "peakAllocatedMiB": 4074.77,
+          "resources": {
+            "peakProcessRamMiB": 1814.21,
+            "gpuUtilizationPeakPercent": 46,
+            "gpuMemoryDevicePeakMiB": 6304,
+            "gpuSamples": 5,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 152,
+          "waveSha256": "5b22fe9e2c5080af2506ae9ff1e55365645bd28a281959ee043f3ecfcfbb3651",
+          "referenceStatus": "not yet validated for exact preview interval",
+          "candidateTrainingOverlap": "possible VietLyrics overlap, not an independent holdout",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 29.9523125,
+              "generatedTokens": 49,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            }
+          ],
+          "warnings": []
+        }
+      ]
+    },
+    "nf4-4533-modern": {
+      "state": "COMPLETED",
+      "revision": "53062cf7d0e09d463d7fc4c218ce2ecb71400f29",
+      "loadSeconds": 21.268,
+      "loadResources": {
+        "peakProcessRamMiB": 5721.02,
+        "gpuUtilizationPeakPercent": 68,
+        "gpuMemoryDevicePeakMiB": 8227,
+        "gpuSamples": 38,
+        "gpuMetricsScope": "whole-device-including-other-apps",
+        "ramMeasurement": "sampled-process-working-set"
+      },
+      "checkpointLoad": {
+        "missingKeys": [],
+        "mismatchedKeys": [],
+        "unexpectedKeyCount": 1102,
+        "unusedModuleKeyCounts": {
+          "talker": 293,
+          "token2wav": 809
+        }
+      },
+      "parameterDevices": [
+        "cuda:0"
+      ],
+      "deviceMap": {
+        "": 0
+      },
+      "workerRestartExitCode": 0,
+      "transformersVersion": "4.53.3",
+      "inputSystem": "checkpoint-chat-template-default",
+      "fullFiles": true,
+      "results": [
+        {
+          "case": "zh-modern-1",
+          "language": "zh",
+          "seconds": 8.0,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 11,
+            "hypothesisUnits": 11,
+            "errors": 0,
+            "substitutions": 0,
+            "deletions": 0,
+            "insertions": 0,
+            "errorRate": 0.0,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 2.657,
+          "peakAllocatedMiB": 6154.86,
+          "resources": {
+            "peakProcessRamMiB": 1942.2,
+            "gpuUtilizationPeakPercent": 25,
+            "gpuMemoryDevicePeakMiB": 8254,
+            "gpuSamples": 5,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 12,
+          "waveSha256": "97d9b996494fb3f2a040ba0275b3580e2bd993fecb523ab24e5ab8050e8fa29e",
+          "referenceStatus": "scored using frozen paired reference",
+          "candidateTrainingOverlap": {
+            "candidate": "VocalParse",
+            "exactPublishedTrainingAnnotationMatchCount": 1,
+            "trainingValidationSplitMembership": "not established"
+          },
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 8.0,
+              "generatedTokens": 22,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            }
+          ],
+          "warnings": []
+        },
+        {
+          "case": "zh-modern-2",
+          "language": "zh",
+          "seconds": 7.1,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 11,
+            "hypothesisUnits": 11,
+            "errors": 4,
+            "substitutions": 4,
+            "deletions": 0,
+            "insertions": 0,
+            "errorRate": 0.36363636363636365,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 2.17,
+          "peakAllocatedMiB": 6149.95,
+          "resources": {
+            "peakProcessRamMiB": 1942.72,
+            "gpuUtilizationPeakPercent": 43,
+            "gpuMemoryDevicePeakMiB": 8254,
+            "gpuSamples": 4,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 12,
+          "waveSha256": "c46c0c8bcf34a8edf457b032f74c50f54e211f4f3e1b7f2b051cc256bc48b359",
+          "referenceStatus": "scored using frozen paired reference",
+          "candidateTrainingOverlap": {
+            "candidate": "VocalParse",
+            "exactPublishedTrainingAnnotationMatchCount": 1,
+            "trainingValidationSplitMembership": "not established"
+          },
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 7.1,
+              "generatedTokens": 22,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            }
+          ],
+          "warnings": []
+        },
+        {
+          "case": "zh-modern-3",
+          "language": "zh",
+          "seconds": 12.46,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 38,
+            "hypothesisUnits": 38,
+            "errors": 0,
+            "substitutions": 0,
+            "deletions": 0,
+            "insertions": 0,
+            "errorRate": 0.0,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 4.482,
+          "peakAllocatedMiB": 6171.55,
+          "resources": {
+            "peakProcessRamMiB": 1944.94,
+            "gpuUtilizationPeakPercent": 67,
+            "gpuMemoryDevicePeakMiB": 8254,
+            "gpuSamples": 8,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 43,
+          "waveSha256": "1b020e0c95ef56b79268096ecf8cc4af2bbc114df9eff227d7a13843900dfa22",
+          "referenceStatus": "scored using frozen paired reference",
+          "candidateTrainingOverlap": {
+            "candidate": "VocalParse",
+            "exactPublishedTrainingAnnotationMatchCount": 1,
+            "trainingValidationSplitMembership": "not established"
+          },
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 12.46,
+              "generatedTokens": 46,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            }
+          ],
+          "warnings": []
+        },
+        {
+          "case": "th-la-la-loy",
+          "language": "th",
+          "seconds": 29.9755,
+          "inferenceSeconds": 10.596,
+          "peakAllocatedMiB": 6271.54,
+          "resources": {
+            "peakProcessRamMiB": 1947.12,
+            "gpuUtilizationPeakPercent": 50,
+            "gpuMemoryDevicePeakMiB": 8710,
+            "gpuSamples": 19,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 202,
+          "waveSha256": "45e07f71a6f5a787b5afe8d6f2554b0650b04132479774a68c615872562052e0",
+          "referenceStatus": "not yet validated for exact preview interval",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 29.9755,
+              "generatedTokens": 140,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            }
+          ],
+          "warnings": [
+            "반복이 많은 인식 결과입니다. 오인식 또는 정상 후렴일 수 있어 가사를 보존했습니다. 구간 원문과 실제 노래를 비교하세요."
+          ]
+        },
+        {
+          "case": "vi-bua-yeu",
+          "language": "vi",
+          "seconds": 29.9523125,
+          "inferenceSeconds": 7.307,
+          "peakAllocatedMiB": 6271.54,
+          "resources": {
+            "peakProcessRamMiB": 1947.12,
+            "gpuUtilizationPeakPercent": 45,
+            "gpuMemoryDevicePeakMiB": 8688,
+            "gpuSamples": 13,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 147,
+          "waveSha256": "5b22fe9e2c5080af2506ae9ff1e55365645bd28a281959ee043f3ecfcfbb3651",
+          "referenceStatus": "not yet validated for exact preview interval",
+          "candidateTrainingOverlap": "possible VietLyrics overlap, not an independent holdout",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 29.9523125,
+              "generatedTokens": 83,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            }
+          ],
+          "warnings": []
+        }
+      ]
+    },
+    "vietlyrics": {
+      "state": "COMPLETED",
+      "revision": "a8dd6a34bc2fe69b1f3658919c4750297cf2b0f5",
+      "model": "kelvinbksoh/whisper-small-vietnamese-lyrics-transcription",
+      "loadSeconds": 0.983,
+      "loadResources": {
+        "peakProcessRamMiB": 1005.78,
+        "gpuUtilizationPeakPercent": 1,
+        "gpuMemoryDevicePeakMiB": 1914,
+        "gpuSamples": 2,
+        "gpuMetricsScope": "whole-device-including-other-apps",
+        "ramMeasurement": "sampled-process-working-set"
+      },
+      "checkpointLoad": {
+        "missing_keys": [],
+        "unexpected_keys": [],
+        "mismatched_keys": [],
+        "error_msgs": []
+      },
+      "parameterDevices": [
+        "cuda:0"
+      ],
+      "workerRestartExitCode": 0,
+      "transformersVersion": "5.18.0",
+      "fullFiles": true,
+      "results": [
+        {
+          "case": "vi-original",
+          "language": "vi",
+          "seconds": 62.1453125,
+          "score": {
+            "unit": "words",
+            "referenceUnits": 73,
+            "hypothesisUnits": 61,
+            "errors": 73,
+            "substitutions": 61,
+            "deletions": 12,
+            "insertions": 0,
+            "errorRate": 1.0,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 2.598,
+          "peakAllocatedMiB": 600.31,
+          "resources": {
+            "peakProcessRamMiB": 1931.68,
+            "gpuUtilizationPeakPercent": 18,
+            "gpuMemoryDevicePeakMiB": 2743,
+            "gpuSamples": 5,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 244,
+          "waveSha256": "2c7884588d2ff630482db764d7285d2cf8a2501cb147cde495c6fe6258a658fb",
+          "referenceStatus": "scored using frozen paired reference",
+          "supplementaryCer": {
+            "unit": "characters",
+            "referenceUnits": 267,
+            "hypothesisUnits": 184,
+            "errors": 220,
+            "substitutions": 135,
+            "deletions": 84,
+            "insertions": 1,
+            "errorRate": 0.8239700374531835,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 5,
+              "generatedTokensIncludingPrefix": 9,
+              "decoderPrefixVerified": true,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 57.0,
+              "generatedTokens": 87,
+              "generatedTokensIncludingPrefix": 91,
+              "decoderPrefixVerified": true,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            },
+            {
+              "startSeconds": 54.0,
+              "endSeconds": 62.1453125,
+              "generatedTokens": 7,
+              "generatedTokensIncludingPrefix": 11,
+              "decoderPrefixVerified": true,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "warnings": [
+            "반복이 많은 인식 결과입니다. 오인식 또는 정상 후렴일 수 있어 가사를 보존했습니다. 구간 원문과 실제 노래를 비교하세요."
+          ]
+        },
+        {
+          "case": "vi-citizens",
+          "language": "vi",
+          "seconds": 67.0,
+          "score": {
+            "unit": "words",
+            "referenceUnits": 120,
+            "hypothesisUnits": 121,
+            "errors": 104,
+            "substitutions": 95,
+            "deletions": 4,
+            "insertions": 5,
+            "errorRate": 0.8666666666666667,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 3.477,
+          "peakAllocatedMiB": 600.66,
+          "resources": {
+            "peakProcessRamMiB": 1677.88,
+            "gpuUtilizationPeakPercent": 24,
+            "gpuMemoryDevicePeakMiB": 2743,
+            "gpuSamples": 7,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 549,
+          "waveSha256": "4856c7b7a3c56468bdd8c90bee64ad2cd190b1838ca25e6df4308f116444d5fe",
+          "referenceStatus": "scored using frozen paired reference",
+          "supplementaryCer": {
+            "unit": "characters",
+            "referenceUnits": 420,
+            "hypothesisUnits": 429,
+            "errors": 279,
+            "substitutions": 208,
+            "deletions": 31,
+            "insertions": 40,
+            "errorRate": 0.6642857142857143,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 92,
+              "generatedTokensIncludingPrefix": 96,
+              "decoderPrefixVerified": true,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 57.0,
+              "generatedTokens": 91,
+              "generatedTokensIncludingPrefix": 95,
+              "decoderPrefixVerified": true,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            },
+            {
+              "startSeconds": 54.0,
+              "endSeconds": 67.0,
+              "generatedTokens": 37,
+              "generatedTokensIncludingPrefix": 41,
+              "decoderPrefixVerified": true,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "warnings": []
+        },
+        {
+          "case": "vi-bua-yeu",
+          "language": "vi",
+          "seconds": 29.9523125,
+          "inferenceSeconds": 0.863,
+          "peakAllocatedMiB": 597.92,
+          "resources": {
+            "peakProcessRamMiB": 1583.14,
+            "gpuUtilizationPeakPercent": 29,
+            "gpuMemoryDevicePeakMiB": 2708,
+            "gpuSamples": 2,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 152,
+          "waveSha256": "5b22fe9e2c5080af2506ae9ff1e55365645bd28a281959ee043f3ecfcfbb3651",
+          "referenceStatus": "not yet validated for exact preview interval",
+          "candidateTrainingOverlap": "possible VietLyrics overlap, not an independent holdout",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 29.9523125,
+              "generatedTokens": 53,
+              "generatedTokensIncludingPrefix": 57,
+              "decoderPrefixVerified": true,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            }
+          ],
+          "warnings": []
+        }
+      ]
+    },
+    "vocalparse": {
+      "state": "COMPLETED",
+      "revision": "4c617b1a88c8e663351d9072c549d81d7f78a36f",
+      "model": "pymaster/VocalParse",
+      "loadSeconds": 31.4,
+      "loadResources": {
+        "peakProcessRamMiB": 4598.14,
+        "gpuUtilizationPeakPercent": 31,
+        "gpuMemoryDevicePeakMiB": 6116,
+        "gpuSamples": 55,
+        "gpuMetricsScope": "whole-device-including-other-apps",
+        "ramMeasurement": "sampled-process-working-set"
+      },
+      "checkpointLoad": {
+        "missing_keys": [],
+        "unexpected_keys": [],
+        "mismatched_keys": [],
+        "error_msgs": []
+      },
+      "parameterDevices": [
+        "cuda:0"
+      ],
+      "workerRestartExitCode": 0,
+      "transformersVersion": "4.57.6",
+      "fullFiles": true,
+      "adapter": {
+        "savedEmbeddingRows": 152101,
+        "publishedConfigRows": 151936,
+        "tokenizerLength": 152101,
+        "entryPoint": "unchanged official qwen-asr 0.0.6 core classes; independent Windows benchmark adapter",
+        "weightsRenamed": false,
+        "weightsResized": false,
+        "referenceUsedForInference": false
+      },
+      "baselineImplementationDiffers": true,
+      "trainingHoldoutNotEstablished": true,
+      "outputPolicy": "Prefer plaintext ASR section; otherwise official AST parser. AST score diagnostic only, never choose by reference.",
+      "results": [
+        {
+          "case": "zh-original",
+          "language": "zh",
+          "seconds": 49.776,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 84,
+            "hypothesisUnits": 103,
+            "errors": 32,
+            "substitutions": 13,
+            "deletions": 0,
+            "insertions": 19,
+            "errorRate": 0.38095238095238093,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "supplementaryAstScore": {
+            "unit": "characters",
+            "referenceUnits": 84,
+            "hypothesisUnits": 95,
+            "errors": 28,
+            "substitutions": 15,
+            "deletions": 1,
+            "insertions": 12,
+            "errorRate": 0.3333333333333333,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 46.94,
+          "peakAllocatedMiB": 4074.38,
+          "resources": {
+            "peakProcessRamMiB": 1735.64,
+            "gpuUtilizationPeakPercent": 98,
+            "gpuMemoryDevicePeakMiB": 6505,
+            "gpuSamples": 83,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 104,
+          "waveSha256": "b1e0786a76d46a388c55c8640259ec10eea67452c7be7d7d2fab92c0334fa404",
+          "referenceStatus": "scored using frozen paired reference",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 415,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false,
+              "lyricsSectionClosed": true,
+              "outputFormat": "plaintext",
+              "astAmbiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 49.776,
+              "generatedTokens": 339,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true,
+              "lyricsSectionClosed": true,
+              "outputFormat": "plaintext",
+              "astAmbiguousBoundary": true
+            }
+          ],
+          "warnings": []
+        },
+        {
+          "case": "zh-cloud",
+          "language": "zh",
+          "seconds": 41.93525,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 24,
+            "hypothesisUnits": 509,
+            "errors": 509,
+            "substitutions": 24,
+            "deletions": 0,
+            "insertions": 485,
+            "errorRate": 21.208333333333332,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "supplementaryAstScore": {
+            "unit": "characters",
+            "referenceUnits": 24,
+            "hypothesisUnits": 0,
+            "errors": 24,
+            "substitutions": 0,
+            "deletions": 24,
+            "insertions": 0,
+            "errorRate": 1.0,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 61.687,
+          "peakAllocatedMiB": 4082.39,
+          "resources": {
+            "peakProcessRamMiB": 1740.18,
+            "gpuUtilizationPeakPercent": 50,
+            "gpuMemoryDevicePeakMiB": 6388,
+            "gpuSamples": 109,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 509,
+          "waveSha256": "6518d9b86584e8ec43e3f7e4e6841058e12abb465c4503dddd963e31692f806d",
+          "referenceStatus": "scored using frozen paired reference",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 512,
+              "tokenLimitReached": true,
+              "ambiguousBoundary": false,
+              "lyricsSectionClosed": false,
+              "outputFormat": "plaintext",
+              "astAmbiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 41.93525,
+              "generatedTokens": 512,
+              "tokenLimitReached": true,
+              "ambiguousBoundary": false,
+              "lyricsSectionClosed": false,
+              "outputFormat": "plaintext",
+              "astAmbiguousBoundary": false
+            }
+          ],
+          "warnings": [
+            "MISSING_AST_SEPARATOR",
+            "반복이 많은 인식 결과입니다. 오인식 또는 정상 후렴일 수 있어 가사를 보존했습니다. 구간 원문과 실제 노래를 비교하세요.",
+            "짧은 글자가 과도하게 반복 생성되어 받아쓰기 결과를 제외했습니다. 보컬이 또렷한 구간으로 다시 시도하세요."
+          ]
+        }
+      ]
+    },
+    "thaistudent": {
+      "state": "COMPLETED",
+      "revision": "62df42cecab9f484226ad5f9afdb557552021bbb",
+      "model": "biodatlab/distill-whisper-th-large-v3",
+      "loadSeconds": 23.077,
+      "loadResources": {
+        "peakProcessRamMiB": 2183.94,
+        "gpuUtilizationPeakPercent": 14,
+        "gpuMemoryDevicePeakMiB": 1832,
+        "gpuSamples": 17,
+        "gpuMetricsScope": "whole-device-including-other-apps",
+        "ramMeasurement": "sampled-process-working-set"
+      },
+      "checkpointLoad": {
+        "missing_keys": [],
+        "unexpected_keys": [],
+        "mismatched_keys": [],
+        "error_msgs": []
+      },
+      "parameterDevices": [
+        "cuda:0"
+      ],
+      "workerRestartExitCode": 0,
+      "transformersVersion": "5.18.0",
+      "fullFiles": true,
+      "results": [
+        {
+          "case": "th-original",
+          "language": "th",
+          "seconds": 44.234,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 216,
+            "hypothesisUnits": 86,
+            "errors": 185,
+            "substitutions": 53,
+            "deletions": 131,
+            "insertions": 1,
+            "errorRate": 0.8564814814814815,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 2.336,
+          "peakAllocatedMiB": 1614.58,
+          "resources": {
+            "peakProcessRamMiB": 2893.75,
+            "gpuUtilizationPeakPercent": 20,
+            "gpuMemoryDevicePeakMiB": 3828,
+            "gpuSamples": 5,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 89,
+          "waveSha256": "a33995c6cf48b9dced998a711a30a4e72858810a4375c1aa94b97bbe375e1dbd",
+          "referenceStatus": "scored using frozen paired reference",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 13,
+              "generatedTokensIncludingPrefix": 17,
+              "decoderPrefixVerified": true,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 44.234,
+              "generatedTokens": 66,
+              "generatedTokensIncludingPrefix": 70,
+              "decoderPrefixVerified": true,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "warnings": []
+        },
+        {
+          "case": "th-royal",
+          "language": "th",
+          "seconds": 91.23125,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 117,
+            "hypothesisUnits": 829,
+            "errors": 783,
+            "substitutions": 71,
+            "deletions": 0,
+            "insertions": 712,
+            "errorRate": 6.6923076923076925,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 6.576,
+          "peakAllocatedMiB": 1631.89,
+          "resources": {
+            "peakProcessRamMiB": 2650.2,
+            "gpuUtilizationPeakPercent": 36,
+            "gpuMemoryDevicePeakMiB": 3920,
+            "gpuSamples": 12,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 1071,
+          "waveSha256": "15f72ed1c9a9ce3067efb21a7b1fe1f957cee6db391be6523c40ef18915fb8e5",
+          "referenceStatus": "scored using frozen paired reference",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 361,
+              "generatedTokensIncludingPrefix": 365,
+              "decoderPrefixVerified": true,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 57.0,
+              "generatedTokens": 99,
+              "generatedTokensIncludingPrefix": 103,
+              "decoderPrefixVerified": true,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            },
+            {
+              "startSeconds": 54.0,
+              "endSeconds": 84.0,
+              "generatedTokens": 440,
+              "generatedTokensIncludingPrefix": 444,
+              "decoderPrefixVerified": true,
+              "tokenLimitReached": true,
+              "ambiguousBoundary": true
+            },
+            {
+              "startSeconds": 81.0,
+              "endSeconds": 91.23125,
+              "generatedTokens": 20,
+              "generatedTokensIncludingPrefix": 24,
+              "decoderPrefixVerified": true,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "warnings": [
+            "반복이 많은 인식 결과입니다. 오인식 또는 정상 후렴일 수 있어 가사를 보존했습니다. 구간 원문과 실제 노래를 비교하세요."
+          ]
+        },
+        {
+          "case": "th-la-la-loy",
+          "language": "th",
+          "seconds": 29.9755,
+          "inferenceSeconds": 0.693,
+          "peakAllocatedMiB": 1615.94,
+          "resources": {
+            "peakProcessRamMiB": 1553.16,
+            "gpuUtilizationPeakPercent": 25,
+            "gpuMemoryDevicePeakMiB": 3920,
+            "gpuSamples": 2,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "outputCharacters": 112,
+          "waveSha256": "45e07f71a6f5a787b5afe8d6f2554b0650b04132479774a68c615872562052e0",
+          "referenceStatus": "not yet validated for exact preview interval",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 29.9755,
+              "generatedTokens": 101,
+              "generatedTokensIncludingPrefix": 105,
+              "decoderPrefixVerified": true,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            }
+          ],
+          "warnings": []
+        }
+      ]
+    }
+  },
+  "vietlyricsAttempts": [
+    {
+      "attempt": 1,
+      "state": "FAILED",
+      "phase": "checkpoint loading report serialization before audio inference",
+      "error": "TypeError: Object of type set is not JSON serializable",
+      "cause": "Transformers 5.18 loading diagnostics contain Python sets; benchmark reporter did not normalize them",
+      "workerRestartExitCode": 0,
+      "repair": "Normalize diagnostic sets to sorted lists; same checkpoint, inputs, decoding, and GPU placement"
+    },
+    {
+      "attempt": 2,
+      "state": "COMPLETED",
+      "workerRestartExitCode": 0,
+      "sameModelAndInputs": true,
+      "repairOnlyReportSerialization": true
+    }
+  ],
+  "vocalparseTokenizerCheck": {
+    "warning": "4.57.6 incorrect Mistral regex heuristic warning on published Qwen tokenizer",
+    "defaultChangedForInference": false,
+    "results": [
+      {
+        "case": "zh-original",
+        "fields": {
+          "input_ids": {
+            "shape": [
+              1,
+              405
+            ],
+            "identical": true
+          },
+          "attention_mask": {
+            "shape": [
+              1,
+              405
+            ],
+            "identical": true
+          },
+          "feature_attention_mask": {
+            "shape": [
+              1,
+              3000
+            ],
+            "identical": true
+          },
+          "input_features": {
+            "shape": [
+              1,
+              128,
+              3000
+            ],
+            "identical": true
+          }
+        }
+      },
+      {
+        "case": "zh-cloud",
+        "fields": {
+          "input_ids": {
+            "shape": [
+              1,
+              405
+            ],
+            "identical": true
+          },
+          "attention_mask": {
+            "shape": [
+              1,
+              405
+            ],
+            "identical": true
+          },
+          "feature_attention_mask": {
+            "shape": [
+              1,
+              3000
+            ],
+            "identical": true
+          },
+          "input_features": {
+            "shape": [
+              1,
+              128,
+              3000
+            ],
+            "identical": true
+          }
+        }
+      }
+    ]
+  }
+}
