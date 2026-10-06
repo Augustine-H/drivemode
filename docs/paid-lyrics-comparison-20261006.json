@@ -1,9 +1,14 @@
 {
   "date": "2026-10-06",
-  "state": "AWAITING_CREDENTIALS",
+  "state": "COMPLETED",
+  "scoringState": "COMPLETED",
   "productVersion": "1.28.2",
-  "actualPaidApiCalls": 0,
-  "audioTransmittedExternally": false,
+  "productModelChanged": false,
+  "actualPaidApiCalls": 9,
+  "audioTransmittedExternally": true,
+  "actualBillKnown": false,
+  "referenceUsedForInference": false,
+  "automaticRetries": false,
   "plan": {
     "maximumCalls": 9,
     "callsPerProvider": 3,
@@ -24,7 +29,7 @@
       "language": "ko",
       "seconds": 30.0,
       "waveSha256": "9e13b6822a453e5b01490711a32a9bffd44f247db31dfac172f1cfb2d150f7b5",
-      "referenceStatus": "User recording; supplied lyrics exceed an unverified endpoint; no whole-clip CER until interval verified"
+      "referenceStatus": "User-confirmed exact 30-second clip, partial final word preserved; reference finalized after inference; no independent native listening audit"
     },
     {
       "case": "en-auld",
@@ -43,7 +48,7 @@
   ],
   "localBaseline": {
     "state": "COMPLETED",
-    "referenceUsedForInference": false,
+    "method": "current product Worker with explicit language and fullFile, identify false",
     "results": [
       {
         "case": "ko-user",
@@ -64,7 +69,29 @@
             "ramMeasurement": "sampled-process-working-set"
           }
         },
-        "referenceStatus": "User recording; supplied lyrics exceed an unverified endpoint; no whole-clip CER until interval verified"
+        "score": {
+          "unit": "characters",
+          "referenceUnits": 68,
+          "hypothesisUnits": 67,
+          "errors": 9,
+          "substitutions": 8,
+          "deletions": 1,
+          "insertions": 0,
+          "errorRate": 0.1323529411764706,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        },
+        "referenceStatus": "User-confirmed exact 30-second clip, partial final word preserved; reference finalized after inference; no independent native listening audit",
+        "supplementaryWer": {
+          "unit": "words",
+          "referenceUnits": 29,
+          "hypothesisUnits": 26,
+          "errors": 9,
+          "substitutions": 6,
+          "deletions": 3,
+          "insertions": 0,
+          "errorRate": 0.3103448275862069,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
       },
       {
         "case": "en-auld",
@@ -126,16 +153,379 @@
           "insertions": 1,
           "errorRate": 0.04807692307692308,
           "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        },
+        "supplementaryOrthographicAnalysis": {
+          "postHoc": true,
+          "policy": "Previously fixed 一人/ひとり plus post-hoc literal I apostrophe m sorry/アイムソーリー only; no 人生柄/人生から or アイムストーリー replacement",
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 104,
+            "hypothesisUnits": 105,
+            "errors": 2,
+            "substitutions": 1,
+            "deletions": 0,
+            "insertions": 1,
+            "errorRate": 0.019230769230769232,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          }
         }
       }
     ]
   },
-  "verification": {
-    "credentialDpapiRoundTrip": true,
-    "plaintextNotInEncryptedFile": true,
-    "emptyKeySaveRejected": true,
-    "mockTransportOrderAndNoReferenceHints": true,
-    "duplicateRequestsSkippedInMock": true,
-    "mockCallsAreNotPaidResults": true
-  }
+  "paidResults": [
+    {
+      "provider": "xai",
+      "model": "grok-voice-transcribe-2.0",
+      "case": "ko-user",
+      "language": "ko",
+      "seconds": 30.0,
+      "waveSha256": "9e13b6822a453e5b01490711a32a9bffd44f247db31dfac172f1cfb2d150f7b5",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.0008333333333333334,
+      "apiElapsedSeconds": 3.945,
+      "outputCharacters": 87,
+      "usage": null,
+      "reportedDuration": 30.0,
+      "detectedLanguage": null,
+      "score": {
+        "unit": "characters",
+        "referenceUnits": 68,
+        "hypothesisUnits": 62,
+        "errors": 16,
+        "substitutions": 10,
+        "deletions": 6,
+        "insertions": 0,
+        "errorRate": 0.23529411764705882,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "referenceStatus": "User-confirmed exact 30-second clip, partial final word preserved; reference finalized after inference; no independent native listening audit",
+      "supplementaryWer": {
+        "unit": "words",
+        "referenceUnits": 29,
+        "hypothesisUnits": 26,
+        "errors": 13,
+        "substitutions": 8,
+        "deletions": 4,
+        "insertions": 1,
+        "errorRate": 0.4482758620689655,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      }
+    },
+    {
+      "provider": "xai",
+      "model": "grok-voice-transcribe-2.0",
+      "case": "en-auld",
+      "language": "en",
+      "seconds": 25.0,
+      "waveSha256": "982afa01394f9c4c3094c53648a53256f439c883a3632f9d0f59c6da02148fe8",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.0006944444444444445,
+      "apiElapsedSeconds": 0.833,
+      "outputCharacters": 121,
+      "usage": null,
+      "reportedDuration": 25.0,
+      "detectedLanguage": null,
+      "score": {
+        "unit": "words",
+        "referenceUnits": 21,
+        "hypothesisUnits": 21,
+        "errors": 1,
+        "substitutions": 1,
+        "deletions": 0,
+        "insertions": 0,
+        "errorRate": 0.047619047619047616,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      }
+    },
+    {
+      "provider": "xai",
+      "model": "grok-voice-transcribe-2.0",
+      "case": "ja-pretender",
+      "language": "ja",
+      "seconds": 35.968,
+      "waveSha256": "70e00b91436bba3babbc259a171f928877af04cf5de550d28c1b869d6ffddc50",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.0009991111111111112,
+      "apiElapsedSeconds": 1.252,
+      "outputCharacters": 112,
+      "usage": null,
+      "reportedDuration": 35.968,
+      "detectedLanguage": null,
+      "score": {
+        "unit": "characters",
+        "referenceUnits": 104,
+        "hypothesisUnits": 105,
+        "errors": 7,
+        "substitutions": 4,
+        "deletions": 1,
+        "insertions": 2,
+        "errorRate": 0.0673076923076923,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementaryOrthographicAnalysis": {
+        "postHoc": true,
+        "policy": "Previously fixed 一人/ひとり plus post-hoc literal I apostrophe m sorry/アイムソーリー only; no 人生柄/人生から or アイムストーリー replacement",
+        "score": {
+          "unit": "characters",
+          "referenceUnits": 104,
+          "hypothesisUnits": 106,
+          "errors": 4,
+          "substitutions": 2,
+          "deletions": 0,
+          "insertions": 2,
+          "errorRate": 0.038461538461538464,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-transcribe",
+      "case": "ko-user",
+      "language": "ko",
+      "seconds": 30.0,
+      "waveSha256": "9e13b6822a453e5b01490711a32a9bffd44f247db31dfac172f1cfb2d150f7b5",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.0022500000000000003,
+      "apiElapsedSeconds": 2.468,
+      "outputCharacters": 91,
+      "usage": {
+        "type": "duration",
+        "seconds": 30
+      },
+      "reportedDuration": null,
+      "detectedLanguage": [
+        {
+          "code": "ko"
+        }
+      ],
+      "score": {
+        "unit": "characters",
+        "referenceUnits": 68,
+        "hypothesisUnits": 60,
+        "errors": 19,
+        "substitutions": 7,
+        "deletions": 10,
+        "insertions": 2,
+        "errorRate": 0.27941176470588236,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "referenceStatus": "User-confirmed exact 30-second clip, partial final word preserved; reference finalized after inference; no independent native listening audit",
+      "supplementaryWer": {
+        "unit": "words",
+        "referenceUnits": 29,
+        "hypothesisUnits": 24,
+        "errors": 13,
+        "substitutions": 8,
+        "deletions": 5,
+        "insertions": 0,
+        "errorRate": 0.4482758620689655,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-transcribe",
+      "case": "en-auld",
+      "language": "en",
+      "seconds": 25.0,
+      "waveSha256": "982afa01394f9c4c3094c53648a53256f439c883a3632f9d0f59c6da02148fe8",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.001875,
+      "apiElapsedSeconds": 1.894,
+      "outputCharacters": 124,
+      "usage": {
+        "type": "duration",
+        "seconds": 25
+      },
+      "reportedDuration": null,
+      "detectedLanguage": [
+        {
+          "code": "en"
+        }
+      ],
+      "score": {
+        "unit": "words",
+        "referenceUnits": 21,
+        "hypothesisUnits": 21,
+        "errors": 0,
+        "substitutions": 0,
+        "deletions": 0,
+        "insertions": 0,
+        "errorRate": 0.0,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-transcribe",
+      "case": "ja-pretender",
+      "language": "ja",
+      "seconds": 35.968,
+      "waveSha256": "70e00b91436bba3babbc259a171f928877af04cf5de550d28c1b869d6ffddc50",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.0026976000000000005,
+      "apiElapsedSeconds": 2.631,
+      "outputCharacters": 115,
+      "usage": {
+        "type": "duration",
+        "seconds": 36
+      },
+      "reportedDuration": null,
+      "detectedLanguage": [
+        {
+          "code": "ja"
+        }
+      ],
+      "score": {
+        "unit": "characters",
+        "referenceUnits": 104,
+        "hypothesisUnits": 104,
+        "errors": 12,
+        "substitutions": 10,
+        "deletions": 1,
+        "insertions": 1,
+        "errorRate": 0.11538461538461539,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementaryOrthographicAnalysis": {
+        "postHoc": true,
+        "policy": "Previously fixed 一人/ひとり plus post-hoc literal I apostrophe m sorry/アイムソーリー only; no 人生柄/人生から or アイムストーリー replacement",
+        "score": {
+          "unit": "characters",
+          "referenceUnits": 104,
+          "hypothesisUnits": 105,
+          "errors": 2,
+          "substitutions": 1,
+          "deletions": 0,
+          "insertions": 1,
+          "errorRate": 0.019230769230769232,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
+      }
+    },
+    {
+      "provider": "elevenlabs",
+      "model": "scribe_v2",
+      "case": "ko-user",
+      "language": "ko",
+      "seconds": 30.0,
+      "waveSha256": "9e13b6822a453e5b01490711a32a9bffd44f247db31dfac172f1cfb2d150f7b5",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.0018333333333333333,
+      "apiElapsedSeconds": 1.747,
+      "outputCharacters": 102,
+      "usage": null,
+      "reportedDuration": null,
+      "detectedLanguage": "kor",
+      "score": {
+        "unit": "characters",
+        "referenceUnits": 68,
+        "hypothesisUnits": 67,
+        "errors": 9,
+        "substitutions": 8,
+        "deletions": 1,
+        "insertions": 0,
+        "errorRate": 0.1323529411764706,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "referenceStatus": "User-confirmed exact 30-second clip, partial final word preserved; reference finalized after inference; no independent native listening audit",
+      "supplementaryWer": {
+        "unit": "words",
+        "referenceUnits": 29,
+        "hypothesisUnits": 29,
+        "errors": 8,
+        "substitutions": 6,
+        "deletions": 1,
+        "insertions": 1,
+        "errorRate": 0.27586206896551724,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      }
+    },
+    {
+      "provider": "elevenlabs",
+      "model": "scribe_v2",
+      "case": "en-auld",
+      "language": "en",
+      "seconds": 25.0,
+      "waveSha256": "982afa01394f9c4c3094c53648a53256f439c883a3632f9d0f59c6da02148fe8",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.0015277777777777776,
+      "apiElapsedSeconds": 1.398,
+      "outputCharacters": 126,
+      "usage": null,
+      "reportedDuration": null,
+      "detectedLanguage": "eng",
+      "score": {
+        "unit": "words",
+        "referenceUnits": 21,
+        "hypothesisUnits": 21,
+        "errors": 2,
+        "substitutions": 2,
+        "deletions": 0,
+        "insertions": 0,
+        "errorRate": 0.09523809523809523,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      }
+    },
+    {
+      "provider": "elevenlabs",
+      "model": "scribe_v2",
+      "case": "ja-pretender",
+      "language": "ja",
+      "seconds": 35.968,
+      "waveSha256": "70e00b91436bba3babbc259a171f928877af04cf5de550d28c1b869d6ffddc50",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.0021980444444444445,
+      "apiElapsedSeconds": 1.483,
+      "outputCharacters": 114,
+      "usage": null,
+      "reportedDuration": null,
+      "detectedLanguage": "jpn",
+      "score": {
+        "unit": "characters",
+        "referenceUnits": 104,
+        "hypothesisUnits": 104,
+        "errors": 12,
+        "substitutions": 10,
+        "deletions": 1,
+        "insertions": 1,
+        "errorRate": 0.11538461538461539,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementaryOrthographicAnalysis": {
+        "postHoc": true,
+        "policy": "Previously fixed 一人/ひとり plus post-hoc literal I apostrophe m sorry/アイムソーリー only; no 人生柄/人生から or アイムストーリー replacement",
+        "score": {
+          "unit": "characters",
+          "referenceUnits": 104,
+          "hypothesisUnits": 105,
+          "errors": 2,
+          "substitutions": 1,
+          "deletions": 0,
+          "insertions": 1,
+          "errorRate": 0.019230769230769232,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
+      }
+    }
+  ],
+  "limitations": [
+    "One file per language, one request per provider; not statistical evidence of general singing accuracy",
+    "Korean reference finalized by user after inference; partial last word retained; not supplied to models",
+    "English folk song is not modern commercial pop",
+    "Japanese literal orthographic-equivalence diagnostic is post-hoc; strict score remains primary",
+    "Local baseline first request includes model cold loading; network API timing includes remote processing",
+    "Listed rate estimate is not an actual account bill"
+  ],
+  "estimatedUsdUsingReportedOpenAiSeconds": 0.014911044444444445
 }
