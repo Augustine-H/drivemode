@@ -150,6 +150,10 @@ export default defineConfig(({ command, isPreview }) => ({
     host: "0.0.0.0",
     port: 8080,
     strictPort: true,
+    // Models, worker ledgers and QA output are generated outside the app source.
+    watch: {
+      ignored: ["**/.music-runtime/**", "**/screenshots/**", "**/.vercel/output/**"],
+    },
   },
   preview: {
     host: "127.0.0.1",

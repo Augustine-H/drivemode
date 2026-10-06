@@ -35,11 +35,13 @@ def recognition(request):
         from transformers import AutoProcessor, WhisperForConditionalGeneration
         processor = AutoProcessor.from_pretrained(WHISPER, revision=WHISPER_REVISION, local_files_only=True)
         model = WhisperForConditionalGeneration.from_pretrained(WHISPER, revision=WHISPER_REVISION,
-                                                               local_files_only=True).to('cuda')
-        inputs = processor(audio, sampling_rate=16000, return_tensors='pt').input_features.to('cuda')
+                                                               local_files_only=True,
+                                                               dtype=torch.float32).to('cuda')
+        inputs = processor(audio, sampling_rate=16000, return_tensors='pt').input_features.to(
+            device='cuda', dtype=model.dtype)
         with torch.inference_mode():
             tokens = model.generate(inputs, task='transcribe', max_new_tokens=440,
-                                    do_sample=False, return_timestamps=True,
+                                    do_sample=False, num_beams=5, return_timestamps=True,
                                     temperature=0.0,
                                     no_speech_threshold=0.6, logprob_threshold=-1.0,
                                     compression_ratio_threshold=2.4)
@@ -80,7 +82,8 @@ def run(request, folder):
     torch.cuda.reset_peak_memory_stats()
     with ResourceMonitor() as monitor:
         if request['kind'] == 'recognition':
-            result = {'recognition': recognition(request), 'model': {'provider': 'local_whisper_and_shazam_fingerprint', 'model': WHISPER, 'modelRevision': WHISPER_REVISION}}
+            result = {'recognition': recognition(request), 'model': {'provider': 'local_whisper_and_shazam_fingerprint', 'model': WHISPER, 'modelRevision': WHISPER_REVISION,
+                      'transcriptionDecoding': 'beam_search', 'numBeams': 5, 'precision': 'float32'}}
         else:
             from diffusers import AceStepPipeline
             pipe = AceStepPipeline.from_pretrained(ACE, revision=ACE_REVISION, torch_dtype=torch.bfloat16,

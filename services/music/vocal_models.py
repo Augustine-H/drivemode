@@ -1,8 +1,8 @@
 """Pinned, lightweight model contract shared by setup and the isolated runtime."""
 ACE = 'ACE-Step/acestep-v15-xl-turbo-diffusers'
 ACE_REVISION = '200ba991ae448051e14b0183157e35c2d27c9fb0'
-WHISPER = 'openai/whisper-small'
-WHISPER_REVISION = '973afd24965f72e36ca33b3055d56a652f456b4d'
+WHISPER = 'openai/whisper-large-v3-turbo'
+WHISPER_REVISION = '41f01f3fe87f28c78e2fbf8b568835947dd65ed9'
 
 def prepared(kind):
     from pathlib import Path

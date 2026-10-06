@@ -2043,7 +2043,9 @@ export function ReaderApp() {
       personaIdRef.current === room
     )
       setBanner(
-        `${music.request.duration}초 음악이 완성됐습니다. 작업 카드에서 재생·다운로드할 수 있습니다.`,
+        music.request.kind === "recognition"
+          ? "노래 인식 처리가 끝났습니다. 작업 카드에서 결과와 안내를 확인하세요."
+          : `${music.request.duration}초 음악이 완성됐습니다. 작업 카드에서 재생·다운로드할 수 있습니다.`,
       );
     setThreads((prev) => ({
       ...prev,

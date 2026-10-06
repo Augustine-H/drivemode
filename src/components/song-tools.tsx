@@ -34,12 +34,33 @@ export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => v
   const [identify, setIdentify] = useState(false), [transcribe, setTranscribe] = useState(true);
   const [consent, setConsent] = useState(false), [busy, setBusy] = useState(false), [notice, setNotice] = useState("");
   const [recording, setRecording] = useState(false), [preview, setPreview] = useState("");
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]), [device, setDevice] = useState("");
+  const [microphone, setMicrophone] = useState(""), [level, setLevel] = useState(-100), [peak, setPeak] = useState(-100);
+  const [elapsed, setElapsed] = useState(0), [trackMuted, setTrackMuted] = useState(false);
+  const meter = useRef<{ context: AudioContext; interval: ReturnType<typeof setInterval> } | undefined>(undefined);
   const [serviceReady, setServiceReady] = useState(false), [serviceNotice, setServiceNotice] = useState("NAS 지원 여부 확인 중…");
   const recorder = useRef<MediaRecorder | undefined>(undefined), mounted = useRef(true);
+  function stopMeter() {
+    if (!meter.current) return;
+    clearInterval(meter.current.interval);
+    void meter.current.context.close().catch(() => {});
+    meter.current = undefined;
+  }
+  async function refreshDevices() {
+    try {
+      const inputs = (await navigator.mediaDevices?.enumerateDevices())?.filter(d => d.kind === "audioinput") ?? [];
+      if (mounted.current) setDevices(inputs);
+    } catch { if (mounted.current) setNotice("마이크 목록을 읽지 못했습니다. 브라우저 권한을 확인하세요."); }
+  }
   useEffect(() => {
     mounted.current = true;
+    void refreshDevices();
+    const changed = () => { void refreshDevices(); };
+    navigator.mediaDevices?.addEventListener("devicechange", changed);
     return () => {
       mounted.current = false;
+      navigator.mediaDevices?.removeEventListener("devicechange", changed);
+      stopMeter();
       recorder.current?.stream.getTracks().forEach(track => track.stop());
       if (recorder.current && recorder.current.state !== "inactive") recorder.current.stop();
     };
@@ -72,17 +93,42 @@ export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => v
     try {
       if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined")
         throw new Error("이 브라우저는 녹음을 지원하지 않습니다. 오디오 파일을 선택하세요.");
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: {
+        ...(device ? { deviceId: { exact: device } } : {}),
+        echoCancellation: false, noiseSuppression: false, autoGainControl: false,
+      } });
       if (!mounted.current) { stream.getTracks().forEach(track => track.stop()); return; }
+      void refreshDevices();
+      const track = stream.getAudioTracks()[0];
+      setMicrophone(track.label || "이름을 확인할 수 없는 마이크");
+      setLevel(-100); setPeak(-100); setElapsed(0); setTrackMuted(track.muted);
+      const context = new AudioContext();
+      // Zero gain keeps the meter processing without feeding the microphone to speakers.
+      const analyser = context.createAnalyser(), source = context.createMediaStreamSource(stream), silent = context.createGain();
+      analyser.fftSize = 2048; silent.gain.value = 0;
+      source.connect(analyser); analyser.connect(silent); silent.connect(context.destination);
+      const pcm = new Float32Array(analyser.fftSize), startedAt = performance.now();
+      let peakDb = -100;
+      const interval = setInterval(() => {
+        analyser.getFloatTimeDomainData(pcm);
+        const rms = Math.sqrt(pcm.reduce((sum, value) => sum + value * value, 0) / pcm.length);
+        const db = Math.max(-100, 20 * Math.log10(Math.max(rms, 0.00001)));
+        peakDb = Math.max(peakDb, db);
+        if (mounted.current) { setLevel(db); setPeak(peakDb); setElapsed(Math.min(30, Math.floor((performance.now() - startedAt) / 1000))); setTrackMuted(track.muted); }
+      }, 150);
+      meter.current = { context, interval };
+      void context.resume().catch(() => { if (mounted.current) setNotice("입력 음량 표시를 시작하지 못했습니다. 녹음 미리 듣기로 확인하세요."); });
       const current = new MediaRecorder(stream), chunks: BlobPart[] = [];
       recorder.current = current;
       const timer = setTimeout(() => { if (current.state !== "inactive") current.stop(); }, 30000);
       current.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
       current.onstop = () => {
         clearTimeout(timer); current.stream.getTracks().forEach(track => track.stop());
+        stopMeter();
         if (mounted.current) {
           setRecording(false);
           if (chunks.length) setFile(new File(chunks, "마이크-노래-샘플", { type: current.mimeType || "audio/webm" }));
+          if (peakDb < -60) setNotice("마이크에 소리가 거의 들어오지 않았습니다. 입력 장치·음소거·마이크 위치를 확인하고 다시 녹음하세요.");
         }
       };
       current.onerror = () => {
@@ -92,6 +138,7 @@ export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => v
       };
       current.start(); setRecording(true);
     } catch (error) {
+      stopMeter();
       stream?.getTracks().forEach(track => track.stop());
       if (mounted.current) setNotice(error instanceof Error ? error.message : "마이크 연결 실패");
     } finally { if (mounted.current) setBusy(false); }
@@ -138,8 +185,19 @@ export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => v
       <div className="mt-3 space-y-3">
         <p className="text-muted">파일의 처음 30초 또는 마이크 녹음을 사용합니다. 샘플은 개인 NAS를 거쳐 Windows에서 처리하며, 처리 후 원본 샘플을 삭제합니다. 가사 받아쓰기는 로컬 Whisper를 사용합니다.</p>
         <input className={input} aria-label="인식할 노래 파일" type="file" accept="audio/*" disabled={recording || busy} onChange={e => setFile(e.target.files?.[0])}/>
+        <label className="block">녹음 마이크<select aria-label="녹음 마이크" className={input} disabled={recording || busy} value={device} onChange={e => setDevice(e.target.value)}>
+          <option value="">Windows 기본 입력 장치</option>
+          {devices.filter(d => d.deviceId && d.deviceId !== "default" && d.deviceId !== "communications").map((d, i) => <option key={d.deviceId} value={d.deviceId}>{d.label || `마이크 ${i + 1}`}</option>)}
+        </select></label>
+        <button className="min-h-11 rounded-xl border border-line px-4 disabled:opacity-50" disabled={recording || busy} onClick={() => void refreshDevices()}>마이크 목록 새로 확인</button>
         <button className="min-h-11 rounded-xl border border-line px-4 disabled:opacity-50" disabled={busy} onClick={() => void record()}>{recording ? "녹음 종료" : "마이크로 30초 녹음"}</button>
         {recording ? <p role="status">녹음 중… 30초 후 자동 종료합니다. ‘노래 인식’을 누르기 전에는 전송하지 않습니다.</p> : null}
+        {microphone ? <div className="space-y-2 rounded-xl border border-line p-3">
+          <p className="break-words text-muted">{recording ? "녹음 중인" : "마지막 녹음"} 장치: {microphone}</p>
+          <meter aria-label="마이크 입력 음량" className="h-3 w-full" min={-100} max={0} low={-60} high={-12} optimum={-20} value={level}/>
+          <p className="text-muted">{elapsed} / 30초 · 입력 {Math.round(level)} dBFS · 최대 {Math.round(peak)} dBFS</p>
+          {recording ? <p role="status">{trackMuted ? "브라우저의 마이크 입력이 음소거 상태입니다." : level < -60 ? "소리가 거의 없습니다. 휴대폰을 마이크 가까이 놓고 음량 막대가 움직이는지 확인하세요." : "마이크에 소리가 들어오고 있습니다."}</p> : null}
+        </div> : null}
         {file ? <p className="break-words text-muted">선택한 샘플: {file.name}</p> : null}
         {preview ? <audio aria-label="인식 샘플 미리 듣기" className="w-full max-w-full" controls src={preview}/> : null}
         <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={transcribe} onChange={e => setTranscribe(e.target.checked)}/>가사 받아쓰기</label>

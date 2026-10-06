@@ -3,6 +3,7 @@ import argparse
 import hashlib
 import json
 import re
+import sys
 from pathlib import Path
 import threading
 from urllib.parse import urlsplit
@@ -18,6 +19,23 @@ from provider import atomic_json
 from worker_auth import local_directory, worker_token
 
 ENTROPY = b"VoiceGrok.Music.NasBridge.v1"
+
+
+def publish_status(path: Path, state: dict) -> bool:
+    """The diagnostic snapshot must not terminate durable job synchronization."""
+    for attempt in range(3):
+        try:
+            atomic_json(path, state)
+            return True
+        except OSError as error:
+            if isinstance(error, PermissionError) and attempt < 2:
+                threading.Event().wait(0.1 * (attempt + 1))
+                continue
+            print(json.dumps({"event": "BRIDGE_STATUS_WRITE_FAILED",
+                              "error": safe_error(error)}, ensure_ascii=False),
+                  file=sys.stderr, flush=True)
+            return False
+    return False
 
 
 def validate_url(value: str):
@@ -162,7 +180,7 @@ def main():
             except Exception as error:
                 state = {"state": "CONNECTION_OR_SYNC_ERROR", "error": safe_error(error)}
                 delay = min(60, delay * 2)
-            atomic_json(directory / "status.json", {**state, "updatedAt": now()})
+            publish_status(directory / "status.json", {**state, "updatedAt": now()})
             if args.once:
                 return 0 if "error" not in state else 1
             threading.Event().wait(delay)
