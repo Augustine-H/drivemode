@@ -1,0 +1,302 @@
+{
+  "date": "2026-10-06",
+  "state": "COMPLETED",
+  "productVersion": "1.28.2",
+  "productModelChanged": false,
+  "actualPaidApiCalls": 3,
+  "audioTransmittedExternally": true,
+  "actualBillKnown": false,
+  "referenceUsedForInference": false,
+  "automaticRetries": false,
+  "capture": {
+    "source": "actual browser getUserMedia Samson Go Mic",
+    "sourceSha256": "b42782ffbfabbd46393b0c2397ea3557ef0172f132a5b458dc7bb90cbd50db5a",
+    "waveSha256": "4817328002d075b34728cdbc853688aa57ed41c1363527bee5d38dc01647e724",
+    "durationSeconds": 30.0,
+    "sampleRate": 16000,
+    "channels": 1,
+    "subtype": "PCM_16",
+    "rmsDbfs": -32.54297584575645,
+    "peakDbfs": -14.678199327075525,
+    "clippedSampleFraction": 0.0,
+    "userConfirmedStart": true,
+    "userConfirmedEnd": true
+  },
+  "frozen": {
+    "frozenAtUnix": 1791288701.2420077,
+    "inferenceStarted": false,
+    "manifestSha256": "3e64c6f4546ef906a2b02e7d45842f41cb59b89ee72a31fe5ba573035f253a74",
+    "policySha256": "1132eb9ef2a067e01434bcc30f6dd038a2b00eddcb21143f0233d9380dbc3dd8",
+    "evaluationCodeSha256": "5128dad1f8ede23f4078e9880dc9a89d825fb925c263c21c0b3bf70863feceb9",
+    "contractionDiagnosticCodeSha256": "0bb90a9aeee077255d29f90c7f81d0710f104e46b3f25fe0bb3c8db4c3fe8fa2"
+  },
+  "scoringPolicy": {
+    "primaryUnits": {
+      "en": "words"
+    },
+    "supplementaryUnits": {
+      "en": "characters"
+    },
+    "normalization": "Existing product lyrics_evaluation.py NFKC/casefold and LNM; all omissions and repeats counted",
+    "referenceHintsSent": false,
+    "postHoc": false,
+    "customSubstitutions": false,
+    "contractionDiagnostic": {
+      "postHoc": false,
+      "scope": "Fixed grammatical contraction equivalence only; strict WER remains primary",
+      "rules": {
+        "it's": "it is",
+        "you’re / you're": "you are",
+        "can't / cannot": "can not",
+        "you ain't": "you are not"
+      },
+      "source": "paid_mic_en_policy.py frozen before inference"
+    }
+  },
+  "plan": {
+    "state": "PREPARED",
+    "date": "2026-10-06",
+    "source": "User authorized real microphone Qwen/xAI/OpenAI/ElevenLabs comparison and supplied song interval",
+    "maximumCalls": 3,
+    "callsPerProvider": 1,
+    "secondsPerProvider": 30.0,
+    "estimatedUsdPerHour": {
+      "xai": 0.1,
+      "openai": 0.27,
+      "elevenlabs": 0.22
+    },
+    "maximumEstimatedUsd": 0.1,
+    "automaticRetries": false,
+    "referenceAndSongNameSent": false,
+    "credentialsInGit": false,
+    "apiCalled": false,
+    "estimatedUsdAllThree": 0.004917
+  },
+  "referenceSha256": "de26e198061c7a9b720a4608aeb65d543c9558b488696af03ecaa8cbef918563",
+  "results": [
+    {
+      "case": "en-signofthetimes-samson",
+      "language": "en",
+      "seconds": 30.0,
+      "waveSha256": "4817328002d075b34728cdbc853688aa57ed41c1363527bee5d38dc01647e724",
+      "apiElapsedSeconds": 17.367,
+      "metrics": {
+        "totalSeconds": 13.709,
+        "peakAllocatedMiB": 4066.65,
+        "peakReservedMiB": 4130.0,
+        "resources": {
+          "peakProcessRamMiB": 4379.38,
+          "gpuUtilizationPeakPercent": 73,
+          "gpuMemoryDevicePeakMiB": 5850,
+          "gpuSamples": 21,
+          "gpuMetricsScope": "whole-device-including-other-apps",
+          "ramMeasurement": "sampled-process-working-set"
+        }
+      },
+      "score": {
+        "unit": "words",
+        "referenceUnits": 47,
+        "hypothesisUnits": 48,
+        "errors": 1,
+        "substitutions": 0,
+        "deletions": 0,
+        "insertions": 1,
+        "errorRate": 0.02127659574468085,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementaryCer": {
+        "unit": "characters",
+        "referenceUnits": 169,
+        "hypothesisUnits": 170,
+        "errors": 1,
+        "substitutions": 0,
+        "deletions": 0,
+        "insertions": 1,
+        "errorRate": 0.005917159763313609,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementaryContractionWer": {
+        "postHoc": false,
+        "score": {
+          "unit": "words",
+          "referenceUnits": 47,
+          "hypothesisUnits": 48,
+          "errors": 1,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 1,
+          "errorRate": 0.02127659574468085,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
+      },
+      "provider": "qwen"
+    },
+    {
+      "provider": "xai",
+      "model": "grok-voice-transcribe-2.0",
+      "case": "en-signofthetimes-samson",
+      "language": "en",
+      "seconds": 30.0,
+      "waveSha256": "4817328002d075b34728cdbc853688aa57ed41c1363527bee5d38dc01647e724",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.0008333333333333334,
+      "apiElapsedSeconds": 1.822,
+      "usage": null,
+      "reportedDuration": 30.0,
+      "detectedLanguage": null,
+      "score": {
+        "unit": "words",
+        "referenceUnits": 47,
+        "hypothesisUnits": 48,
+        "errors": 1,
+        "substitutions": 0,
+        "deletions": 0,
+        "insertions": 1,
+        "errorRate": 0.02127659574468085,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementaryCer": {
+        "unit": "characters",
+        "referenceUnits": 169,
+        "hypothesisUnits": 170,
+        "errors": 1,
+        "substitutions": 0,
+        "deletions": 0,
+        "insertions": 1,
+        "errorRate": 0.005917159763313609,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementaryContractionWer": {
+        "postHoc": false,
+        "score": {
+          "unit": "words",
+          "referenceUnits": 47,
+          "hypothesisUnits": 48,
+          "errors": 1,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 1,
+          "errorRate": 0.02127659574468085,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-transcribe",
+      "case": "en-signofthetimes-samson",
+      "language": "en",
+      "seconds": 30.0,
+      "waveSha256": "4817328002d075b34728cdbc853688aa57ed41c1363527bee5d38dc01647e724",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.0022500000000000003,
+      "apiElapsedSeconds": 2.338,
+      "usage": {
+        "type": "duration",
+        "seconds": 30
+      },
+      "reportedDuration": null,
+      "detectedLanguage": [
+        {
+          "code": "en"
+        }
+      ],
+      "score": {
+        "unit": "words",
+        "referenceUnits": 47,
+        "hypothesisUnits": 47,
+        "errors": 0,
+        "substitutions": 0,
+        "deletions": 0,
+        "insertions": 0,
+        "errorRate": 0.0,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementaryCer": {
+        "unit": "characters",
+        "referenceUnits": 169,
+        "hypothesisUnits": 169,
+        "errors": 0,
+        "substitutions": 0,
+        "deletions": 0,
+        "insertions": 0,
+        "errorRate": 0.0,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementaryContractionWer": {
+        "postHoc": false,
+        "score": {
+          "unit": "words",
+          "referenceUnits": 47,
+          "hypothesisUnits": 47,
+          "errors": 0,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 0,
+          "errorRate": 0.0,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
+      }
+    },
+    {
+      "provider": "elevenlabs",
+      "model": "scribe_v2",
+      "case": "en-signofthetimes-samson",
+      "language": "en",
+      "seconds": 30.0,
+      "waveSha256": "4817328002d075b34728cdbc853688aa57ed41c1363527bee5d38dc01647e724",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.0018333333333333333,
+      "apiElapsedSeconds": 0.86,
+      "usage": null,
+      "reportedDuration": null,
+      "detectedLanguage": "eng",
+      "score": {
+        "unit": "words",
+        "referenceUnits": 47,
+        "hypothesisUnits": 48,
+        "errors": 1,
+        "substitutions": 0,
+        "deletions": 0,
+        "insertions": 1,
+        "errorRate": 0.02127659574468085,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementaryCer": {
+        "unit": "characters",
+        "referenceUnits": 169,
+        "hypothesisUnits": 170,
+        "errors": 1,
+        "substitutions": 0,
+        "deletions": 0,
+        "insertions": 1,
+        "errorRate": 0.005917159763313609,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementaryContractionWer": {
+        "postHoc": false,
+        "score": {
+          "unit": "words",
+          "referenceUnits": 47,
+          "hypothesisUnits": 48,
+          "errors": 1,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 1,
+          "errorRate": 0.02127659574468085,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
+      }
+    }
+  ],
+  "limitations": [
+    "One actual microphone recording, one trial per route; not statistical proof",
+    "User-confirmed interval before inference, no independent native listening audit",
+    "Phone playback and room acoustics; capture quality is specific to this setup",
+    "Qwen product segmentation/merging vs provider whole input; not weights-only comparison",
+    "Actual account bill and provider VRAM/RAM not observed"
+  ]
+}
