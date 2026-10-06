@@ -746,7 +746,547 @@
           "warningCount": 2
         }
       ]
+    },
+    "nf4-4533": {
+      "revision": "53062cf7d0e09d463d7fc4c218ce2ecb71400f29",
+      "loadSeconds": 15.999,
+      "loadResources": {
+        "peakProcessRamMiB": 5675.0,
+        "gpuUtilizationPeakPercent": 51,
+        "gpuMemoryDevicePeakMiB": 8447,
+        "gpuSamples": 28,
+        "gpuMetricsScope": "whole-device-including-other-apps",
+        "ramMeasurement": "sampled-process-working-set"
+      },
+      "checkpointLoad": {
+        "missingKeys": [],
+        "mismatchedKeys": [],
+        "unexpectedKeyCount": 1102,
+        "unusedModuleKeyCounts": {
+          "talker": 293,
+          "token2wav": 809
+        }
+      },
+      "parameterDevices": [
+        "cuda:0"
+      ],
+      "deviceMap": {
+        "": 0
+      },
+      "workerRestartExitCode": 0,
+      "transformersVersion": "4.53.3",
+      "fullFiles": true,
+      "results": [
+        {
+          "case": "vi-original",
+          "language": "vi",
+          "seconds": 62.1453125,
+          "score": {
+            "unit": "words",
+            "referenceUnits": 73,
+            "hypothesisUnits": 53,
+            "errors": 73,
+            "substitutions": 53,
+            "deletions": 20,
+            "insertions": 0,
+            "errorRate": 1.0,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 13.968,
+          "peakAllocatedMiB": 6271.91,
+          "resources": {
+            "peakProcessRamMiB": 1932.25,
+            "gpuUtilizationPeakPercent": 99,
+            "gpuMemoryDevicePeakMiB": 8907,
+            "gpuSamples": 25,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "waveSha256": "2c7884588d2ff630482db764d7285d2cf8a2501cb147cde495c6fe6258a658fb",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 47,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 57.0,
+              "generatedTokens": 85,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            },
+            {
+              "startSeconds": 54.0,
+              "endSeconds": 62.1453125,
+              "generatedTokens": 26,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "missingLyricsHeaderCount": 0,
+          "warningCount": 0
+        },
+        {
+          "case": "th-original",
+          "language": "th",
+          "seconds": 44.234,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 216,
+            "hypothesisUnits": 1203,
+            "errors": 1203,
+            "substitutions": 216,
+            "deletions": 0,
+            "insertions": 987,
+            "errorRate": 5.569444444444445,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 39.984,
+          "peakAllocatedMiB": 6271.91,
+          "resources": {
+            "peakProcessRamMiB": 1931.75,
+            "gpuUtilizationPeakPercent": 92,
+            "gpuMemoryDevicePeakMiB": 8907,
+            "gpuSamples": 71,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "waveSha256": "a33995c6cf48b9dced998a711a30a4e72858810a4375c1aa94b97bbe375e1dbd",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 512,
+              "tokenLimitReached": true,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 44.234,
+              "generatedTokens": 24,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "missingLyricsHeaderCount": 0,
+          "warningCount": 1
+        },
+        {
+          "case": "zh-original",
+          "language": "zh",
+          "seconds": 49.776,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 84,
+            "hypothesisUnits": 645,
+            "errors": 645,
+            "substitutions": 84,
+            "deletions": 0,
+            "insertions": 561,
+            "errorRate": 7.678571428571429,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 51.773,
+          "peakAllocatedMiB": 6271.91,
+          "resources": {
+            "peakProcessRamMiB": 1919.04,
+            "gpuUtilizationPeakPercent": 51,
+            "gpuMemoryDevicePeakMiB": 8907,
+            "gpuSamples": 92,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "waveSha256": "b1e0786a76d46a388c55c8640259ec10eea67452c7be7d7d2fab92c0334fa404",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 512,
+              "tokenLimitReached": true,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 49.776,
+              "generatedTokens": 192,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "missingLyricsHeaderCount": 0,
+          "warningCount": 2
+        },
+        {
+          "case": "zh-cloud",
+          "language": "zh",
+          "seconds": 41.93525,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 24,
+            "hypothesisUnits": 1704,
+            "errors": 1704,
+            "substitutions": 24,
+            "deletions": 0,
+            "insertions": 1680,
+            "errorRate": 71.0,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 76.784,
+          "peakAllocatedMiB": 6271.91,
+          "resources": {
+            "peakProcessRamMiB": 1918.96,
+            "gpuUtilizationPeakPercent": 49,
+            "gpuMemoryDevicePeakMiB": 8907,
+            "gpuSamples": 137,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "waveSha256": "6518d9b86584e8ec43e3f7e4e6841058e12abb465c4503dddd963e31692f806d",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 512,
+              "tokenLimitReached": true,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 41.93525,
+              "generatedTokens": 512,
+              "tokenLimitReached": true,
+              "ambiguousBoundary": true
+            }
+          ],
+          "missingLyricsHeaderCount": 0,
+          "warningCount": 2
+        },
+        {
+          "case": "th-royal",
+          "language": "th",
+          "seconds": 91.23125,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 117,
+            "hypothesisUnits": 474,
+            "errors": 474,
+            "substitutions": 117,
+            "deletions": 0,
+            "insertions": 357,
+            "errorRate": 4.051282051282051,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 20.411,
+          "peakAllocatedMiB": 6271.91,
+          "resources": {
+            "peakProcessRamMiB": 1922.09,
+            "gpuUtilizationPeakPercent": 92,
+            "gpuMemoryDevicePeakMiB": 8907,
+            "gpuSamples": 37,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "waveSha256": "15f72ed1c9a9ce3067efb21a7b1fe1f957cee6db391be6523c40ef18915fb8e5",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 53,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 57.0,
+              "generatedTokens": 97,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            },
+            {
+              "startSeconds": 54.0,
+              "endSeconds": 84.0,
+              "generatedTokens": 69,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            },
+            {
+              "startSeconds": 81.0,
+              "endSeconds": 91.23125,
+              "generatedTokens": 39,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "missingLyricsHeaderCount": 0,
+          "warningCount": 1
+        },
+        {
+          "case": "vi-citizens",
+          "language": "vi",
+          "seconds": 67.0,
+          "score": {
+            "unit": "words",
+            "referenceUnits": 120,
+            "hypothesisUnits": 622,
+            "errors": 616,
+            "substitutions": 114,
+            "deletions": 0,
+            "insertions": 502,
+            "errorRate": 5.133333333333334,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 78.939,
+          "peakAllocatedMiB": 6271.91,
+          "resources": {
+            "peakProcessRamMiB": 1920.78,
+            "gpuUtilizationPeakPercent": 88,
+            "gpuMemoryDevicePeakMiB": 8907,
+            "gpuSamples": 141,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "waveSha256": "4856c7b7a3c56468bdd8c90bee64ad2cd190b1838ca25e6df4308f116444d5fe",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 512,
+              "tokenLimitReached": true,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 57.0,
+              "generatedTokens": 512,
+              "tokenLimitReached": true,
+              "ambiguousBoundary": true
+            },
+            {
+              "startSeconds": 54.0,
+              "endSeconds": 67.0,
+              "generatedTokens": 24,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "missingLyricsHeaderCount": 0,
+          "warningCount": 2
+        }
+      ]
+    },
+    "nf4-4533-system": {
+      "revision": "53062cf7d0e09d463d7fc4c218ce2ecb71400f29",
+      "loadSeconds": 15.821,
+      "loadResources": {
+        "peakProcessRamMiB": 5689.93,
+        "gpuUtilizationPeakPercent": 51,
+        "gpuMemoryDevicePeakMiB": 8447,
+        "gpuSamples": 28,
+        "gpuMetricsScope": "whole-device-including-other-apps",
+        "ramMeasurement": "sampled-process-working-set"
+      },
+      "checkpointLoad": {
+        "missingKeys": [],
+        "mismatchedKeys": [],
+        "unexpectedKeyCount": 1102,
+        "unusedModuleKeyCounts": {
+          "talker": 293,
+          "token2wav": 809
+        }
+      },
+      "parameterDevices": [
+        "cuda:0"
+      ],
+      "deviceMap": {
+        "": 0
+      },
+      "workerRestartExitCode": 0,
+      "transformersVersion": "4.53.3",
+      "inputSystem": "official-Qwen-Omni-example",
+      "fullFiles": true,
+      "results": [
+        {
+          "case": "vi-original",
+          "language": "vi",
+          "seconds": 62.1453125,
+          "score": {
+            "unit": "words",
+            "referenceUnits": 73,
+            "hypothesisUnits": 53,
+            "errors": 73,
+            "substitutions": 53,
+            "deletions": 20,
+            "insertions": 0,
+            "errorRate": 1.0,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 13.367,
+          "peakAllocatedMiB": 6283.08,
+          "resources": {
+            "peakProcessRamMiB": 1959.93,
+            "gpuUtilizationPeakPercent": 92,
+            "gpuMemoryDevicePeakMiB": 8891,
+            "gpuSamples": 24,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "waveSha256": "2c7884588d2ff630482db764d7285d2cf8a2501cb147cde495c6fe6258a658fb",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 47,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 57.0,
+              "generatedTokens": 85,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            },
+            {
+              "startSeconds": 54.0,
+              "endSeconds": 62.1453125,
+              "generatedTokens": 26,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "missingLyricsHeaderCount": 0,
+          "warningCount": 0
+        },
+        {
+          "case": "th-original",
+          "language": "th",
+          "seconds": 44.234,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 216,
+            "hypothesisUnits": 1203,
+            "errors": 1203,
+            "substitutions": 216,
+            "deletions": 0,
+            "insertions": 987,
+            "errorRate": 5.569444444444445,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 39.507,
+          "peakAllocatedMiB": 6283.08,
+          "resources": {
+            "peakProcessRamMiB": 1923.2,
+            "gpuUtilizationPeakPercent": 97,
+            "gpuMemoryDevicePeakMiB": 8895,
+            "gpuSamples": 70,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "waveSha256": "a33995c6cf48b9dced998a711a30a4e72858810a4375c1aa94b97bbe375e1dbd",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 512,
+              "tokenLimitReached": true,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 44.234,
+              "generatedTokens": 24,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "missingLyricsHeaderCount": 0,
+          "warningCount": 1
+        },
+        {
+          "case": "zh-original",
+          "language": "zh",
+          "seconds": 49.776,
+          "score": {
+            "unit": "characters",
+            "referenceUnits": 84,
+            "hypothesisUnits": 404,
+            "errors": 404,
+            "substitutions": 84,
+            "deletions": 0,
+            "insertions": 320,
+            "errorRate": 4.809523809523809,
+            "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+          },
+          "inferenceSeconds": 40.043,
+          "peakAllocatedMiB": 6283.08,
+          "resources": {
+            "peakProcessRamMiB": 1908.59,
+            "gpuUtilizationPeakPercent": 74,
+            "gpuMemoryDevicePeakMiB": 8899,
+            "gpuSamples": 72,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          },
+          "waveSha256": "b1e0786a76d46a388c55c8640259ec10eea67452c7be7d7d2fab92c0334fa404",
+          "segments": [
+            {
+              "startSeconds": 0.0,
+              "endSeconds": 30.0,
+              "generatedTokens": 512,
+              "tokenLimitReached": true,
+              "ambiguousBoundary": false
+            },
+            {
+              "startSeconds": 27.0,
+              "endSeconds": 49.776,
+              "generatedTokens": 25,
+              "tokenLimitReached": false,
+              "ambiguousBoundary": true
+            }
+          ],
+          "missingLyricsHeaderCount": 0,
+          "warningCount": 1
+        }
+      ]
     }
   },
-  "initialNf4InstrumentationFailure": "AttributeError: Qwen2_5OmniThinkerForConditionalGeneration has no hf_device_map; inference not started; worker restored; corrected actual parameter device inspection"
+  "initialNf4InstrumentationFailure": "AttributeError: Qwen2_5OmniThinkerForConditionalGeneration has no hf_device_map; inference not started; worker restored; corrected actual parameter device inspection",
+  "processorCompatibilityProbe": {
+    "input_ids": {
+      "shape": [
+        1,
+        782
+      ],
+      "equal": true,
+      "maxAbsoluteDifference": 0.0
+    },
+    "attention_mask": {
+      "shape": [
+        1,
+        782
+      ],
+      "equal": true,
+      "maxAbsoluteDifference": 0.0
+    },
+    "feature_attention_mask": {
+      "shape": [
+        1,
+        30000
+      ],
+      "equal": true,
+      "maxAbsoluteDifference": 0.0
+    },
+    "input_features": {
+      "shape": [
+        1,
+        128,
+        30000
+      ],
+      "equal": true,
+      "maxAbsoluteDifference": 0.0
+    }
+  }
 }
