@@ -16,7 +16,19 @@ export type MusicRequest = {
   fingerprintConsent?: boolean;
   fullFile?: boolean;
 };
-export type MusicRecord = { source: string; request: MusicRequest; jobId?: string; state?: string };
+export const MAX_EDITED_LYRICS = 60000;
+export type EditedLyrics = { original: string; text: string; updatedAt: string; partial: boolean };
+export type MusicRecord = { source: string; request: MusicRequest; jobId?: string; state?: string; editedLyrics?: EditedLyrics };
+
+export function validEditedLyrics(value: unknown): value is EditedLyrics {
+  if (!value || typeof value !== "object") return false;
+  const edit = value as EditedLyrics;
+  return typeof edit.original === "string" && edit.original.length <= MAX_EDITED_LYRICS &&
+    typeof edit.text === "string" && edit.text.length <= MAX_EDITED_LYRICS &&
+    typeof edit.partial === "boolean" && typeof edit.updatedAt === "string" &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(edit.updatedAt) &&
+    Number.isFinite(Date.parse(edit.updatedAt));
+}
 export type MusicArtifact = { bytes: number; sha256: string; filename: string };
 export type MusicJob = {
   id: string;
@@ -50,6 +62,7 @@ export function isMusicRecord(value: unknown): value is MusicRecord {
   const r = v.request;
   return (
     !!r &&
+    (v.editedLyrics === undefined || (r.kind === "recognition" && r.transcribe === true && validEditedLyrics(v.editedLyrics))) &&
     typeof r.requestId === "string" &&
     /^[A-Za-z0-9_.:-]{1,100}$/.test(r.requestId) &&
     typeof r.prompt === "string" &&

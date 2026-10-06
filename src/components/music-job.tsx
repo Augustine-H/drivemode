@@ -12,6 +12,7 @@ import {
 import { musicStateLabel, musicTerminal, type MusicJob, type MusicRecord } from "@/lib/music-model";
 import { getMedia, ingestMedia, readMediaBlob, retryMedia } from "@/lib/media-repository";
 import { ManagedMedia } from "./managed-media";
+import { LyricsEditor } from "./lyrics-editor";
 
 export function MusicJobCard({
   music,
@@ -23,7 +24,7 @@ export function MusicJobCard({
   music: MusicRecord;
   room: string;
   messageId: string;
-  onUpdate: (music: MusicRecord, mediaIds?: string[]) => void;
+  onUpdate: (music: MusicRecord, mediaIds?: string[]) => void | Promise<void>;
   onPlay: () => void;
 }) {
   const [job, setJob] = useState<MusicJob>(),
@@ -204,7 +205,7 @@ export function MusicJobCard({
           {music.request.identify ? <p>{recognition.titleMatch
             ? `${recognition.titleMatch.title} · ${recognition.titleMatch.artist}`
             : recognition.identificationError ? `곡 검색 오류: ${recognition.identificationError}` : "일치하는 제목·가수를 찾지 못했습니다."}</p> : null}
-          {music.request.transcribe ? <p className="whitespace-pre-wrap">{recognition.transcription || "받아쓴 가사가 없습니다."}</p> : null}
+          {music.request.transcribe ? <div><p className="mb-2 font-medium">AI 인식 원문</p><p className="whitespace-pre-wrap break-words">{recognition.transcription || "받아쓴 가사가 없습니다."}</p></div> : null}
           {recognition.warnings.map((warning, i) => <p key={i} className="text-muted">{warning}</p>)}
           {recognition.segments && recognition.segments.length > 1 ? <details>
             <summary className="min-h-11 cursor-pointer">구간별 인식 원문 확인</summary>
@@ -212,6 +213,12 @@ export function MusicJobCard({
           </details> : null}
         </div>
       ) : null}
+      {music.request.kind === "recognition" && music.request.transcribe &&
+        (music.editedLyrics || ["COMPLETED", "CANCELLED"].includes(effectiveState ?? "")) ?
+        <LyricsEditor music={{ ...music, state: effectiveState }} original={recognition?.transcription} onUpdate={next => {
+          record.current = next;
+          return update.current(next);
+        }} /> : null}
       <div className="flex flex-wrap gap-2 text-sm">
         {!musicTerminal(effectiveState) ? (
           <button

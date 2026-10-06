@@ -94,3 +94,31 @@ test("memory archive preserves music job references without carrying connection 
   assert.deepEqual(restored.backup.threads.ara[0].music, music);
   assert.deepEqual(restored.backup.threads.ara[0].mediaIds, [`music-${music.jobId}-mp3`]);
 });
+
+test("edited lyrics preserve original and correction through backup and memory archive", async () => {
+  const music = {
+    source: "https://nas.example.ts.net:8443",
+    request: { requestId: "lyrics-edit", prompt: "노래 인식", kind: "recognition" as const, duration: 30, seed: 1042, bitrate: 320 as const, transcribe: true },
+    jobId: "bada76e9-5c9b-4c70-ae82-85d1f615e830", state: "COMPLETED",
+    editedLyrics: { original: "작은 꿈이 빛나요", text: "작은 꿈이 빛나요\n함께 걸어요", updatedAt: "2026-10-06T06:00:00.000Z", partial: false },
+  };
+  assert(isMusicRecord(music));
+  const backup = buildBackup({ personaId: "ara", personas: [{ id: "ara", name: "아라", text: "한국어", password: "", locked: false }],
+    threads: { ara: [{ id: "edited-turn", speaker: "grok", text: "노래 인식 완료", music }] } });
+  const archive = await makeMemoryArchive(backup, [], [], "test-device", "1.28.0");
+  const restored = await parseMemoryArchive(new Blob([JSON.stringify(archive)]));
+  assert.deepEqual(restored.backup.threads.ara[0].music?.editedLyrics, music.editedLyrics);
+  assert.equal(restored.backup.threads.ara[0].music?.request.kind, "recognition");
+  assert(!("editedLyrics" in music.request));
+});
+
+test("edited lyric restore rejects invalid metadata and non-transcription jobs", () => {
+  const request = { requestId: "lyrics-validation", prompt: "노래 인식", kind: "recognition" as const, duration: 30, seed: 1042, bitrate: 320 as const, transcribe: true };
+  const editedLyrics = { original: "AI 원문", text: "사용자 수정본", updatedAt: "2026-10-06T06:00:00.000Z", partial: true };
+  const music = { source: "https://nas.example.ts.net:8443", request, editedLyrics };
+  assert(isMusicRecord(music));
+  assert(isMusicRecord({ ...music, editedLyrics: { ...editedLyrics, text: "" } }));
+  for (const change of [{ original: "x".repeat(60001) }, { text: "x".repeat(60001) }, { text: 3 }, { updatedAt: "invalid" }, { partial: "true" }])
+    assert(!isMusicRecord({ ...music, editedLyrics: { ...editedLyrics, ...change } }));
+  assert(!isMusicRecord({ ...music, request: musicRequest("피아노 음악 만들어줘", "other") }));
+});

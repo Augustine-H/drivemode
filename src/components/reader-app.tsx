@@ -314,6 +314,7 @@ function Equalizer() {
 
 export function ReaderApp() {
   const [threads, setThreads] = useState<Record<string, Turn[]>>({ plain: SAMPLE_TURNS });
+  const pendingLyricsSaves = useRef<Array<{ room: string; messageId: string; edit: NonNullable<MusicRecord["editedLyrics"]>; resolve: () => void; reject: (error: Error) => void }>>([]);
   const [rate, setRate] = useState(1);
   const [gap, setGap] = useState(0.45);
   const [voiceMe, setVoiceMe] = useState("leo");
@@ -937,7 +938,14 @@ export function ReaderApp() {
       index: reader.turnIndex,
     };
     const save = () => {
+      const edits = pendingLyricsSaves.current.filter(entry =>
+        payload.threads?.[entry.room]?.find(turn => turn.id === entry.messageId)?.music?.editedLyrics === entry.edit);
       void writeAppState(payload).then((saved) => {
+        for (const entry of edits) {
+          pendingLyricsSaves.current = pendingLyricsSaves.current.filter(item => item !== entry);
+          if (saved) entry.resolve();
+          else entry.reject(new Error("수정본을 기기에 저장하지 못했습니다. 저장 공간을 확인하고 다시 저장해 주세요."));
+        }
         if (!saved)
           setBanner(
             "기억 저장 공간이 부족합니다. 대화는 계속할 수 있습니다. 파일로 백업해 주세요.",
@@ -2037,6 +2045,10 @@ export function ReaderApp() {
   askRef.current = ask;
   function updateMusic(room: string, messageId: string, music: MusicRecord, mediaIds?: string[]) {
     const previous = threads[room]?.find((turn) => turn.id === messageId)?.music;
+    const saved = music.editedLyrics && music.editedLyrics !== previous?.editedLyrics ? new Promise<void>((resolve, reject) => {
+      if (!previous) { reject(new Error("원래 작업을 찾지 못했습니다. 화면을 다시 확인해 주세요.")); return; }
+      pendingLyricsSaves.current.push({ room, messageId, edit: music.editedLyrics!, resolve, reject });
+    }) : undefined;
     if (
       music.state === "COMPLETED" &&
       previous?.state !== "COMPLETED" &&
@@ -2055,6 +2067,7 @@ export function ReaderApp() {
           : t,
       ),
     }));
+    return saved;
   }
   function recoverMusic(music: MusicRecord) {
     const room = personaIdRef.current;
