@@ -1,0 +1,234 @@
+{
+  "date": "2026-10-06",
+  "state": "COMPLETED",
+  "productVersion": "1.28.2",
+  "productModelChanged": false,
+  "actualPaidApiCalls": 3,
+  "audioTransmittedExternally": true,
+  "actualBillKnown": false,
+  "referenceUsedForInference": false,
+  "automaticRetries": false,
+  "capture": {
+    "source": "actual browser getUserMedia Samson Go Mic",
+    "sourceSha256": "df61dd3e2ad6622d0f6f7a43be091c843a75088b08e09b6e65af93ec09110884",
+    "waveSha256": "41ed32715ea18ab8dfdeffa3b18670a2d0e39987ea825a901107257dd4adf4f3",
+    "durationSeconds": 30.0,
+    "sampleRate": 16000,
+    "channels": 1,
+    "subtype": "PCM_16",
+    "rmsDbfs": -29.668453070847125,
+    "peakDbfs": -9.786508364285353,
+    "clippedSampleFraction": 0.0,
+    "userConfirmedStart": true,
+    "userConfirmedEnd": true
+  },
+  "frozen": {
+    "frozenAtUnix": 1791288071.9751358,
+    "inferenceStarted": false,
+    "manifestSha256": "6ab5c134932a5487a8686c5f367aa2903fda948277617deab89698fb0a84a649",
+    "policySha256": "6b989b6ca1db7eda84b3f712992decad6f79f37a7795ed35056c93c1d5ef3058",
+    "evaluationCodeSha256": "5128dad1f8ede23f4078e9880dc9a89d825fb925c263c21c0b3bf70863feceb9"
+  },
+  "scoringPolicy": {
+    "primaryUnits": {
+      "ko": "characters"
+    },
+    "supplementaryUnits": {
+      "ko": "words"
+    },
+    "normalization": "Existing product lyrics_evaluation.py NFKC/casefold and LNM; all omissions and repeats counted",
+    "referenceHintsSent": false,
+    "postHoc": false,
+    "customSubstitutions": false
+  },
+  "plan": {
+    "state": "PREPARED",
+    "date": "2026-10-06",
+    "source": "User authorized real microphone Qwen/xAI/OpenAI/ElevenLabs comparison and supplied song interval",
+    "maximumCalls": 3,
+    "callsPerProvider": 1,
+    "secondsPerProvider": 30.0,
+    "estimatedUsdPerHour": {
+      "xai": 0.1,
+      "openai": 0.27,
+      "elevenlabs": 0.22
+    },
+    "maximumEstimatedUsd": 0.1,
+    "automaticRetries": false,
+    "referenceAndSongNameSent": false,
+    "credentialsInGit": false,
+    "apiCalled": false,
+    "estimatedUsdAllThree": 0.004917
+  },
+  "referenceSha256": "ea23f856c47b0324e1126974232044188b1f01cca668dc2f5ab7ea3a1490cfbd",
+  "results": [
+    {
+      "case": "ko-hanroro-samson",
+      "language": "ko",
+      "seconds": 30.0,
+      "waveSha256": "41ed32715ea18ab8dfdeffa3b18670a2d0e39987ea825a901107257dd4adf4f3",
+      "apiElapsedSeconds": 17.348,
+      "metrics": {
+        "totalSeconds": 13.847,
+        "peakAllocatedMiB": 4066.65,
+        "peakReservedMiB": 4130.0,
+        "resources": {
+          "peakProcessRamMiB": 3423.29,
+          "gpuUtilizationPeakPercent": 42,
+          "gpuMemoryDevicePeakMiB": 5742,
+          "gpuSamples": 22,
+          "gpuMetricsScope": "whole-device-including-other-apps",
+          "ramMeasurement": "sampled-process-working-set"
+        }
+      },
+      "score": {
+        "unit": "characters",
+        "referenceUnits": 68,
+        "hypothesisUnits": 69,
+        "errors": 11,
+        "substitutions": 10,
+        "deletions": 0,
+        "insertions": 1,
+        "errorRate": 0.16176470588235295,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementaryWer": {
+        "unit": "words",
+        "referenceUnits": 22,
+        "hypothesisUnits": 27,
+        "errors": 15,
+        "substitutions": 10,
+        "deletions": 0,
+        "insertions": 5,
+        "errorRate": 0.6818181818181818,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "provider": "qwen"
+    },
+    {
+      "provider": "xai",
+      "model": "grok-voice-transcribe-2.0",
+      "case": "ko-hanroro-samson",
+      "language": "ko",
+      "seconds": 30.0,
+      "waveSha256": "41ed32715ea18ab8dfdeffa3b18670a2d0e39987ea825a901107257dd4adf4f3",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.0008333333333333334,
+      "apiElapsedSeconds": 1.462,
+      "usage": null,
+      "reportedDuration": 30.0,
+      "detectedLanguage": null,
+      "score": {
+        "unit": "characters",
+        "referenceUnits": 68,
+        "hypothesisUnits": 71,
+        "errors": 14,
+        "substitutions": 11,
+        "deletions": 0,
+        "insertions": 3,
+        "errorRate": 0.20588235294117646,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementaryWer": {
+        "unit": "words",
+        "referenceUnits": 22,
+        "hypothesisUnits": 24,
+        "errors": 12,
+        "substitutions": 10,
+        "deletions": 0,
+        "insertions": 2,
+        "errorRate": 0.5454545454545454,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-transcribe",
+      "case": "ko-hanroro-samson",
+      "language": "ko",
+      "seconds": 30.0,
+      "waveSha256": "41ed32715ea18ab8dfdeffa3b18670a2d0e39987ea825a901107257dd4adf4f3",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.0022500000000000003,
+      "apiElapsedSeconds": 2.148,
+      "usage": {
+        "type": "duration",
+        "seconds": 30
+      },
+      "reportedDuration": null,
+      "detectedLanguage": [
+        {
+          "code": "ko"
+        }
+      ],
+      "score": {
+        "unit": "characters",
+        "referenceUnits": 68,
+        "hypothesisUnits": 69,
+        "errors": 13,
+        "substitutions": 12,
+        "deletions": 0,
+        "insertions": 1,
+        "errorRate": 0.19117647058823528,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementaryWer": {
+        "unit": "words",
+        "referenceUnits": 22,
+        "hypothesisUnits": 24,
+        "errors": 9,
+        "substitutions": 7,
+        "deletions": 0,
+        "insertions": 2,
+        "errorRate": 0.4090909090909091,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      }
+    },
+    {
+      "provider": "elevenlabs",
+      "model": "scribe_v2",
+      "case": "ko-hanroro-samson",
+      "language": "ko",
+      "seconds": 30.0,
+      "waveSha256": "41ed32715ea18ab8dfdeffa3b18670a2d0e39987ea825a901107257dd4adf4f3",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.0018333333333333333,
+      "apiElapsedSeconds": 2.553,
+      "usage": null,
+      "reportedDuration": null,
+      "detectedLanguage": "kor",
+      "score": {
+        "unit": "characters",
+        "referenceUnits": 68,
+        "hypothesisUnits": 69,
+        "errors": 10,
+        "substitutions": 9,
+        "deletions": 0,
+        "insertions": 1,
+        "errorRate": 0.14705882352941177,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementaryWer": {
+        "unit": "words",
+        "referenceUnits": 22,
+        "hypothesisUnits": 23,
+        "errors": 7,
+        "substitutions": 6,
+        "deletions": 0,
+        "insertions": 1,
+        "errorRate": 0.3181818181818182,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      }
+    }
+  ],
+  "limitations": [
+    "One actual microphone recording, one trial per route; not statistical proof",
+    "User-confirmed interval before inference, no independent native listening audit",
+    "Phone playback and room acoustics; capture quality is specific to this setup",
+    "Qwen product segmentation/merging vs provider whole input; not weights-only comparison",
+    "Actual account bill and provider VRAM/RAM not observed"
+  ]
+}
