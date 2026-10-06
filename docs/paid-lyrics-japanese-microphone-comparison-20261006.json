@@ -1,0 +1,349 @@
+{
+  "date": "2026-10-06",
+  "state": "COMPLETED",
+  "productVersion": "1.28.2",
+  "productModelChanged": false,
+  "actualPaidApiCalls": 3,
+  "audioTransmittedExternally": true,
+  "actualBillKnown": false,
+  "referenceUsedForInference": false,
+  "automaticRetries": false,
+  "capture": {
+    "source": "actual browser getUserMedia Samson Go Mic",
+    "sourceSha256": "7575f10a01cbf5637e52fa5e073a66a63586d739fe2b62d6179e2c39049e235b",
+    "waveSha256": "cfd1396183736accf8e1d7f05a885be4c9a8ea39a7abbdd8af171cf4da496ae7",
+    "durationSeconds": 30.0,
+    "sampleRate": 16000,
+    "channels": 1,
+    "subtype": "PCM_16",
+    "rmsDbfs": -23.65028327344456,
+    "peakDbfs": -5.07137571152101,
+    "clippedSampleFraction": 0.0,
+    "userConfirmedStart": true,
+    "userConfirmedEnd": true
+  },
+  "frozen": {
+    "frozenAtUnix": 1791289441.239905,
+    "inferenceStarted": false,
+    "manifestSha256": "e64d5558fa7ce38123c174b67f36e216fb9409a3925e3a5c473a1d6fabf782ce",
+    "policySha256": "b31325999861d84e931e815f477ae8e796d436eefb3b2c49d108709f50114edb",
+    "evaluationCodeSha256": "5128dad1f8ede23f4078e9880dc9a89d825fb925c263c21c0b3bf70863feceb9",
+    "japaneseDiagnosticCodeSha256": "727ea4154cfc2e8219c2436a24a5146258f59e179dc6a13d7c6c97b07e82a3c6"
+  },
+  "scoringPolicy": {
+    "primaryUnits": {
+      "ja": "characters"
+    },
+    "supplementaryUnits": {},
+    "normalization": "Existing product lyrics_evaluation.py NFKC/casefold and LNM; all omissions and repeats counted",
+    "referenceHintsSent": false,
+    "postHoc": false,
+    "customSubstitutions": false,
+    "japaneseSpellingDiagnostic": {
+      "postHoc": false,
+      "scope": "Literal I'm sorry/I’m sorry to アイムソーリー and 一人 to ひとり applied equally to reference and output; no lexical correction"
+    },
+    "japaneseReadingDiagnostic": {
+      "postHoc": false,
+      "scope": "Above spelling rules then pykakasi==2.3.0 whole-text hiragana on reference and output; dictionary readings may be wrong; primary strict CER unchanged"
+    }
+  },
+  "plan": {
+    "state": "PREPARED",
+    "date": "2026-10-06",
+    "source": "User authorized real microphone Qwen/xAI/OpenAI/ElevenLabs comparison and supplied song interval",
+    "maximumCalls": 3,
+    "callsPerProvider": 1,
+    "secondsPerProvider": 30.0,
+    "estimatedUsdPerHour": {
+      "xai": 0.1,
+      "openai": 0.27,
+      "elevenlabs": 0.22
+    },
+    "maximumEstimatedUsd": 0.1,
+    "automaticRetries": false,
+    "referenceAndSongNameSent": false,
+    "credentialsInGit": false,
+    "apiCalled": false,
+    "estimatedUsdAllThree": 0.004917
+  },
+  "referenceSha256": "a9ff96c606f7be0a0c7776028347a7975cb0af1840d4b57da46d7aed8856e7b4",
+  "results": [
+    {
+      "case": "ja-pretender-samson",
+      "language": "ja",
+      "seconds": 30.0,
+      "waveSha256": "cfd1396183736accf8e1d7f05a885be4c9a8ea39a7abbdd8af171cf4da496ae7",
+      "apiElapsedSeconds": 17.684,
+      "metrics": {
+        "totalSeconds": 13.674,
+        "peakAllocatedMiB": 4066.65,
+        "peakReservedMiB": 4130.0,
+        "resources": {
+          "peakProcessRamMiB": 3445.53,
+          "gpuUtilizationPeakPercent": 50,
+          "gpuMemoryDevicePeakMiB": 5743,
+          "gpuSamples": 21,
+          "gpuMetricsScope": "whole-device-including-other-apps",
+          "ramMeasurement": "sampled-process-working-set"
+        }
+      },
+      "score": {
+        "unit": "characters",
+        "referenceUnits": 96,
+        "hypothesisUnits": 95,
+        "errors": 6,
+        "substitutions": 3,
+        "deletions": 2,
+        "insertions": 1,
+        "errorRate": 0.0625,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementarySpellingCer": {
+        "postHoc": false,
+        "coverageWarning": "Frozen Unicode word-boundary pattern does not match Latin phrase adjacent to Japanese letters; this is a limited spelling diagnostic, not comprehensive script equivalence",
+        "score": {
+          "unit": "characters",
+          "referenceUnits": 96,
+          "hypothesisUnits": 96,
+          "errors": 3,
+          "substitutions": 1,
+          "deletions": 1,
+          "insertions": 1,
+          "errorRate": 0.03125,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
+      },
+      "supplementaryReadingCer": {
+        "postHoc": false,
+        "validForComparison": false,
+        "diagnosticValidityAssessedAfterRun": true,
+        "excludedFromRecommendation": true,
+        "error": "PYKAKASI_NEWLINE_KANA_DUPLICATION",
+        "reproduction": {
+          "input": "ねこ\nいぬ",
+          "output": "ねこねこいぬ",
+          "expected": "ねこいぬ"
+        },
+        "score": {
+          "unit": "characters",
+          "referenceUnits": 160,
+          "hypothesisUnits": 116,
+          "errors": 45,
+          "substitutions": 1,
+          "deletions": 44,
+          "insertions": 0,
+          "errorRate": 0.28125,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
+      },
+      "provider": "qwen"
+    },
+    {
+      "provider": "xai",
+      "model": "grok-voice-transcribe-2.0",
+      "case": "ja-pretender-samson",
+      "language": "ja",
+      "seconds": 30.0,
+      "waveSha256": "cfd1396183736accf8e1d7f05a885be4c9a8ea39a7abbdd8af171cf4da496ae7",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.0008333333333333334,
+      "apiElapsedSeconds": 1.388,
+      "usage": null,
+      "reportedDuration": 30.0,
+      "detectedLanguage": null,
+      "score": {
+        "unit": "characters",
+        "referenceUnits": 96,
+        "hypothesisUnits": 99,
+        "errors": 9,
+        "substitutions": 4,
+        "deletions": 1,
+        "insertions": 4,
+        "errorRate": 0.09375,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementarySpellingCer": {
+        "postHoc": false,
+        "coverageWarning": "Frozen Unicode word-boundary pattern does not match Latin phrase adjacent to Japanese letters; this is a limited spelling diagnostic, not comprehensive script equivalence",
+        "score": {
+          "unit": "characters",
+          "referenceUnits": 96,
+          "hypothesisUnits": 100,
+          "errors": 6,
+          "substitutions": 2,
+          "deletions": 0,
+          "insertions": 4,
+          "errorRate": 0.0625,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
+      },
+      "supplementaryReadingCer": {
+        "postHoc": false,
+        "validForComparison": false,
+        "diagnosticValidityAssessedAfterRun": true,
+        "excludedFromRecommendation": true,
+        "error": "PYKAKASI_NEWLINE_KANA_DUPLICATION",
+        "reproduction": {
+          "input": "ねこ\nいぬ",
+          "output": "ねこねこいぬ",
+          "expected": "ねこいぬ"
+        },
+        "score": {
+          "unit": "characters",
+          "referenceUnits": 160,
+          "hypothesisUnits": 120,
+          "errors": 47,
+          "substitutions": 3,
+          "deletions": 42,
+          "insertions": 2,
+          "errorRate": 0.29375,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-transcribe",
+      "case": "ja-pretender-samson",
+      "language": "ja",
+      "seconds": 30.0,
+      "waveSha256": "cfd1396183736accf8e1d7f05a885be4c9a8ea39a7abbdd8af171cf4da496ae7",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.0022500000000000003,
+      "apiElapsedSeconds": 2.773,
+      "usage": {
+        "type": "duration",
+        "seconds": 30
+      },
+      "reportedDuration": null,
+      "detectedLanguage": [
+        {
+          "code": "ja"
+        }
+      ],
+      "score": {
+        "unit": "characters",
+        "referenceUnits": 96,
+        "hypothesisUnits": 94,
+        "errors": 4,
+        "substitutions": 2,
+        "deletions": 2,
+        "insertions": 0,
+        "errorRate": 0.041666666666666664,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementarySpellingCer": {
+        "postHoc": false,
+        "coverageWarning": "Frozen Unicode word-boundary pattern does not match Latin phrase adjacent to Japanese letters; this is a limited spelling diagnostic, not comprehensive script equivalence",
+        "score": {
+          "unit": "characters",
+          "referenceUnits": 96,
+          "hypothesisUnits": 95,
+          "errors": 1,
+          "substitutions": 0,
+          "deletions": 1,
+          "insertions": 0,
+          "errorRate": 0.010416666666666666,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
+      },
+      "supplementaryReadingCer": {
+        "postHoc": false,
+        "validForComparison": false,
+        "diagnosticValidityAssessedAfterRun": true,
+        "excludedFromRecommendation": true,
+        "error": "PYKAKASI_NEWLINE_KANA_DUPLICATION",
+        "reproduction": {
+          "input": "ねこ\nいぬ",
+          "output": "ねこねこいぬ",
+          "expected": "ねこいぬ"
+        },
+        "score": {
+          "unit": "characters",
+          "referenceUnits": 160,
+          "hypothesisUnits": 116,
+          "errors": 44,
+          "substitutions": 0,
+          "deletions": 44,
+          "insertions": 0,
+          "errorRate": 0.275,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
+      }
+    },
+    {
+      "provider": "elevenlabs",
+      "model": "scribe_v2",
+      "case": "ja-pretender-samson",
+      "language": "ja",
+      "seconds": 30.0,
+      "waveSha256": "cfd1396183736accf8e1d7f05a885be4c9a8ea39a7abbdd8af171cf4da496ae7",
+      "state": "COMPLETED",
+      "httpStatus": 200,
+      "estimatedUsd": 0.0018333333333333333,
+      "apiElapsedSeconds": 1.66,
+      "usage": null,
+      "reportedDuration": null,
+      "detectedLanguage": "jpn",
+      "score": {
+        "unit": "characters",
+        "referenceUnits": 96,
+        "hypothesisUnits": 95,
+        "errors": 13,
+        "substitutions": 10,
+        "deletions": 2,
+        "insertions": 1,
+        "errorRate": 0.13541666666666666,
+        "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+      },
+      "supplementarySpellingCer": {
+        "postHoc": false,
+        "coverageWarning": "Frozen Unicode word-boundary pattern does not match Latin phrase adjacent to Japanese letters; this is a limited spelling diagnostic, not comprehensive script equivalence",
+        "score": {
+          "unit": "characters",
+          "referenceUnits": 96,
+          "hypothesisUnits": 96,
+          "errors": 10,
+          "substitutions": 8,
+          "deletions": 1,
+          "insertions": 1,
+          "errorRate": 0.10416666666666667,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
+      },
+      "supplementaryReadingCer": {
+        "postHoc": false,
+        "validForComparison": false,
+        "diagnosticValidityAssessedAfterRun": true,
+        "excludedFromRecommendation": true,
+        "error": "PYKAKASI_NEWLINE_KANA_DUPLICATION",
+        "reproduction": {
+          "input": "ねこ\nいぬ",
+          "output": "ねこねこいぬ",
+          "expected": "ねこいぬ"
+        },
+        "score": {
+          "unit": "characters",
+          "referenceUnits": 160,
+          "hypothesisUnits": 116,
+          "errors": 52,
+          "substitutions": 8,
+          "deletions": 44,
+          "insertions": 0,
+          "errorRate": 0.325,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
+      }
+    }
+  ],
+  "limitations": [
+    "One actual microphone recording, one trial per route; not statistical proof",
+    "User-confirmed interval before inference, no independent native listening audit",
+    "Phone playback and room acoustics; capture quality is specific to this setup",
+    "Qwen product segmentation/merging vs provider whole input; not weights-only comparison",
+    "Actual account bill and provider VRAM/RAM not observed"
+  ]
+}
