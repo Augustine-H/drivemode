@@ -5,6 +5,9 @@ WHISPER = 'openai/whisper-large-v3-turbo'
 WHISPER_REVISION = '41f01f3fe87f28c78e2fbf8b568835947dd65ed9'
 
 def prepared(kind):
+    if kind == 'recognition':
+        from qwen_lyrics import prepared as lyrics_prepared
+        return lyrics_prepared()
     from pathlib import Path
     from huggingface_hub import try_to_load_from_cache
     repo, revision = (ACE, ACE_REVISION) if kind == 'song' else (WHISPER, WHISPER_REVISION)

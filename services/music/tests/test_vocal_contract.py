@@ -22,6 +22,17 @@ def fixture():
     return base64.b64encode(buffer.getvalue()).decode()
 
 class VocalContract(unittest.TestCase):
+    def test_transcription_language_contract_preserves_legacy_requests(self):
+        body = request(kind='recognition', audioBase64=fixture(), transcribe=True)
+        self.assertIsNone(GenerateRequest(**body).transcriptionLanguage)
+        for language in ('en', 'ja', 'auto', 'fil'):
+            self.assertEqual(GenerateRequest(**dict(body, transcriptionLanguage=language)).transcriptionLanguage, language)
+        for body in (dict(body, transcriptionLanguage='xx'),
+                     request(kind='song', lyrics='가사', transcriptionLanguage='en'),
+                     request(kind='recognition', audioBase64=fixture(), identify=True,
+                             fingerprintConsent=True, transcriptionLanguage='en')):
+            with self.assertRaises(ValidationError): GenerateRequest(**body)
+
     def test_song_requires_real_lyrics(self):
         for value in [request(kind='song'), request(kind='song', lyrics='  '), request(lyrics='unrouted')]:
             with self.assertRaises(ValidationError): GenerateRequest(**value)

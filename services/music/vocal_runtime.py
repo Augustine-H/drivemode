@@ -1,4 +1,4 @@
-"""Isolated ACE-Step / Whisper runtime. Invoked only by the serial GPU worker."""
+"""Isolated ACE-Step / multilingual Qwen lyrics runtime; serial GPU worker only."""
 import argparse
 import asyncio
 import base64
@@ -8,58 +8,74 @@ import os
 from pathlib import Path
 import sys
 import time
-import zlib
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / '.music-runtime' / 'vocal-deps'))
 from provider import atomic_json, save_audio
 
-from vocal_models import ACE, ACE_REVISION, WHISPER, WHISPER_REVISION
+from vocal_models import ACE, ACE_REVISION
+from qwen_lyrics import MODEL as ASR_MODEL, REVISION as ASR_REVISION, transcribe_segments
+from recognition_text import checked_lyrics
+from lyrics_chunks import windows, merge
 
 
-def recognition(request):
+def recognition(request, folder=None):
     import numpy as np
     import soundfile as sf
     raw = base64.b64decode(request['audioBase64'], validate=True)
-    if len(raw) > 1024 * 1024:
+    limit = 600 if request.get('fullFile') and request.get('transcribe') else 30
+    if len(raw) > limit * 32000 + 4096:
         raise ValueError('RECOGNITION_AUDIO_TOO_LARGE')
     with sf.SoundFile(io.BytesIO(raw)) as source:
-        if source.format != 'WAV' or source.samplerate != 16000 or source.channels != 1 or not 1 <= len(source) / 16000 <= 30:
-            raise ValueError('RECOGNITION_REQUIRES_MONO_16KHZ_WAV_1_TO_30_SECONDS')
+        if source.format != 'WAV' or source.subtype != 'PCM_16' or source.samplerate != 16000 or source.channels != 1 or not 1 <= len(source) / 16000 <= limit:
+            raise ValueError('RECOGNITION_WAV_FORMAT_OR_DURATION_INVALID')
         audio = source.read(dtype='float32')
     if not np.isfinite(audio).all() or np.sqrt(np.mean(audio ** 2)) < 0.001:
         return {'transcription': '', 'titleMatch': None, 'warnings': ['음성이 없거나 소리가 너무 작습니다.']}
     result = {'warnings': []}
     if request.get('transcribe'):
-        import torch
-        from transformers import AutoProcessor, WhisperForConditionalGeneration
-        processor = AutoProcessor.from_pretrained(WHISPER, revision=WHISPER_REVISION, local_files_only=True)
-        model = WhisperForConditionalGeneration.from_pretrained(WHISPER, revision=WHISPER_REVISION,
-                                                               local_files_only=True,
-                                                               dtype=torch.float32).to('cuda')
-        inputs = processor(audio, sampling_rate=16000, return_tensors='pt').input_features.to(
-            device='cuda', dtype=model.dtype)
-        with torch.inference_mode():
-            tokens = model.generate(inputs, task='transcribe', max_new_tokens=440,
-                                    do_sample=False, num_beams=5, return_timestamps=True,
-                                    temperature=0.0,
-                                    no_speech_threshold=0.6, logprob_threshold=-1.0,
-                                    compression_ratio_threshold=2.4)
-        text = processor.batch_decode(tokens, skip_special_tokens=True)[0].strip()
-        encoded = text.encode('utf-8')
-        if len(encoded) > 40 and len(encoded) / len(zlib.compress(encoded)) > 2.4:
-            text = ''
-            result['warnings'].append('반복된 글자·문장이 생성되어 받아쓰기 결과를 제외했습니다. 보컬이 또렷한 구간으로 다시 시도하세요.')
+        language = request.get('transcriptionLanguage') or 'ko'
+        ranges = list(windows(len(audio)))
+        if folder:
+            atomic_json(folder / 'recognition-progress.json', {'completedChunks': 0, 'totalChunks': len(ranges), 'processedSeconds': 0, 'totalSeconds': round(len(audio) / 16000, 3)})
+        text, segments = '', []
+        # Silence is guarded per window, not just across the whole file.
+        audible = [(a, b) for a, b in ranges if np.sqrt(np.mean(audio[a:b] ** 2)) >= 0.001]
+        outputs = transcribe_segments((audio[a:b] for a, b in audible), language=language)
+        try:
+            for index, (a, b) in enumerate(ranges):
+                if folder and (folder / 'cancel-recognition').exists():
+                    break
+                if (a, b) in audible:
+                    chunk, warnings = checked_lyrics(next(outputs))
+                    result['warnings'].extend(warnings)
+                else:
+                    chunk = ''
+                text, ambiguous = merge(text, chunk)
+                if ambiguous:
+                    result['warnings'].append('구간 경계의 가사를 확실하게 합치지 못해 두 인식 결과를 줄바꿈으로 남겼습니다. 중복·누락을 확인하세요.')
+                segments.append({'startSeconds': round(a / 16000, 3), 'endSeconds': round(b / 16000, 3), 'text': chunk})
+                if folder:
+                    atomic_json(folder / 'recognition-progress.json', {'completedChunks': index + 1, 'totalChunks': len(ranges), 'processedSeconds': round(b / 16000, 3), 'totalSeconds': round(len(audio) / 16000, 3)})
+        finally:
+            outputs.close()
+        result['segments'] = segments
+        result['warnings'] = list(dict.fromkeys(result['warnings']))
+        if len(segments) < len(ranges):
+            result['warnings'].append('취소된 작업의 완료 구간만 표시합니다. 파일 전체 가사가 아닙니다.')
         result['transcription'] = text
+        result['transcriptionLanguage'] = language
+        if language == 'auto':
+            result['warnings'].append('자동 감지는 짧은 구간이나 여러 언어가 섞인 노래에서 틀릴 수 있습니다. 곡의 언어를 알면 직접 선택하세요.')
         result['warnings'].append('자동 받아쓰기입니다. 반주·발음에 따라 가사가 누락되거나 잘못 인식될 수 있습니다.')
-        del model
-        torch.cuda.empty_cache()
-    if request.get('identify'):
+    if request.get('identify') and not (folder and (folder / 'cancel-recognition').exists()):
         if request.get('fingerprintConsent') is not True:
             raise ValueError('FINGERPRINT_CONSENT_REQUIRED')
         from shazamio import Shazam
         try:
-            response = asyncio.run(asyncio.wait_for(Shazam().recognize(raw), timeout=25))
+            sample = io.BytesIO()
+            sf.write(sample, audio[:30 * 16000], 16000, format='WAV', subtype='PCM_16')
+            response = asyncio.run(asyncio.wait_for(Shazam().recognize(sample.getvalue()), timeout=25))
             track = response.get('track') or {}
             result['titleMatch'] = {'title': str(track['title'])[:300], 'artist': str(track.get('subtitle', ''))[:300]} if track.get('title') and response.get('matches') else None
             if result['titleMatch'] is None:
@@ -82,8 +98,8 @@ def run(request, folder):
     torch.cuda.reset_peak_memory_stats()
     with ResourceMonitor() as monitor:
         if request['kind'] == 'recognition':
-            result = {'recognition': recognition(request), 'model': {'provider': 'local_whisper_and_shazam_fingerprint', 'model': WHISPER, 'modelRevision': WHISPER_REVISION,
-                      'transcriptionDecoding': 'beam_search', 'numBeams': 5, 'precision': 'float32'}}
+            result = {'recognition': recognition(request, folder), 'model': {'provider': 'local_qwen3_asr_and_shazam_fingerprint', 'model': ASR_MODEL, 'modelRevision': ASR_REVISION,
+                      'transcriptionDecoding': 'greedy', 'language': request.get('transcriptionLanguage') or 'ko', 'precision': 'bfloat16'}}
         else:
             from diffusers import AceStepPipeline
             pipe = AceStepPipeline.from_pretrained(ACE, revision=ACE_REVISION, torch_dtype=torch.bfloat16,

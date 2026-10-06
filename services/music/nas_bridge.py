@@ -120,6 +120,8 @@ class NasBridge:
                   "model": job.get("model"), "metrics": job.get("metrics"), "error": job.get("error")}
         if job.get('recognition') is not None:
             result['recognition'] = job['recognition']
+        if job.get('progress') is not None:
+            result['progress'] = job['progress']
         acknowledged = self.data(self.nas.post(f"/internal/jobs/{nas_id}/status", json=result))
         if job["state"] not in TERMINAL:
             return {"state": job["state"], "jobId": nas_id, "localJobId": local_id}

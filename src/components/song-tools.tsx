@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { connection, submitMusic, authorizeMusicRequest, musicHealth, MUSIC_CONNECTION_CHANGED } from "@/lib/music-client";
 import { songRequest, type MusicRecord, type MusicRequest } from "@/lib/music-model";
+import { recognitionLanguages, type TranscriptionLanguage } from "@/lib/recognition-languages";
 
-async function sampleWav(file: File) {
+async function sampleWav(file: File, fullFile = false) {
   if (file.size > 32 * 1024 * 1024) throw new Error("32MB 이하의 오디오 파일을 선택하세요.");
   const context = new AudioContext();
   try {
     const source = await context.decodeAudioData(await file.arrayBuffer());
     if (source.duration < 1) throw new Error("1초 이상의 오디오가 필요합니다.");
-    const frames = Math.min(30 * 16000, Math.floor(source.duration * 16000));
+    if (fullFile && source.duration > 600) throw new Error("파일 전체 받아쓰기는 10분 이하의 음원을 선택하세요.");
+    const frames = Math.min((fullFile ? 600 : 30) * 16000, Math.floor(source.duration * 16000));
     const offline = new OfflineAudioContext(1, frames, 16000);
     const node = offline.createBufferSource();
     node.buffer = source;
@@ -22,9 +24,13 @@ async function sampleWav(file: File) {
     view.setUint32(24, 16000, true); view.setUint32(28, 32000, true); view.setUint16(32, 2, true);
     view.setUint16(34, 16, true); text(36, "data"); view.setUint32(40, pcm.length * 2, true);
     pcm.forEach((v, i) => view.setInt16(44 + i * 2, Math.round(Math.max(-1, Math.min(1, v)) * 32767), true));
-    let binary = "";
-    for (const b of new Uint8Array(bytes)) binary += String.fromCharCode(b);
-    return { audioBase64: btoa(binary), duration: Math.ceil(frames / 16000) };
+    const audioBase64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(",")[1]);
+      reader.onerror = () => reject(new Error("오디오 변환 결과를 읽지 못했습니다."));
+      reader.readAsDataURL(new Blob([bytes], { type: "audio/wav" }));
+    });
+    return { audioBase64, duration: Math.ceil(frames / 16000) };
   } finally { await context.close(); }
 }
 
@@ -32,6 +38,9 @@ export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => v
   const [prompt, setPrompt] = useState("따뜻한 피아노 팝, 한국어 보컬"), [lyrics, setLyrics] = useState("");
   const [duration, setDuration] = useState(30), [file, setFile] = useState<File>();
   const [identify, setIdentify] = useState(false), [transcribe, setTranscribe] = useState(true);
+  const [language, setLanguage] = useState<TranscriptionLanguage>("ko");
+  const [supportedLanguages, setSupportedLanguages] = useState<string[]>([]);
+  const [fullFile, setFullFile] = useState(true), [fullFileLimit, setFullFileLimit] = useState(0);
   const [consent, setConsent] = useState(false), [busy, setBusy] = useState(false), [notice, setNotice] = useState("");
   const [recording, setRecording] = useState(false), [preview, setPreview] = useState("");
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]), [device, setDevice] = useState("");
@@ -73,9 +82,11 @@ export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => v
         if (stopped) return;
         const ready = h.supportedTasks?.includes("song") === true && h.supportedTasks.includes("recognition");
         setServiceReady(ready);
+        setSupportedLanguages(h.transcriptionLanguages ?? []);
+        setFullFileLimit(h.fullFileTranscriptionMaxSeconds ?? 0);
         setServiceNotice(ready ? "" : "NAS에 보컬·인식 업데이트를 적용한 뒤 사용할 수 있습니다.");
       } catch (error) {
-        if (!stopped) { setServiceReady(false); setServiceNotice(error instanceof Error ? error.message : "NAS 지원 확인 실패"); }
+        if (!stopped) { setServiceReady(false); setSupportedLanguages([]); setFullFileLimit(0); setServiceNotice(error instanceof Error ? error.message : "NAS 지원 확인 실패"); }
       }
     }
     void check(); window.addEventListener(MUSIC_CONNECTION_CHANGED, check);
@@ -157,7 +168,7 @@ export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => v
       // reselected identical sample reuses it; raw audio is never persisted here.
       const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(request.audioBase64)));
       const sampleHash = Array.from(digest, b => b.toString(16).padStart(2, "0")).join("");
-      const pendingKey = `voice-grok-recognition-pending:${c.url}:${sampleHash}:${request.identify}:${request.transcribe}`;
+      const pendingKey = `voice-grok-recognition-pending:${c.url}:${sampleHash}:${request.identify}:${request.transcribe}:${request.transcriptionLanguage ?? "ko"}:${request.fullFile ?? false}`;
       const previous = sessionStorage.getItem(pendingKey);
       if (previous && /^[A-Za-z0-9_.:-]{1,100}$/.test(previous)) request.requestId = previous;
       sessionStorage.setItem(pendingKey, request.requestId);
@@ -183,7 +194,7 @@ export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => v
     </details>
     <details><summary className="min-h-11 cursor-pointer font-medium">노래 제목·가수 찾기 / 가사 받아쓰기</summary>
       <div className="mt-3 space-y-3">
-        <p className="text-muted">파일의 처음 30초 또는 마이크 녹음을 사용합니다. 샘플은 개인 NAS를 거쳐 Windows에서 처리하며, 처리 후 원본 샘플을 삭제합니다. 가사 받아쓰기는 로컬 Whisper를 사용합니다.</p>
+        <p className="text-muted">가사는 파일 전체(최대 10분·32MB)를 받아쓸 수 있습니다. 마이크 녹음과 제목·가수 검색은 처음 30초를 사용합니다. 음원은 개인 NAS를 거쳐 Windows에서 처리하고 처리 후 입력 음원을 삭제합니다. 반주나 발음에 따라 오류가 생길 수 있습니다.</p>
         <input className={input} aria-label="인식할 노래 파일" type="file" accept="audio/*" disabled={recording || busy} onChange={e => setFile(e.target.files?.[0])}/>
         <label className="block">녹음 마이크<select aria-label="녹음 마이크" className={input} disabled={recording || busy} value={device} onChange={e => setDevice(e.target.value)}>
           <option value="">Windows 기본 입력 장치</option>
@@ -200,10 +211,20 @@ export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => v
         </div> : null}
         {file ? <p className="break-words text-muted">선택한 샘플: {file.name}</p> : null}
         {preview ? <audio aria-label="인식 샘플 미리 듣기" className="w-full max-w-full" controls src={preview}/> : null}
-        <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={transcribe} onChange={e => setTranscribe(e.target.checked)}/>가사 받아쓰기</label>
-        <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={identify} onChange={e => setIdentify(e.target.checked)}/>제목·가수 찾기</label>
+        <label className="flex min-h-11 items-center gap-2"><input type="checkbox" disabled={busy || recording} checked={transcribe} onChange={e => setTranscribe(e.target.checked)}/>가사 받아쓰기</label>
+        {transcribe ? <div className="space-y-2">
+          <label className="flex min-h-11 items-center gap-2"><input type="checkbox" disabled={busy || recording} checked={fullFile} onChange={e => setFullFile(e.target.checked)}/>파일 전체 받아쓰기</label>
+          <p className="text-muted">{fullFile ? "겹치는 구간으로 나눠 인식한 뒤 가사를 합칩니다. 접수 후 화면을 닫아도 처리는 계속됩니다. 취소하면 진행 중인 구간을 마친 뒤 중단합니다." : "처음 30초만 받아씁니다."}</p>
+          {fullFile && fullFileLimit < 600 ? <p role="status" className="text-muted">NAS 음악 API의 전체 파일 업데이트가 필요합니다. 처음 30초 인식은 전체 받아쓰기를 해제하면 사용할 수 있습니다.</p> : null}
+          <label className="block">가사 언어<select aria-label="가사 언어" className={input} disabled={busy || recording} value={language} onChange={e => setLanguage(e.target.value as TranscriptionLanguage)}>
+            {recognitionLanguages.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+          </select></label>
+          <p className="text-muted">곡의 언어를 알면 직접 선택하세요. 자동 감지는 짧은 구간이나 여러 언어가 섞인 노래에서 틀릴 수 있습니다.</p>
+          {language !== "ko" && !supportedLanguages.includes(language) ? <p role="status" className="text-muted">NAS 음악 API의 외국어 업데이트가 필요합니다.</p> : null}
+        </div> : null}
+        <label className="flex min-h-11 items-center gap-2"><input type="checkbox" disabled={busy || recording} checked={identify} onChange={e => setIdentify(e.target.checked)}/>제목·가수 찾기</label>
         {identify ? <label className="flex min-h-11 items-start gap-2"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)}/>곡 검색용 오디오 지문을 Shazam에 전송하는 데 동의합니다. 비공식 연결이므로 검색 실패·서비스 중단이 발생할 수 있습니다.</label> : null}
-        <button className="min-h-11 rounded-xl bg-primary px-4 text-ink disabled:opacity-50" disabled={busy || !serviceReady || recording || !file || !(identify || transcribe) || (identify && !consent)} onClick={() => void submit(async () => ({ requestId: `recognition-${crypto.randomUUID()}`, prompt: "노래 인식", kind: "recognition", seed: 1042, bitrate: 320, identify, transcribe, fingerprintConsent: identify && consent, ...await sampleWav(file!) }))}>선택한 노래 인식</button>
+        <button className="min-h-11 rounded-xl bg-primary px-4 text-ink disabled:opacity-50" disabled={busy || !serviceReady || recording || !file || !(identify || transcribe) || (identify && !consent) || (transcribe && fullFile && fullFileLimit < 600) || (transcribe && language !== "ko" && !supportedLanguages.includes(language))} onClick={() => void submit(async () => ({ requestId: `recognition-${crypto.randomUUID()}`, prompt: "노래 인식", kind: "recognition", seed: 1042, bitrate: 320, identify, transcribe, ...(transcribe && fullFile ? { fullFile: true } : {}), ...(transcribe && supportedLanguages.includes(language) ? { transcriptionLanguage: language } : {}), fingerprintConsent: identify && consent, ...await sampleWav(file!, transcribe && fullFile) }))}>선택한 노래 인식</button>
       </div>
     </details>
     {busy ? <p role="status">준비·접수 중…</p> : null}

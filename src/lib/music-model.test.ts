@@ -4,6 +4,24 @@ import { musicRequest, wantsMusic, musicUrl, isMusicRecord, songRequest } from "
 import { buildBackup } from "./nangdok-backup.ts";
 import { makeMemoryArchive, parseMemoryArchive } from "./storage-backup.ts";
 import { newMedia } from "./media-model.ts";
+test("full-file recognition records restore without expanding generation or title-only limits", () => {
+  const source = "https://nas.example.ts.net";
+  const request = { requestId: "full-test", prompt: "가사", duration: 600, seed: 1042, bitrate: 320, kind: "recognition", transcribe: true, fullFile: true };
+  assert(isMusicRecord({ source, request }));
+  for (const changes of [{ duration: 601 }, { fullFile: false }, { fullFile: "true" }, { transcribe: false, identify: true, fingerprintConsent: true }, { kind: "song", lyrics: "시험 가사" }])
+    assert(!isMusicRecord({ source, request: { ...request, ...changes } }));
+});
+test("recognition language survives restoration while unknown languages and wrong modes are rejected", () => {
+  const source = "https://nas.example.ts.net";
+  const request = { requestId: "recognition-test", prompt: "노래 인식", duration: 30,
+    seed: 1042, bitrate: 320, kind: "recognition", transcribe: true };
+  assert(isMusicRecord({ source, request }));
+  for (const transcriptionLanguage of ["auto", "en", "ja", "fil"])
+    assert(isMusicRecord({ source, request: { ...request, transcriptionLanguage } }));
+  assert(!isMusicRecord({ source, request: { ...request, transcriptionLanguage: "xx" } }));
+  assert(!isMusicRecord({ source, request: { ...request, transcriptionLanguage: "en", transcribe: false, identify: true, fingerprintConsent: true } }));
+  assert(!isMusicRecord({ source, request: { ...musicRequest("음악 만들어줘", "x"), transcriptionLanguage: "en" } }));
+});
 test("music generation routes explicit requests without intercepting recognition or help", () => {
   for (const text of [
     "잔잔한 피아노 음악 30초 만들어줘",

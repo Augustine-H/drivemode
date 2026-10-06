@@ -125,7 +125,7 @@ class ApiTests(unittest.TestCase):
             response = self.post(body)
             self.assertEqual(response.status_code, 422)
             self.assertNotIn("secret-input", response.text)
-        response = self.client.post("/v1/jobs", content=b"x" * 1500001, headers=self.headers)
+        response = self.client.post("/v1/jobs", content=b"x" * 25700001, headers=self.headers)
         self.assertEqual(response.status_code, 413)
         self.assertEqual(self.worker.store.counts(), {})
 

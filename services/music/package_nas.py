@@ -4,7 +4,7 @@ import hashlib
 from pathlib import Path
 import zipfile
 
-FILES = ["api_common.py", "job_store.py", "provider.py", "nas_store.py", "nas_api.py",
+FILES = ["api_common.py", "recognition_languages.py", "job_store.py", "provider.py", "nas_store.py", "nas_api.py",
          ".dockerignore", "nas/Dockerfile", "nas/requirements.txt", "nas/requirements.lock", "nas/compose.yaml", "nas/initialize.py"]
 
 

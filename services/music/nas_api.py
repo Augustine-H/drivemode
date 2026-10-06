@@ -46,6 +46,7 @@ class WorkerResult(BaseModel):
     metrics: dict | None = None
     error: dict | None = None
     recognition: dict | None = None
+    progress: dict | None = None
 
 
 def read_secret(path: str) -> str:

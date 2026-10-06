@@ -5,6 +5,8 @@ from pathlib import Path
 
 from job_store import JobError, JobStore, TERMINAL, now
 from provider import atomic_json
+from recognition_languages import TranscriptionLanguage
+from typing import get_args
 
 
 class NasStore(JobStore):
@@ -39,6 +41,8 @@ class NasStore(JobStore):
         fresh = age is not None and 0 <= age <= 30
         return {"service": "voice-grok-nas-music", "queue": self.counts(),
                 "supportedTasks": ["instrumental", "song", "recognition"],
+                "transcriptionLanguages": list(get_args(TranscriptionLanguage)),
+                "fullFileTranscriptionMaxSeconds": 600,
                 "workerState": ("READY" if heartbeat["ready"] else "UNAVAILABLE") if fresh else "UNKNOWN",
                 "lastHeartbeat": heartbeat, "heartbeatAgeSeconds": round(age, 1) if age is not None else None,
                 "wolEnabled": False, "apiCostUsd": 0}

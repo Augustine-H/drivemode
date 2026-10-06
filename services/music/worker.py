@@ -194,14 +194,41 @@ class MusicWorker:
         self.store.update(job['id'], stage='GENERATING')
         try:
             with (folder / 'vocal-runtime.log').open('w', encoding='utf-8') as log:
-                completed = subprocess.run([sys.executable, str(Path(__file__).with_name('vocal_runtime.py')),
+                process = subprocess.Popen([sys.executable, str(Path(__file__).with_name('vocal_runtime.py')),
                                             str(request_path), str(folder)], stdout=log, stderr=log,
-                                            timeout=1800, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-            if completed.returncode:
+                                            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                started = time.monotonic()
+                previous_progress = None
+                try:
+                    while process.poll() is None:
+                        if job['request'].get('kind') == 'recognition':
+                            if self.store.get(job['id'])['cancelRequested']:
+                                (folder / 'cancel-recognition').touch()
+                            progress_path = folder / 'recognition-progress.json'
+                            if progress_path.exists():
+                                progress = json.loads(progress_path.read_text(encoding='utf-8'))
+                                if progress != previous_progress:
+                                    self.store.update(job['id'], progress=progress)
+                                    previous_progress = progress
+                        if time.monotonic() - started > 1800:
+                            raise RuntimeError('VOCAL_RUNTIME_TIMEOUT')
+                        time.sleep(0.25)
+                finally:
+                    if process.poll() is None:
+                        process.terminate()
+                        try:
+                            process.wait(timeout=10)
+                        except subprocess.TimeoutExpired:
+                            process.kill()
+                            process.wait()
+            if process.returncode:
                 error_path = folder / 'vocal-error.json'
                 detail = json.loads(error_path.read_text(encoding='utf-8')) if error_path.exists() else {'message': 'VOCAL_RUNTIME_FAILED'}
                 raise RuntimeError(detail.get('message', 'VOCAL_RUNTIME_FAILED'))
             result = json.loads((folder / 'vocal-result.json').read_text(encoding='utf-8'))
+            progress_path = folder / 'recognition-progress.json'
+            if progress_path.exists():
+                self.store.update(job['id'], progress=json.loads(progress_path.read_text(encoding='utf-8')))
             self.store.update(job['id'], model=result['model'], metrics=result['metrics'])
             if 'recognition' in result:
                 self.store.update(job['id'], recognition=result['recognition'])

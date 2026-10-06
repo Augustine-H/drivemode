@@ -1,4 +1,5 @@
 import { audioIntent } from "./audio-tools.ts";
+import { isTranscriptionLanguage, type TranscriptionLanguage } from "./recognition-languages.ts";
 
 export type MusicRequest = {
   requestId: string;
@@ -11,7 +12,9 @@ export type MusicRequest = {
   audioBase64?: string;
   identify?: boolean;
   transcribe?: boolean;
+  transcriptionLanguage?: TranscriptionLanguage;
   fingerprintConsent?: boolean;
+  fullFile?: boolean;
 };
 export type MusicRecord = { source: string; request: MusicRequest; jobId?: string; state?: string };
 export type MusicArtifact = { bytes: number; sha256: string; filename: string };
@@ -22,13 +25,17 @@ export type MusicJob = {
   artifacts: Partial<Record<"wav" | "mp3", MusicArtifact>>;
   error?: { type?: string; message?: string } | null;
   recognition?: RecognitionResult;
-  workerResult?: { error?: { message?: string } | null; recognition?: RecognitionResult };
+  progress?: RecognitionProgress;
+  workerResult?: { error?: { message?: string } | null; recognition?: RecognitionResult; progress?: RecognitionProgress };
 };
+export type RecognitionProgress = { completedChunks: number; totalChunks: number; processedSeconds: number; totalSeconds: number };
 export type RecognitionResult = {
   transcription?: string;
+  transcriptionLanguage?: TranscriptionLanguage;
   titleMatch?: { title: string; artist: string } | null;
   identificationError?: string;
   warnings: string[];
+  segments?: { startSeconds: number; endSeconds: number; text: string }[];
 };
 export const musicTerminal = (state?: string) =>
   ["COMPLETED", "CANCELLED", "FAILED", "INTERRUPTED"].includes(state ?? "");
@@ -50,14 +57,16 @@ export function isMusicRecord(value: unknown): value is MusicRecord {
     r.prompt.length <= 2000 &&
     Number.isInteger(r.duration) &&
     r.duration >= 1 &&
-    r.duration <= 120 &&
+    r.duration <= (r.kind === "recognition" && r.fullFile === true && r.transcribe === true ? 600 : 120) &&
     Number.isInteger(r.seed) &&
     r.seed >= 0 &&
     r.seed <= 2147483647 &&
     r.bitrate === 320 &&
     (r.kind === undefined || r.kind === "song" || r.kind === "recognition") &&
     (r.kind !== "song" || (typeof r.lyrics === "string" && r.lyrics.trim().length > 0 && r.lyrics.length <= 8000 && r.duration >= 10)) &&
-    (r.kind !== "recognition" || ((r.identify === true || r.transcribe === true) && r.duration <= 30 && (!r.identify || r.fingerprintConsent === true))) &&
+    (r.kind !== "recognition" || ((r.identify === true || r.transcribe === true) && r.duration <= (r.fullFile === true && r.transcribe === true ? 600 : 30) && (!r.identify || r.fingerprintConsent === true))) &&
+    (r.fullFile === undefined || (typeof r.fullFile === "boolean" && r.kind === "recognition" && (!r.fullFile || r.transcribe === true))) &&
+    (r.transcriptionLanguage === undefined || (r.kind === "recognition" && r.transcribe === true && isTranscriptionLanguage(r.transcriptionLanguage))) &&
     (v.jobId === undefined || /^[a-f0-9-]{36}$/.test(v.jobId)) &&
     (v.state === undefined ||
       [
@@ -149,6 +158,10 @@ export function musicUrl(raw: string) {
   return u.origin;
 }
 export const musicStateLabel = (state?: string, kind?: MusicRequest['kind']): string =>
+  kind === "recognition" && state === "CANCELLED" ? "노래 인식 취소됨" :
+  kind === "recognition" && state === "CANCEL_REQUESTED" ? "인식 취소 처리 중" :
+  kind === "recognition" && state === "FAILED" ? "노래 인식 실패" :
+  kind === "recognition" && state === "INTERRUPTED" ? "노래 인식 중단됨" :
   kind === "recognition" && state === "COMPLETED" ? "노래 인식 완료" :
   kind === "recognition" && state === "GENERATING" ? "노래 인식 중" :
   (

@@ -24,6 +24,27 @@ def body(key="nas-test"):
 
 
 class NasTests(unittest.TestCase):
+    def test_full_file_api_progress_recovery_and_input_cleanup(self):
+        from test_lyrics_chunks import body as recognition_body
+        health = self.client.get('/health', headers=self.user).json()
+        self.assertEqual(health['fullFileTranscriptionMaxSeconds'], 600)
+        response = self.client.post('/v1/jobs', json=recognition_body(), headers=self.user)
+        self.assertEqual(response.status_code, 202)
+        job = response.json()['job']
+        self.assertNotIn('audioBase64', job['request'])
+        self.poll()
+        progress = dict(completedChunks=1, totalChunks=2, processedSeconds=30, totalSeconds=36)
+        result = dict(localJobId=str(uuid4()), workerState='GENERATING', artifacts={}, progress=progress)
+        endpoint = f"/internal/jobs/{job['id']}/status"
+        self.assertEqual(self.client.post(endpoint, json=result, headers=self.agent).status_code, 200)
+        restored = self.client.get(f"/v1/jobs/{job['id']}", headers=self.user).json()
+        self.assertEqual(restored['workerResult']['progress'], progress)
+        result.update(workerState='COMPLETED', recognition=dict(transcription='local result', warnings=[]))
+        self.assertEqual(self.client.post(endpoint, json=result, headers=self.agent).status_code, 200)
+        final = self.client.post(f"/internal/jobs/{job['id']}/complete", headers=self.agent).json()
+        self.assertEqual(final['state'], 'COMPLETED')
+        self.assertNotIn('audioBase64', self.app.state.store.get(job['id'])['request'])
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)

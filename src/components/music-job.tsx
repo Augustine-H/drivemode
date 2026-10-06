@@ -38,6 +38,7 @@ export function MusicJobCard({
   record.current = music;
   const effectiveState = job?.state ?? music.state;
   const recognition = job?.recognition ?? job?.workerResult?.recognition;
+  const progress = job?.progress ?? job?.workerResult?.progress;
   const selectedJob = useRef<MusicJob | undefined>(undefined);
   selectedJob.current = job;
   useEffect(() => {
@@ -179,6 +180,10 @@ export function MusicJobCard({
           Worker가 준비되면 시작합니다. PC 전원·연결 상태는 설정에서 확인하세요.
         </p>
       ) : null}
+      {progress ? <div className="space-y-2" role="status">
+        <progress aria-label="가사 받아쓰기 진행률" className="w-full" max={progress.totalChunks} value={progress.completedChunks}/>
+        <p className="text-sm text-muted">{progress.completedChunks} / {progress.totalChunks}구간 · {Math.round(progress.processedSeconds)} / {Math.round(progress.totalSeconds)}초 처리</p>
+      </div> : null}
       {error ? (
         <p role="alert" className="break-words text-sm text-muted">
           {error}
@@ -201,6 +206,10 @@ export function MusicJobCard({
             : recognition.identificationError ? `곡 검색 오류: ${recognition.identificationError}` : "일치하는 제목·가수를 찾지 못했습니다."}</p> : null}
           {music.request.transcribe ? <p className="whitespace-pre-wrap">{recognition.transcription || "받아쓴 가사가 없습니다."}</p> : null}
           {recognition.warnings.map((warning, i) => <p key={i} className="text-muted">{warning}</p>)}
+          {recognition.segments && recognition.segments.length > 1 ? <details>
+            <summary className="min-h-11 cursor-pointer">구간별 인식 원문 확인</summary>
+            {recognition.segments.map((segment, i) => <p key={i} className="mb-3 whitespace-pre-wrap">{segment.startSeconds}–{segment.endSeconds}초: {segment.text || "인식된 가사 없음"}</p>)}
+          </details> : null}
         </div>
       ) : null}
       <div className="flex flex-wrap gap-2 text-sm">
@@ -218,7 +227,7 @@ export function MusicJobCard({
               })
             }
           >
-            생성 취소
+            {music.request.kind === "recognition" ? "인식 취소" : "생성 취소"}
           </button>
         ) : null}
         <button
