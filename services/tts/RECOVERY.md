@@ -25,3 +25,11 @@ Retain a pre-restore backup. Authenticate the archive before extracting it into 
 Restore complete ledgers rather than starting empty quota databases. Keep token, ADC and matching web routing configuration together. NAS deployments need the updated Compose, start script and HTTPS setup pointing at 8097. Restore TTS private files through the initialization job and named volume. Keep the root boot recovery task enabled. New devices should reauthenticate Tailscale and restore Serve mappings; never run two devices with the same restored NAS identity.
 
 On PC, restore `pc/` operational files outside the repository, apply restricted ACLs, provide Node and GUI Python runtimes, then reinstall `install-pc-autostart.ps1` with explicit project, runtime and data paths. Verify authenticated local and private HTTPS health, quota/voice settings, persisted usage and task state after login. Remove plaintext restoration files when finished.
+
+## Latest verified backups — 2026-10-07
+
+NAS archive voice-grok-recovery-20261007T144137Z.vgrec includes current Production Google Workspace encrypted tokens, current web/TTS configuration, NAS identity and Serve mappings. PC archive voice-grok-pc-recovery-20261007T144032Z.vgrec includes online TTS database and the installed logon supervisor/task configuration. Both archives are verified with authenticated AES-GCM decryption and SQLite integrity checks. NAS web port 8097 and Google connection recovery data are present.
+
+Encrypted archives/checksums and current google6 NAS deployment/public-source packages are retained on the access-restricted PC recovery folder and the separate H: backup disk. The portable recovery key remains on the separate K: disk; no plaintext credentials were extracted during verification. Successful NAS backup removed its temporarily supplied key. Archives and recovery keys are excluded from Git and public source packages.
+
+The owner confirmed natural Calendar date/weekday/time, mail sender/title and long-body summary playback on S26. Latest-deployment NAS reboot recovery is being checked separately; archive verification alone is not a reboot or production-restore test.
