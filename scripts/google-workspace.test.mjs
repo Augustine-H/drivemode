@@ -8,9 +8,20 @@ import {workspaceChat} from '../src/lib/google-workspace-chat.server.ts';
 import {streamAsk} from '../src/lib/ask-stream.ts';
 import {workspaceConversation,selectWorkspaceContext} from '../src/lib/google-workspace-client.ts';
 import { GoogleWorkspace, WorkspaceStore, WORKSPACE_SCOPES, googleWorkspace } from '../src/lib/google-workspace.server.ts';
+import {mailHtmlText} from '../src/lib/mail-body.server.ts';
 const config={clientId:'test-client',clientSecret:'test-secret',origin:'https://test.tail.example',directory:''};
 function memory(value={}) {return {value,async read(){return structuredClone(this.value);},async write(v){this.value=structuredClone(v);}};}
 const response=(body,status=200)=>Response.json(body,{status});
+test('HTML-only newsletter reads complete visible body, not a cut snippet; scripts and hidden content stay out',async()=>{
+ const html='<html><head><style>bad style</style></head><body><div style="display:none">hidden teaser</div><p>첫 문장 &amp; 안내입니다.</p><p>근데 <b>뒷 내용도 있습니다.</b></p><script>sendSecrets()</script><a href="https://invalid.example/tracker">마지막 안내입니다.</a></body></html>';
+ assert.match(mailHtmlText(html),/뒷 내용도 있습니다/);assert.match(mailHtmlText(html),/& 안내/);assert.doesNotMatch(mailHtmlText(html),/bad style|hidden teaser|sendSecrets|tracker/);
+ const client=new GoogleWorkspace(config,authorized(),async()=>response({id:'abcdef',snippet:'첫 문장 근데',payload:{mimeType:'multipart/alternative',parts:[{mimeType:'text/html',body:{data:Buffer.from(html).toString('base64url')}},{mimeType:'text/plain',filename:'attachment.txt',body:{data:Buffer.from('attachment must not be read').toString('base64url')}}]}}));
+ const mail=await client.message('abcdef');assert.equal(mail.bodySource,'html');assert.match(mail.text,/마지막 안내입니다/);assert.doesNotMatch(mail.text,/attachment must/);
+});
+test('large inline text body uses Gmail body attachment endpoint and never substitutes snippet',async()=>{
+ const client=new GoogleWorkspace(config,authorized(),async url=>response(url.includes('/attachments/')?{data:Buffer.from('<p>전체 HTML 본문입니다.</p>').toString('base64url')}:{id:'abcdef',snippet:'잘린 미리보기 근데',payload:{mimeType:'text/html',body:{attachmentId:'body-part',size:50}}}));
+ const mail=await client.message('abcdef');assert.equal(mail.text,'전체 HTML 본문입니다.');assert.equal(mail.bodySource,'html');
+});
 test('OAuth requests exact configured scopes, uses PKCE, consumes state and prevents replay',async()=>{
   const store=memory();let exchanges=0;
   const client=new GoogleWorkspace(config,store,async(url,options)=>{

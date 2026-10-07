@@ -1,4 +1,5 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import {mailHtmlText} from './mail-body.server.ts';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { nasAccess } from './nas-access.ts';
@@ -177,13 +178,22 @@ export class GoogleWorkspace {
   async message(id: string) {
     if(!/^[a-f\d]{1,100}$/i.test(id)) throw new WorkspaceError('upstream');
     const data=await (await this.get('gmail',`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(id)}?format=full`)).json();
-    const text:string[]=[];
-    const walk=(part:{mimeType?:string;body?:{data?:string};parts?:unknown[]})=> {
-      if(part.mimeType === 'text/plain' && part.body?.data) text.push(Buffer.from(part.body.data,'base64url').toString('utf8'));
-      for(const child of part.parts ?? []) walk(child as typeof part);
-    }; walk(data.payload ?? {});
+    const text:string[]=[],html:string[]=[];
+    const walk=async(part:{mimeType?:string;filename?:string;body?:{data?:string;attachmentId?:string;size?:number};parts?:unknown[]})=> {
+      if(part.filename)return; // Do not read attached text files as the email body.
+      if(['text/plain','text/html'].includes(part.mimeType || '') && (part.body?.size ?? 0)<=1048576) {
+        let encoded=part.body?.data;
+        if(!encoded && part.body?.attachmentId) {
+          const attachment=await (await this.get('gmail',`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(id)}/attachments/${encodeURIComponent(part.body.attachmentId)}`)).json();
+          encoded=attachment.data;
+        }
+        if(encoded){const decoded=Buffer.from(encoded,'base64url').toString('utf8');if(decoded.trim())(part.mimeType==='text/plain'?text:html).push(decoded);}
+      }
+      for(const child of part.parts ?? [])await walk(child as typeof part);
+    }; await walk(data.payload ?? {});
     const header=(name:string)=>data.payload?.headers?.find((h:{name:string;value:string})=>h.name.toLowerCase()===name.toLowerCase())?.value || '';
-    return {id:data.id,threadId:data.threadId,subject:header('Subject'),from:header('From'),replyTo:header('Reply-To') || header('From'),messageId:header('Message-ID'),references:header('References'),text:text.join('\n').slice(0,100000) || data.snippet || '텍스트 본문이 없는 메일입니다. 첨부파일과 HTML은 표시하지 않습니다.'};
+    const body=text.length?text.join('\n'):html.map(mailHtmlText).join('\n');
+    return {id:data.id,threadId:data.threadId,subject:header('Subject'),from:header('From'),replyTo:header('Reply-To') || header('From'),messageId:header('Message-ID'),references:header('References'),text:body.slice(0,100000) || '텍스트로 읽을 수 있는 메일 본문이 없습니다. 첨부파일은 메일에서 확인해 주세요.',bodySource:text.length?'plain':body?'html':'none'};
   }
   private proposals=new Map<string,{action:WorkspaceAction;generation?:string;expiresAt:number;details:string}>();
   async propose(input:WorkspaceAction) {
