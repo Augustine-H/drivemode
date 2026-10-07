@@ -1,4 +1,4 @@
-import { GOOGLE_APP_ORIGIN,GOOGLE_BACKEND_ORIGIN,workspaceIntent,type WorkspaceProposal } from './google-workspace-contract.ts';
+import { GOOGLE_APP_ORIGIN,GOOGLE_BACKEND_ORIGIN,workspaceIntent,mailReadMode,type WorkspaceProposal } from './google-workspace-contract.ts';
 export function workspaceEndpoint(action:string) {
   const base=typeof window!=='undefined' && window.location.origin===GOOGLE_APP_ORIGIN?GOOGLE_BACKEND_ORIGIN:'';
   return `${base}/api/google-workspace/${action}`;
@@ -25,9 +25,16 @@ export function confirmWorkspace(proposal:WorkspaceProposal,signal?:AbortSignal)
   });
 }
 let context:unknown[]=[];
-export function selectWorkspaceContext(value:unknown[]) {context=value.slice(0,15);}
+const contextKey='voicegrok-workspace-selection';
+export function selectWorkspaceContext(value:unknown[]) {
+  context=value.slice(0,15).map(row=>Object.fromEntries(Object.entries((row || {}) as Record<string,unknown>).filter(([key,value])=>['id','subject','name','summary','start','from'].includes(key) && typeof value==='string').map(([key,value])=>[key,String(value).slice(0,500)])));
+  // Only selected metadata, never email bodies or OAuth tokens. A short-lived
+  // per-tab selection survives a reload without mixing different browser tabs.
+  try {if(typeof window!=='undefined')window.sessionStorage.setItem(contextKey,JSON.stringify({savedAt:Date.now(),context}));}catch { /* storage can be disabled */ }
+}
 export async function workspaceConversation(message:string,signal?:AbortSignal,image?:string) {
-  if(!workspaceIntent(message))return null;
+  if(!context.length)try {if(typeof window!=='undefined'){const saved=JSON.parse(window.sessionStorage.getItem(contextKey) || 'null');if(saved && Date.now()-saved.savedAt<3600000 && Array.isArray(saved.context))context=saved.context.slice(0,15);}}catch { /* no usable selection */ }
+  if(!workspaceIntent(message) && !(context.some(row=>typeof (row as {subject?:unknown})?.subject==='string') && mailReadMode(message)))return null;
   try {
     const parsed=image?.match(/^data:(image\/[\w.+-]+);base64,([A-Za-z0-9+/=]+)$/);
     const attachment=parsed?{name:'VoiceGrok image',mimeType:parsed[1],data:parsed[2]}:undefined;

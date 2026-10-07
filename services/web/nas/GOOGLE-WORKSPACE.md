@@ -85,3 +85,10 @@ Conversation scroll no longer follows playback status, turn index or speech chun
 Mail summaries are no longer sliced at 1000 characters. The bounded xAI output budget is 1600 tokens. An incomplete response or unfinished sentence triggers at most one shorter-summary retry; repeated incompleteness gives an explicit original-reading suggestion instead of speaking a clipped fragment. Existing 12000-character input coverage labeling remains. Tests cover preserved final sentences beyond 1000 characters, incomplete output ending with a connector, retry bounds and honest failure.
 
 26 focused regression tests, typecheck, NAS build and Vercel build passed. The same public app was republished with owner-only access retained; NAS web was rebuilt from the updated google6 package. In the actual public browser, scrollTop remained 0 while TTS remained actively playing after an upward scroll. No live Google writes, email sending or token output during verification.
+# 1.32.1: 메일 본문 요약과 후속 원문 읽기
+
+- 메일 목록의 읽기/요약 요청은 각 메일의 실제 본문을 조회하고 요약합니다. Gmail snippet을 요약으로 읽지 않습니다.
+- 명시적인 요약은 600자 이하 본문에도 적용합니다. 단순 목록 조회는 번호, 보낸 사람, 제목을 안내합니다.
+- 선택한 메일이 있으면 `원문 읽어줘`, `짧게 요약해줘`도 Workspace로 전달합니다. 번호/제목으로 선택할 수 있으며 여러 후보는 확인합니다.
+- 선택 메타데이터는 해당 브라우저 탭의 sessionStorage에 한 시간만 유지합니다. 본문과 OAuth 토큰은 저장하지 않습니다.
+- 원문은 만 자 한도를 넘으면 앞부분임을 명시합니다. 원문 읽기와 요약 읽기는 응답 문구로 구분합니다.

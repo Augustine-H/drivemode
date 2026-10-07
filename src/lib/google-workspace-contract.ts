@@ -14,6 +14,11 @@ export type WorkspaceAction = {
   data?:string; mimeType?:string;
 };
 export type WorkspaceProposal = {id:string; title:string; details:string; expiresAt:number};
+export function mailReadMode(message:string):'full'|'summary'|null {
+  if(/(?:원문|전문|그대로|전체.*(?:본문|읽))/u.test(message))return 'full';
+  if(/(?:요약|간추려|줄여)/u.test(message))return 'summary';
+  return null;
+}
 export function workspaceIntent(message:string) {
   if(/(?:보이스\s*메일|음성\s*메일|google\s*(?:cloud\s*)?tts|구글\s*(?:클라우드\s*)?(?:tts|목소리|음성))/i.test(message))return false;
   return /(?:gmail|구글|google|drive|드라이브|캘린더|메일|이메일|답장|일정)/i.test(message);

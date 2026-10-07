@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import {GOOGLE_REDIRECT_URI,OAUTH_SCOPES} from '../src/lib/google-workspace-contract.ts';
 import {workspaceChat} from '../src/lib/google-workspace-chat.server.ts';
 import {streamAsk} from '../src/lib/ask-stream.ts';
-import {workspaceConversation} from '../src/lib/google-workspace-client.ts';
+import {workspaceConversation,selectWorkspaceContext} from '../src/lib/google-workspace-client.ts';
 import { GoogleWorkspace, WorkspaceStore, WORKSPACE_SCOPES, googleWorkspace } from '../src/lib/google-workspace.server.ts';
 const config={clientId:'test-client',clientSecret:'test-secret',origin:'https://test.tail.example',directory:''};
 function memory(value={}) {return {value,async read(){return structuredClone(this.value);},async write(v){this.value=structuredClone(v);}};}
@@ -168,4 +168,13 @@ test('group personas share one Workspace request and internal prompts do not exe
     assert.equal(workspaceCalls,1);assert.ok(results.every(x=>x.ok && x.text==='일정 조회 결과'));
     const internal=await streamAsk({message:'이 메일은 전달 문구만 작성해줘',history:[]},()=>{});assert.equal(internal.ok,true);assert.equal(workspaceCalls,1);assert.equal(ordinaryCalls,1);
   } finally {globalThis.fetch=previous;}
+});
+test('original and summary follow-ups enter Workspace only with selected mail metadata',async()=>{
+ const previous=globalThis.fetch;let calls=0;
+ globalThis.fetch=async(url,options)=>{calls++;assert.match(String(url),/google-workspace\/chat/);assert.equal(JSON.parse(options.body).context[0].id,'mail-a');return response({text:'원문 마지막 문장입니다.',context:[{id:'mail-a',subject:'안내'}]});};
+ try {
+  selectWorkspaceContext([]);assert.equal(await workspaceConversation('원문 읽어줘'),null);
+  selectWorkspaceContext([{id:'mail-a',subject:'안내'}]);assert.equal(await workspaceConversation('원문 읽어줘'),'원문 마지막 문장입니다.');
+  assert.equal(await workspaceConversation('짧게 요약해줘'),'원문 마지막 문장입니다.');assert.equal(calls,2);
+ }finally{globalThis.fetch=previous;selectWorkspaceContext([]);}
 });
