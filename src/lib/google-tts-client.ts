@@ -1,3 +1,7 @@
+import { GOOGLE_APP_ORIGIN, GOOGLE_BACKEND_ORIGIN } from './google-workspace-contract';
+export function googleTtsEndpoint() {
+  return `${typeof window!=='undefined' && window.location.origin===GOOGLE_APP_ORIGIN?GOOGLE_BACKEND_ORIGIN:''}/api/google-tts`;
+}
 export type TtsSelection = 'google' | 'xai';
 export type GoogleTtsStatus = {
   routing?: { activeBackend: string; priority: string[]; attempts: { id: string; state: string }[]; usageScope: string; totalBudget: number };
@@ -8,12 +12,12 @@ export type GoogleTtsStatus = {
 };
 export const GOOGLE_TTS_DEFAULT = { displayName: 'Leda', voiceId: 'ko-KR-Chirp3-HD-Leda', language: 'ko-KR' };
 export function selectedTts(): TtsSelection { return typeof window !== 'undefined' && localStorage.getItem('voice-grok-tts-provider') === 'xai' ? 'xai' : 'google'; }
-export function ttsHeaders() { const code = sessionStorage.getItem('voice-grok-tts-access'); return { 'content-type':'application/json', ...(code ? { authorization: `Bearer ${code}` } : {}) }; }
+export function ttsHeaders() { const code = window.location.origin===GOOGLE_APP_ORIGIN ? null : sessionStorage.getItem('voice-grok-tts-access'); return { 'content-type':'application/json', ...(code ? { authorization: `Bearer ${code}` } : {}) }; }
 // Explicit preview / voice-mail exports require an MP3 file, not live PCM playback.
 export async function speakSelectedLine(input: { data:{ text:string; voiceId:string; speed:number } }): Promise<SpeakResult> {
   if (selectedTts() === 'xai') return speakXai(input);
   try {
-    const response = await fetch('/api/google-tts', { method:'POST', headers:ttsHeaders(), body:JSON.stringify({ text:input.data.text, speed:input.data.speed, segmentId:crypto.randomUUID(), format:'mp3' }) });
+    const response = await fetch(googleTtsEndpoint(), { method:'POST', headers:ttsHeaders(), body:JSON.stringify({ text:input.data.text, speed:input.data.speed, segmentId:crypto.randomUUID(), format:'mp3' }) });
     if (!response.ok) { const data = await response.json(); return {ok:false,error:data.error || 'Google 음성을 생성하지 못했습니다.'}; }
     const frames = (await response.text()).trim().split('\n').map(line => JSON.parse(line));
     for (const frame of frames) if (frame.type === 'done' || frame.type === 'error') publishTts(frame);
@@ -53,7 +57,7 @@ export class GoogleTtsProvider implements TtsProvider {
   stop() { this.generation++; for (const node of this.nodes) { try { node.stop(); } catch {} node.disconnect(); } this.nodes.clear(); this.nextTime = 0; }
   cancel() { this.stop(); }
   async getStatus(): Promise<GoogleTtsStatus> {
-    const response = await fetch('/api/google-tts', { headers: ttsHeaders() });
+    const response = await fetch(googleTtsEndpoint(), { headers: ttsHeaders() });
     if (!response.ok) throw new Error('Google TTS 연결을 확인하세요.');
     return response.json();
   }
@@ -62,7 +66,7 @@ export class GoogleTtsProvider implements TtsProvider {
   speak(text: string, context: AudioContext, signal: AbortSignal, onAudio = () => {}, speed = 1) { return this.stream(text, crypto.randomUUID(), context, signal, onAudio, speed); }
   async stream(text: string, segmentId: string, context: AudioContext, signal: AbortSignal, onAudio: () => void, speed = 1) {
     const generation = this.generation, started = performance.now();
-    const response = await fetch('/api/google-tts', { method: 'POST', headers: ttsHeaders(), body: JSON.stringify({ text, segmentId, speed }), signal });
+    const response = await fetch(googleTtsEndpoint(), { method: 'POST', headers: ttsHeaders(), body: JSON.stringify({ text, segmentId, speed }), signal });
     if (!response.ok || !response.body) {
       let error = 'Google 음성을 생성하지 못했습니다.';
       try { error = (await response.json()).error || error; } catch {}

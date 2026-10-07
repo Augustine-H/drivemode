@@ -2,7 +2,7 @@ services:
   config-init:
     image: node:24-bookworm-slim
     user: "0:0"
-    command: ["sh", "-c", "cp /input/runtime.json /config/runtime.json && chown 1000:1000 /config /config/runtime.json /google && chmod 700 /config /google && chmod 600 /config/runtime.json && chown 0:0 /input /input/runtime.json && chmod 700 /input && chmod 600 /input/runtime.json"]
+    command: ["sh", "-c", "cp /input/runtime.json /config/runtime.json && chown 1000:1000 /config /config/runtime.json /google && chmod 700 /config /google && chmod 600 /config/runtime.json && chown 0:0 /input /input/runtime.json /input/google-oauth.env && chmod 700 /input && chmod 600 /input/runtime.json /input/google-oauth.env"]
     network_mode: none
     restart: "no"
     read_only: true
@@ -14,14 +14,17 @@ services:
       - web-config:/config
       - google-data:/google
   web:
-    image: voice-grok-web:1.31.0-google1
+    image: voice-grok-web:1.32.0-google6
     build: .
     depends_on:
       config-init:
         condition: service_completed_successfully
     network_mode: host
+    env_file:
+      - ./private/google-oauth.env
     environment:
       VOICE_GROK_WEB_PORT: "8097"
+      GOOGLE_REDIRECT_URI: "https://ds218-hmh.tail15dbbb.ts.net:8445/api/google-workspace/callback"
     # Resolve tailnet names through MagicDNS even after a NAS reboot.
     dns:
       - 100.100.100.100

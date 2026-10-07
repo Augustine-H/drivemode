@@ -1,25 +1,79 @@
-# Google Calendar, Drive and Gmail (read only)
+# Google Workspace OAuth — VoiceGrok 1.32.0
 
-The NAS app uses its own Google web OAuth client, separate from TTS ADC and Grok platform connectors. Open Settings → Google 일정 · Drive · Gmail. Connect, approve the requested services, run 세 서비스 읽기 점검, then choose a service and search. Calendar supports calendar selection and the next 30 days; Drive supports filename search and plain-text/Google Docs preview; Gmail supports Gmail search syntax, message headers and plain-text bodies. Search results stay in component memory, are not persisted in conversations, and are not sent to xAI. Opening mail does not change unread labels. Write/send/delete APIs are not implemented.
+## Deployment topology
 
-## One-time Google configuration
+The app at `https://drivemode.grok.me` calls the NAS API at `https://ds218-hmh.tail15dbbb.ts.net:8445`. The NAS is the only OAuth/token/API execution server. The existing configured Tailscale owner is required on every request; this is a single-owner personal deployment, not a multi-tenant public account system. Grok account sign-in at auth.grok.me is separate and untouched.
 
-In the existing Google Cloud project, enable Google Calendar API, Google Drive API and Gmail API. Configure Google Auth Platform with an application name and the owner's support/contact email. For a personal external testing app, add only the owner as a test user. Do not create a VM or publish the app publicly. Create an OAuth client of type Web application with the authorized redirect URI:
+Only the two exact app origins are accepted by CORS; POST requires one of those Origins. The public app never receives Google tokens. Google connection uses a top-level navigation to NAS so its Secure/HttpOnly/SameSite=Lax state cookie works with the Google callback. Returning to the public app requires publishing this source through its existing Grok deployment process. Old drivemode.grok.me 1.30.0 does not gain these changes from a NAS update.
+
+## Server environment (no credentials in source or deployment packages)
+
+- GOOGLE_CLIENT_ID — web OAuth client ID
+- GOOGLE_CLIENT_SECRET — web OAuth client secret
+- GOOGLE_REDIRECT_URI — optional, defaults to the exact URI below; any different value fails closed
+- GOOGLE_WORKSPACE_DATA_DIR — NAS launcher sets /run/google
+- XAI_API_KEY — existing server-only Grok key for user-initiated natural-language interpretation
+
+Exact redirect URI (no trailing slash):
 
 `https://ds218-hmh.tail15dbbb.ts.net:8445/api/google-workspace/callback`
 
-Download the client JSON to a private directory. The NAS private runtime supports `googleOAuth.clientId` and `googleOAuth.clientSecret`. `google-oauth-config.mjs` can merge a downloaded web-client JSON into the existing private runtime after validating this exact callback. Never place client JSON, runtime configuration, OAuth tokens or encryption keys in source, browser settings, deployment ZIPs or logs. Recreate config-init and web after changing runtime configuration.
+The Docker compose web service injects GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET from the separately uploaded NAS-private `private/google-oauth.env` file. This file must be explicitly authorized by the owner, created outside the source workspace, excluded from Git/deployment ZIPs and owned by NAS root with mode 600 in the existing private mode-700 directory. The app still reads only process.env. Never put actual values in compose.yaml, source, browser app settings, logs or chat. config-init requires the private credential file before the new web container starts and restricts its permissions. The old runtime googleOAuth object is no longer read. The validator can optionally export the private environment file with --output to an absolute path outside this workspace; without that option it only validates and prints variable names. It never overwrites an existing destination.
 
-Requested scopes: `calendar.readonly`, `drive.readonly`, `gmail.readonly`. The app uses offline refresh, OAuth state with a ten-minute expiry, and PKCE. Google consent is completed by the account owner; declining preserves any earlier connection. An external app in Testing can receive refresh tokens that expire after seven days; reconnect when Google invalidates authorization. Moving to Production for lasting personal use can involve Google's verification requirements for sensitive/restricted scopes; do not automatically publish or expand access.
+Enable Gmail, Calendar and Drive APIs in the VoiceGrok Cloud project. External/Testing test-user consent must be completed by the account owner. Testing refresh tokens can expire after seven days; automatic refresh cannot bypass this Google restriction. Moving to Production and verification is separate manual work, never automatic.
 
-## NAS storage and recovery
+## OAuth and API endpoints
 
-The `google-data` named volume is initialized with owner UID 1000 and mode 700; the server mount is `/run/google`. Token state is authenticated AES-256-GCM ciphertext; its random encryption key and ciphertext have mode 600. Only the same configured owner's Tailscale identity can invoke these endpoints; mutation endpoints also require the exact app Origin. Default Vercel and local unauthenticated requests fail closed. Encryption does not protect against a root administrator who can read both the key and ciphertext.
+GET /api/google-workspace/connect — offline OAuth, consent, state, PKCE S256, exact callback; returnOrigin is restricted to the configured NAS origin or drivemode.grok.me.
+GET /api/google-workspace/callback — verifies server state and browser cookie; exchanges code; stores tokens encrypted; clears code/state from redirect URL.
+GET /api/google-workspace/status — configured/connected/email, gmail/calendar/drive, granted service flags and expiry; no tokens.
+GET /api/google-workspace/verify — minimal real reads for the three services.
+GET profile, messages, message, events, files, file under the same prefix — service reads.
+POST /api/google-workspace/propose — validates a mutation and returns a preview with one-time 10-minute confirmation ID.
+POST /api/google-workspace/execute — consumes that ID; bound to the current OAuth account generation, cannot replay.
+POST /api/google-workspace/chat — one capped Grok function call interprets the explicit request; reads execute, writes only propose.
+POST /api/google-workspace/disconnect — revokes where possible, always clears local tokens and pending changes; reports a safe warning if Google revoke fails.
+Legacy /api/google-workspace?action=... is retained for read compatibility.
 
-Include the entire google-data volume, the private runtime with OAuth client credentials, and the latest deployment package in the existing encrypted recovery workflow. Older recovery scripts/archives do not include this new volume. Never copy only the ciphertext without its key; reauthorizing Google is an alternative after loss. Disconnect revokes the Google refresh token and clears local token state.
+Requested scopes:
+- https://www.googleapis.com/auth/drive.file
+- https://www.googleapis.com/auth/calendar.events
+- https://www.googleapis.com/auth/gmail.modify
+- openid
+- email
 
-Sources: [Google web-server OAuth](https://developers.google.com/identity/protocols/oauth2/web-server), [OAuth best practices](https://developers.google.com/identity/protocols/oauth2/resources/best-practices), [Gmail listing](https://developers.google.com/workspace/gmail/api/guides/list-messages), [Drive read permissions](https://developers.google.com/drive/api/guides/api-specific-auth).
+calendar.events does not grant calendarList access: primary is supported by default. drive.file lists only app-authorized files, never all Drive; creation supports UTF-8 text and explicitly selected binary files up to 1 MB, preview supports Google Docs/plain text. Arbitrary existing files need a separate explicit Google Picker flow (not included); the app does not claim general Drive access. Mail read does not mark it read. Mail sends/replies, unread changes, calendar CRUD, Drive text save/update and trash are available after explicit preview confirmation. No Gmail delete endpoint exists.
 
-## Rollout status (2026-10-07)
+## Storage and refresh
 
-Version 1.31.0 is deployed on the NAS with image voice-grok-web:1.31.0-google1. Calendar, Drive and Gmail APIs are enabled in the existing Cloud project. The owner-only status endpoint and settings UI were verified live. The OAuth client is not configured yet: Google Cloud branding setup returned a loading error. Account consent and real Google data API success remain unverified. Seven automated security/API tests, typecheck, development and production desktop/mobile rendering checks passed.
+Google tokens are encrypted with authenticated AES-256-GCM in /run/google/oauth.enc in the google-data named volume. Key /run/google/key; both mode 600, directory mode 700, UID 1000. The key is co-located, so encryption does not protect against a NAS root administrator. No tokens are returned to the browser or sent to Grok.
+
+GoogleWorkspace.access() refreshes 60 seconds before access-token expiry and coalesces refresh requests. api() forces one refresh after a 401 and retries once; invalid_grant clears saved authorization. Refresh responses that omit refresh_token preserve it; rotations are retained. Writes are not retried for network/5xx uncertainty. HTTP operations serialize token/session mutations.
+
+Back up the complete google-data volume and the separately protected server OAuth configuration through encrypted recovery. Older encrypted archives exclude the new Google volume. No new credentials were installed during this implementation, so real-account recovery validation remains pending.
+
+## UI and natural-language use
+
+Settings → Google 일정 · Drive · Gmail: connect/status/disconnect, service queries and direct mutation forms. Clicking a read result selects its ID for a follow-up such as '이 메일 읽어줘' / '답장 보내줘'. One Workspace operation runs per user turn even in multi-persona rooms; internal relay-writing prompts do not invoke Workspace. Main voice/text requests mentioning Google, Gmail, Drive, mail, reply or calendar route to the NAS Workspace assistant. Read results in conversation are subject to the app's existing conversation/history retention; the settings browser keeps results only in memory. Minimal selected metadata and the explicit request are sent to Grok for interpretation. Mutations require the on-screen preview's confirmation button; saying '실행해' does not bypass it.
+
+## Test procedure and status
+
+Automated tests mock Google/xAI transport and are not evidence of live authorization. The UI's '실제 API 통합 시험 · 변경 포함' first displays the exact effects: self-addressed test mail kept in Gmail, its unread/read label changes, only the newly created VoiceGrok OAuth Test calendar event and Drive text file are updated and removed. Failure to clean up returns only that test object ID; no user mail deletion or unrelated resource deletion. Disconnect invalidates local pending confirmation IDs.
+
+As of 2026-10-07 the requested client credentials have not been supplied; the new code is not deployed to NAS or published to drivemode.grok.me. Real OAuth consent, refresh, service writes/reads and live revoke remain pending. The existing NAS HTTPS/callback service can be probed without credentials, but successful Google redirect/code exchange can only be verified after consent.
+
+Sources: [Google OAuth](https://developers.google.com/identity/protocols/oauth2/web-server), [Drive scopes](https://developers.google.com/workspace/drive/api/guides/api-specific-auth), [Calendar scopes](https://developers.google.com/workspace/calendar/api/auth), [Gmail send](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/send).
+
+### OAuth recovery backup
+
+After connecting Google, create-recovery-backup.sh includes the private OAuth environment file and /run/google/key plus /run/google/oauth.enc inside the authenticated encrypted recovery archive. It requires the existing recovery-key.txt temporarily under private/recovery and removes that temporary NAS key only after successful backup. Keep the recovery key separately from the archive. verify-recovery-memory.mjs validates both archive encryption and Google token-store encryption in memory without printing tokens or extracting credentials. A restored Google refresh token can still expire or be revoked by Google; reconnect in that case.
+
+## VoiceGrok 1.32.0 verified deployment
+
+The published public app and NAS web image 1.32.0-google6 are deployed. The public client sends Workspace requests and Google TTS PCM/MP3 synthesis, status and settings to the NAS. Exact-origin CORS and the existing Tailscale Serve owner gate protect both paths. Unrelated paths, origins and owner identities remain rejected; browser TTS access codes are not sent from the public app to NAS.
+
+The owner switched the OAuth app to External/In Production, revoked the old Testing connection, and completed new offline consent. Production access-token automatic renewal and authenticated Gmail, Calendar and app-authorized Drive reads were verified. Production does not guarantee refresh tokens will never be revoked or expire; invalid_grant clears the local connection and requires new consent.
+
+Calendar speech uses Seoul dates, weekday and morning/afternoon times. Mail speech prefers sender display names or the address local part. Individual long plain-text bodies are summarized in Korean with a bounded, non-stored xAI request; explicit original-text requests bypass summaries. Search lists describe snippets as previews. Summaries use at most 12000 source characters and identify longer bodies as partial summaries. Original speech is capped at 10000 characters. Mail content is untrusted data and cannot execute tools or writes through summarization.
+
+Validation: 35 Workspace/TTS/identity/speech tests, typecheck, NAS build and Vercel build passed. Live NAS TTS returned PCM frames and a completion frame, public browser sample completed without errors, and foreign-Origin requests returned 403. Phone speaker audibility needs separate device confirmation. No live mailbox mutation or calendar/file write was performed during these speech/TTS checks.

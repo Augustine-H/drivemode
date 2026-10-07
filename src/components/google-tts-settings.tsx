@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { GOOGLE_TTS_DEFAULT, GoogleTtsProvider, selectedTts, ttsHeaders, ttsSnapshot, type GoogleTtsStatus, type TtsSelection } from '@/lib/google-tts-client';
+import { googleTtsEndpoint, GOOGLE_TTS_DEFAULT, GoogleTtsProvider, selectedTts, ttsHeaders, ttsSnapshot, type GoogleTtsStatus, type TtsSelection } from '@/lib/google-tts-client';
 import { mergeTtsStatus } from '@/lib/tts-status';
 
 export function GoogleTtsSettings() {
@@ -26,7 +26,7 @@ export function GoogleTtsSettings() {
     loadingRef.current = true;
     setBusy(true); setError('');
     try {
-      const response = await fetch('/api/google-tts' + (settings ? '?action=settings' : ''), { method: settings ? 'POST':'GET', headers: ttsHeaders(), body: settings ? JSON.stringify(settings):undefined, signal:AbortSignal.timeout(15000) });
+      const response = await fetch(googleTtsEndpoint() + (settings ? '?action=settings' : ''), { method: settings ? 'POST':'GET', headers: ttsHeaders(), body: settings ? JSON.stringify(settings):undefined, signal:AbortSignal.timeout(15000) });
       const data = await response.json(); if (!response.ok) throw new Error(data.error);
       if(epoch === loadEpoch.current) setStatus(data);
     } catch (err) { if(epoch === loadEpoch.current) setError(err instanceof Error && err.name !== 'TimeoutError' ? err.message : 'Google 서버 응답이 지연됩니다. 연결을 다시 확인하세요.'); }

@@ -15,6 +15,7 @@ import { Route as ApiGoogleTtsRouteImport } from './routes/api/google-tts'
 import { Route as ApiGoogleWorkspaceRouteImport } from './routes/api/google-workspace'
 import { Route as ApiMediaSourceRouteImport } from './routes/api/media-source'
 import { Route as ApiVideoSourceRouteImport } from './routes/api/video-source'
+import { Route as ApiGoogleWorkspaceSplatRouteImport } from './routes/api/google-workspace/$'
 import { Route as ApiGoogleWorkspaceCallbackRouteImport } from './routes/api/google-workspace/callback'
 
 const IndexRoute = IndexRouteImport.update({
@@ -47,6 +48,11 @@ const ApiVideoSourceRoute = ApiVideoSourceRouteImport.update({
   path: '/api/video-source',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGoogleWorkspaceSplatRoute = ApiGoogleWorkspaceSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => ApiGoogleWorkspaceRoute,
+} as any)
 const ApiGoogleWorkspaceCallbackRoute =
   ApiGoogleWorkspaceCallbackRouteImport.update({
     id: '/callback',
@@ -61,6 +67,7 @@ export interface FileRoutesByFullPath {
   '/api/google-workspace': typeof ApiGoogleWorkspaceRouteWithChildren
   '/api/media-source': typeof ApiMediaSourceRoute
   '/api/video-source': typeof ApiVideoSourceRoute
+  '/api/google-workspace/$': typeof ApiGoogleWorkspaceSplatRoute
   '/api/google-workspace/callback': typeof ApiGoogleWorkspaceCallbackRoute
 }
 export interface FileRoutesByTo {
@@ -70,6 +77,7 @@ export interface FileRoutesByTo {
   '/api/google-workspace': typeof ApiGoogleWorkspaceRouteWithChildren
   '/api/media-source': typeof ApiMediaSourceRoute
   '/api/video-source': typeof ApiVideoSourceRoute
+  '/api/google-workspace/$': typeof ApiGoogleWorkspaceSplatRoute
   '/api/google-workspace/callback': typeof ApiGoogleWorkspaceCallbackRoute
 }
 export interface FileRoutesById {
@@ -80,6 +88,7 @@ export interface FileRoutesById {
   '/api/google-workspace': typeof ApiGoogleWorkspaceRouteWithChildren
   '/api/media-source': typeof ApiMediaSourceRoute
   '/api/video-source': typeof ApiVideoSourceRoute
+  '/api/google-workspace/$': typeof ApiGoogleWorkspaceSplatRoute
   '/api/google-workspace/callback': typeof ApiGoogleWorkspaceCallbackRoute
 }
 export interface FileRouteTypes {
@@ -91,6 +100,7 @@ export interface FileRouteTypes {
     | '/api/google-workspace'
     | '/api/media-source'
     | '/api/video-source'
+    | '/api/google-workspace/$'
     | '/api/google-workspace/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -100,6 +110,7 @@ export interface FileRouteTypes {
     | '/api/google-workspace'
     | '/api/media-source'
     | '/api/video-source'
+    | '/api/google-workspace/$'
     | '/api/google-workspace/callback'
   id:
     | '__root__'
@@ -109,6 +120,7 @@ export interface FileRouteTypes {
     | '/api/google-workspace'
     | '/api/media-source'
     | '/api/video-source'
+    | '/api/google-workspace/$'
     | '/api/google-workspace/callback'
   fileRoutesById: FileRoutesById
 }
@@ -165,6 +177,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiVideoSourceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/google-workspace/$': {
+      id: '/api/google-workspace/$'
+      path: '/$'
+      fullPath: '/api/google-workspace/$'
+      preLoaderRoute: typeof ApiGoogleWorkspaceSplatRouteImport
+      parentRoute: typeof ApiGoogleWorkspaceRoute
+    }
     '/api/google-workspace/callback': {
       id: '/api/google-workspace/callback'
       path: '/callback'
@@ -176,10 +195,12 @@ declare module '@tanstack/react-router' {
 }
 
 interface ApiGoogleWorkspaceRouteChildren {
+  ApiGoogleWorkspaceSplatRoute: typeof ApiGoogleWorkspaceSplatRoute
   ApiGoogleWorkspaceCallbackRoute: typeof ApiGoogleWorkspaceCallbackRoute
 }
 
 const ApiGoogleWorkspaceRouteChildren: ApiGoogleWorkspaceRouteChildren = {
+  ApiGoogleWorkspaceSplatRoute: ApiGoogleWorkspaceSplatRoute,
   ApiGoogleWorkspaceCallbackRoute: ApiGoogleWorkspaceCallbackRoute,
 }
 

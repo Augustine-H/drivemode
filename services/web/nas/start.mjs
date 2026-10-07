@@ -5,11 +5,7 @@ process.env.VOICE_GROK_PRIVATE_NAS='true';
 process.env.VOICE_GROK_NAS_LOGIN=config.login;
 process.env.VOICE_GROK_NAS_ORIGIN=config.origin;
 process.env.GOOGLE_TTS_BACKENDS=JSON.stringify(config.backends);
-if (config.googleOAuth) {
-  if (typeof config.googleOAuth.clientId !== 'string' || typeof config.googleOAuth.clientSecret !== 'string') throw new Error('NAS Google OAuth configuration is invalid');
-  process.env.GOOGLE_WORKSPACE_CLIENT_ID=config.googleOAuth.clientId;
-  process.env.GOOGLE_WORKSPACE_CLIENT_SECRET=config.googleOAuth.clientSecret;
-}
+// OAuth client credentials are supplied only as server environment variables.
 process.env.GOOGLE_WORKSPACE_DATA_DIR='/run/google';
 // This optional credential comes only from the private runtime volume.
 if (config.xaiApiKey !== undefined) {

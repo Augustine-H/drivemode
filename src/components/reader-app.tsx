@@ -118,6 +118,8 @@ import { speakSelectedLine as speakLine, selectedTts } from "@/lib/google-tts-cl
 import { useDictation } from "@/lib/use-dictation";
 import { useReader } from "@/lib/use-reader";
 import { GoogleTtsSettings } from "@/components/google-tts-settings";
+import { GoogleWorkspaceConfirmation } from "@/components/google-workspace-confirmation";
+import { workspaceConversation } from "@/lib/google-workspace-client";
 import { GoogleWorkspaceSettings } from "@/components/google-workspace-settings";
 import {
   SAMPLE_TURNS,
@@ -1999,6 +2001,7 @@ export function ReaderApp() {
         result = await streamAsk(
           {
             message: text,
+            workspace:true,
             history: selectRecent(history, recalled.recentBudget).recent,
             summary: recalled.summary,
             recentBudget: recalled.recentBudget,
@@ -2463,6 +2466,8 @@ export function ReaderApp() {
         }
       };
       publish();
+      // One Workspace operation per user turn, even when several personas answer.
+      const workspaceReply=workspaceConversation(text,abort.signal,mediaInput.image);
       const replies = await Promise.all(
         speakers.map(async (member, index) => {
           const recalled = memoryEngine.context(member.id, text);
@@ -2479,6 +2484,7 @@ export function ReaderApp() {
           const result = await streamAsk(
             {
               message: text,
+              workspaceResult:workspaceReply,
               history: current
                 .filter((t) => !t.event && t.id !== mine.id)
                 .map((t) => ({
@@ -2992,6 +2998,7 @@ export function ReaderApp() {
 
   return (
     <div className="mx-auto flex h-full w-full max-w-lg flex-col bg-bg text-fg">
+      <GoogleWorkspaceConfirmation />
       <header className="flex shrink-0 flex-col border-b border-line pt-3">
         <div className="flex items-center justify-between gap-3 px-4">
           <div className="min-w-0">

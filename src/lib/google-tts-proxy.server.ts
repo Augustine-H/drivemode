@@ -1,13 +1,31 @@
-import { parseBackends, routeTts } from './google-tts-routing.server';
-import { nasAccess } from './nas-access';
+import { parseBackends, routeTts } from './google-tts-routing.server.ts';
+import { nasAccess } from './nas-access.ts';
+import { GOOGLE_APP_ORIGIN } from './google-workspace-contract.ts';
 // Loaded only by API handlers. Google credentials stay in the dedicated backend.
 export async function googleTtsProxy(request: Request, path: string) {
-  const dev = import.meta.env.DEV;
+  const access=nasAccess(request.headers),origin=request.headers.get('origin');
+  const publicNas=access.enabled && access.allowed && origin===GOOGLE_APP_ORIGIN;
+  if(request.method==='OPTIONS') {
+    if(!publicNas)return new Response(null,{status:403});
+    return ttsCors(new Response(null,{status:204}),origin!);
+  }
+  const response=await googleTtsAuthorized(request,path);
+  return publicNas?ttsCors(response,origin!):response;
+}
+function ttsCors(response:Response,origin:string) {
+  response.headers.set('access-control-allow-origin',origin);
+  response.headers.set('vary','Origin');
+  response.headers.set('access-control-allow-methods','GET, POST, OPTIONS');
+  response.headers.set('access-control-allow-headers','Content-Type');
+  return response;
+}
+async function googleTtsAuthorized(request: Request, path: string) {
+  const dev = import.meta.env?.DEV;
   const url = new URL(request.url);
   const origin = request.headers.get('origin');
   const nas = nasAccess(request.headers);
   if (nas.enabled && !nas.allowed) return Response.json({ error: 'NAS 계정의 Tailscale 연결을 확인하세요.' }, { status: 403 });
-  if (origin && origin !== (nas.enabled ? nas.origin : url.origin)) return Response.json({ error: '허용되지 않은 요청입니다.' }, { status: 403 });
+  if (origin && origin !== (nas.enabled ? nas.origin : url.origin) && !(nas.allowed && origin===GOOGLE_APP_ORIGIN)) return Response.json({ error: '허용되지 않은 요청입니다.' }, { status: 403 });
   const access = process.env.GOOGLE_TTS_ACCESS_TOKEN;
   if (nas.allowed) {
     // Serve has authenticated the configured owner; backend tokens remain server-only.

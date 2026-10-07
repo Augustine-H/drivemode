@@ -26,6 +26,17 @@ let credentialsConsistent=false;
 if(isPC){const adc=json('pc/google-adc.json');json('pc/backend-config.json');credentialsConsistent=!!adc.type&&files.get('pc/backend-token').toString().trim().length>=48;}
 else {const runtime=json('web/runtime.json'),adc=json('tts/adc.json'),token=files.get('tts/backend-token').toString().trim();credentialsConsistent=!!runtime.login&&!!runtime.origin&&!!runtime.xaiApiKey&&!!adc.type&&token.length>=48&&runtime.backends?.find(b=>b.id==='nas')?.token===token;}
 if(!credentialsConsistent)throw Error('Credentials/configuration inconsistent');
+let googleWorkspaceRestorable=false;
+if(manifest.googleWorkspace===true && !isPC){
+  const env=files.get('web/google-oauth.env')?.toString() || '';
+  const googleKey=files.get('web/google/key'), savedGoogle=files.get('web/google/oauth.enc');
+  if(!/^GOOGLE_CLIENT_ID=\S+$/m.test(env)||!/^GOOGLE_CLIENT_SECRET=\S+$/m.test(env)||googleKey?.length!==32||!savedGoogle||savedGoogle.length<28)throw Error('Google recovery data missing');
+  const decrypt=createDecipheriv('aes-256-gcm',googleKey,savedGoogle.subarray(0,12));
+  decrypt.setAAD(Buffer.from('voice-grok-google-v1'));decrypt.setAuthTag(savedGoogle.subarray(12,28));
+  const session=JSON.parse(Buffer.concat([decrypt.update(savedGoogle.subarray(28)),decrypt.final()]).toString());
+  googleWorkspaceRestorable=typeof session.refreshToken==='string'&&session.refreshToken.length>0&&Array.isArray(session.scopes)&&session.scopes.length>0;
+  if(!googleWorkspaceRestorable)throw Error('Google account is not connected in snapshot');
+}
 const dbPath=path.join(path.resolve(privateDirectory),`.verify-${randomBytes(12).toString('hex')}.sqlite`);
 let usage,settings;
 try {
@@ -41,5 +52,5 @@ const explicitPort=compose.match(/VOICE_GROK_WEB_PORT:\s*["']?(\d+)/)?.[1];
 const web8097=isPC||((explicitPort==='8097'||(!explicitPort&&/NITRO_PORT\s*=.*VOICE_GROK_WEB_PORT.*['"]8097['"]/.test(start)))&&
   /127\.0\.0\.1:8097/.test(files.get('web/enable-private-https.sh')?.toString()||'')&&
   /127\.0\.0\.1:8097/.test(files.get('network/serve.json')?.toString()||''));
-console.log(JSON.stringify({passed:credentialsConsistent&&web8097,authenticatedDecryption:true,credentialsConsistent,databaseIntegrity:'ok',web8097,usage,settings,createdUtc:manifest.createdUtc,files:[...files.keys()],sha256:createHash('sha256').update(fs.readFileSync(archive)).digest('hex'),plaintextCredentialsExtracted:false}));
+console.log(JSON.stringify({passed:credentialsConsistent&&web8097,authenticatedDecryption:true,credentialsConsistent,googleWorkspaceRestorable,databaseIntegrity:'ok',web8097,usage,settings,createdUtc:manifest.createdUtc,files:[...files.keys()],sha256:createHash('sha256').update(fs.readFileSync(archive)).digest('hex'),plaintextCredentialsExtracted:false}));
 if(!web8097)process.exitCode=1;

@@ -1,3 +1,4 @@
+import { workspaceConversation } from './google-workspace-client.ts';
 import type { AskResult } from "@/lib/ask-grok";
 import type { AskTurn } from "@/lib/ask-prompt";
 
@@ -12,15 +13,19 @@ export async function streamAsk(
     memoriesRetrieved?: number;
     image?: string;
     frames?: string[];
+    workspace?:boolean;
+    workspaceResult?:Promise<string|null>;
   },
   onText: (text: string, voiceText?: string) => void,
   signal?: AbortSignal,
 ): Promise<AskResult> {
+  const workspace=input.workspaceResult?await input.workspaceResult:input.workspace?await workspaceConversation(input.message,signal,input.image):null;
+  if(workspace!==null) {onText(workspace,workspace);return {ok:true,text:workspace,voiceText:workspace};}
   const res = await fetch("/api/ask", {
     signal,
     method: "POST",
     headers: { "content-type": "application/json", accept: "text/event-stream" },
-    body: JSON.stringify(input),
+    body: JSON.stringify({...input,workspace:undefined,workspaceResult:undefined}),
   });
   if (!res.ok || !res.body) return { ok: false, error: "그록이 대답하지 못했습니다." };
   const reader = res.body.getReader();

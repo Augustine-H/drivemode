@@ -1,14 +1,22 @@
-import fs from 'node:fs';
-import path from 'node:path';
-// Run only with files in an access-restricted private directory; prints no credentials.
-const [clientFile,runtimeFile]=process.argv.slice(2);
-if(!clientFile || !runtimeFile) throw new Error('Provide OAuth client JSON and private runtime JSON paths.');
-const client=JSON.parse(fs.readFileSync(clientFile,'utf8')).web;
-const runtime=JSON.parse(fs.readFileSync(runtimeFile,'utf8'));
-const callback=new URL('/api/google-workspace/callback',runtime.origin).href;
-if(!client || typeof client.client_id!=='string' || typeof client.client_secret!=='string' || !client.redirect_uris?.includes(callback)) throw new Error('Web OAuth client or registered callback is invalid.');
-runtime.googleOAuth={clientId:client.client_id,clientSecret:client.client_secret};
-const temporary=path.join(path.dirname(runtimeFile),`runtime-google-${process.pid}.tmp`);
-fs.writeFileSync(temporary,JSON.stringify(runtime,null,2),{mode:0o600,flag:'wx'});
-fs.renameSync(temporary,runtimeFile);
-console.log('Private Google OAuth configuration saved. Recreate config-init and web.');
+// Optional private NAS environment export. Never prints credential values.
+import {readFile,writeFile,chmod} from 'node:fs/promises';
+import {resolve,relative,isAbsolute} from 'node:path';
+import {fileURLToPath} from 'node:url';
+const callback='https://ds218-hmh.tail15dbbb.ts.net:8445/api/google-workspace/callback';
+try {
+ const path=process.argv[2];if(!path)throw new Error('missing');
+ const client=JSON.parse(await readFile(path,'utf8')).web;
+ if(!client?.client_id || !client?.client_secret || !client.redirect_uris?.includes(callback))throw new Error('invalid');
+ if(!/^[A-Za-z0-9._-]+$/.test(client.client_id) || !/^[A-Za-z0-9._-]+$/.test(client.client_secret))throw new Error('format');
+ if(process.argv[3]==='--output') {
+   if(!process.argv[4] || !isAbsolute(process.argv[4]))throw new Error('output');
+   const target=resolve(process.argv[4]),workspace=resolve(fileURLToPath(new URL('../../../',import.meta.url)));
+   const rel=relative(workspace,target);if(!rel || (!rel.startsWith('..') && !isAbsolute(rel)))throw new Error('workspace');
+   await writeFile(target,`GOOGLE_CLIENT_ID=${client.client_id}\nGOOGLE_CLIENT_SECRET=${client.client_secret}\n`,{flag:'wx',mode:0o600});
+   await chmod(target,0o600);
+   console.log('Private environment file created. Credential values were not printed.');
+ } else {
+   if(process.argv[3])throw new Error('option');
+   console.log('Client JSON validated. Required server variables: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET. No credentials were printed or written.');
+ }
+} catch {console.error('Client JSON validation failed. Check web-client type and the exact registered callback URI.');process.exitCode=1;}

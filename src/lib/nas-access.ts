@@ -1,3 +1,11 @@
+import { GOOGLE_APP_ORIGIN } from './google-workspace-contract.ts';
+export function nasRequestOriginAllowed(origin:string|null,requestUrl:string,nasOrigin:string) {
+  if(!origin || origin===nasOrigin)return true;
+  try {
+    const path=new URL(requestUrl).pathname;
+    return origin===GOOGLE_APP_ORIGIN && (path.startsWith('/api/google-workspace/') || path==='/api/google-tts');
+  } catch { return false; }
+}
 // Trust these headers only on the loopback listener behind Tailscale Serve.
 export function nasAccess(headers: Headers, env: Record<string, string | undefined> = process.env) {
   if (env.VOICE_GROK_PRIVATE_NAS !== 'true') return { enabled: false, allowed: false, origin: '' };
