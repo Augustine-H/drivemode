@@ -33,3 +33,9 @@ NAS archive voice-grok-recovery-20261007T144137Z.vgrec includes current Producti
 Encrypted archives/checksums and current google6 NAS deployment/public-source packages are retained on the access-restricted PC recovery folder and the separate H: backup disk. The portable recovery key remains on the separate K: disk; no plaintext credentials were extracted during verification. Successful NAS backup removed its temporarily supplied key. Archives and recovery keys are excluded from Git and public source packages.
 
 The owner confirmed natural Calendar date/weekday/time, mail sender/title and long-body summary playback on S26. Latest-deployment NAS reboot recovery is being checked separately; archive verification alone is not a reboot or production-restore test.
+
+## Latest deployment reboot verification — 2026-10-08 KST, passed
+
+DSM actual restart caused NAS application downtime. Without manually starting any service or running a recovery task after reboot, the web app recovered and selected the already-running authenticated PC TTS at 2026-10-07T15:03:07Z, then authenticated NAS TTS at 15:04:38Z. First recorded unavailability was 14:46:07Z; recovery took approximately 19 minutes. This is observed service recovery time, not a guarantee for future reboots.
+
+Before any post-reboot synthesis, the NAS ledger remained exactly 563 Chirp characters, matching the pre-reboot baseline. The Google connection and all three granted service flags were retained. Live read-only Calendar, app-authorized Drive and Gmail profile API checks all returned ok:true at 15:04:41Z, without new OAuth consent. No Google writes or email sends were performed. These checks establish automatic service/token-store recovery; no destructive restore of a backup was tested.
