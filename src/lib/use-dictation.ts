@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { transcribeSpeech } from "@/lib/stt";
 import { collapseStutter, mergeUtterance, sessionTranscript } from "@/lib/speech-text";
+import { SpeechOnsetDetector } from "@/lib/speech-onset";
 
 type Options = {
   paused: boolean;
@@ -14,6 +15,7 @@ type Options = {
   onText: (text: string) => void;
   onUtterance: (text: string) => void;
   onError: (message: string) => void;
+  onSpeechStart?: () => void;
 };
 
 type Rec = {
@@ -43,6 +45,7 @@ type Live = {
   recorder: MediaRecorder;
   chunks: Blob[];
   heard: boolean;
+  onset: SpeechOnsetDetector;
   quietSince: number;
   started: number;
   timer: number;
@@ -152,6 +155,7 @@ export function useDictation({
   onText,
   onUtterance,
   onError,
+  onSpeechStart,
 }: Options) {
   const [armed, setArmed] = useState(false);
   const [hearing, setHearing] = useState(false);
@@ -178,6 +182,7 @@ export function useDictation({
     onText,
     onUtterance,
     onError,
+    onSpeechStart,
     verifyAudio,
     forceRecord,
     keepListening,
@@ -191,6 +196,7 @@ export function useDictation({
     onText,
     onUtterance,
     onError,
+    onSpeechStart,
     verifyAudio,
     forceRecord,
     keepListening,
@@ -433,6 +439,7 @@ export function useDictation({
     if (!wanted.current || live.current !== item) return;
     item.chunks = [];
     item.heard = false;
+    item.onset = new SpeechOnsetDetector();
     item.started = Date.now();
     item.done = false;
     item.recorder = new MediaRecorder(item.stream);
@@ -494,6 +501,7 @@ export function useDictation({
       recorder,
       chunks: [],
       heard: false,
+      onset: new SpeechOnsetDetector(),
       quietSince: Date.now(),
       started: Date.now(),
       timer: 0,
@@ -524,6 +532,7 @@ export function useDictation({
       if (pausedRef.current || busy.current) return;
       const level = rmsOf(analyser, buf);
       const now = Date.now();
+      if (item.onset.update(level,now)) callbacks.current.onSpeechStart?.();
       const tooLong = now - item.started > 29000;
       if (level > (callbacks.current.verifyAudio || callbacks.current.forceRecord ? 0.008 : 0.02)) {
         item.heard = true;

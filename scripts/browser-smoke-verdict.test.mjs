@@ -377,10 +377,11 @@ test("browser-smoke wires the guard and verdict helpers", () => {
   assert.match(src, /from "\.\/browser-smoke-verdict\.mjs"/);
   assert.match(src, /const args = parseSmokeArgs\(process\.argv\.slice\(2\), process\.env\)/);
   assert.match(src, /const url = checkedUrl\(args\.url\)/);
-  assert.match(src, /const outPng = checkedOutputPath\(args\.outPng, \["\/workspace"\]\)/);
-  assert.match(src, /const mobilePng = checkedOutputPath\(derived\.mobilePng, \["\/workspace"\]\)/);
-  assert.match(src, /const outJson = checkedOutputPath\(derived\.verdictJson, \["\/workspace"\]/);
-  assert.match(src, /checkedOutputPath\(realpathSync\(args\.baseline\), \["\/workspace"\]/);
+  assert.match(src, /const outPng = checkedOutputPath\(args\.outPng, smokeRoots\)/);
+  assert.match(src, /const smokeRoots = process\.platform === 'win32'/);
+  assert.match(src, /const mobilePng = checkedOutputPath\(derived\.mobilePng, smokeRoots\)/);
+  assert.match(src, /const outJson = checkedOutputPath\(derived\.verdictJson, smokeRoots/);
+  assert.match(src, /checkedOutputPath\(realpathSync\(args\.baseline\), smokeRoots/);
   assert.match(src, /baselinePath === outJson/);
   assert.match(src, /normalizedBodyTextHash\(/);
   assert.match(src, /bodyTextPrefix\(/);
@@ -400,7 +401,7 @@ test("browser-smoke wires the guard and verdict helpers", () => {
   );
 });
 
-test("browser-smoke file I/O only touches guarded paths", () => {
+test("browser-smoke file I/O uses guarded outputs and explicit bounded headers input", () => {
   const src = readFileSync(join(TEMPLATE_ROOT, "scripts/browser-smoke.mjs"), "utf8");
   assert.doesNotMatch(src, /(?:writeFileSync|readFileSync|statSync|realpathSync)\(\s*["'`]/);
   const writes = [...src.matchAll(/writeFileSync\(\s*([A-Za-z_$][\w$.]*)/g)].map((m) => m[1]);
@@ -410,7 +411,9 @@ test("browser-smoke file I/O only touches guarded paths", () => {
     `unexpected writeFileSync target: ${writes}`,
   );
   const reads = [...src.matchAll(/readFileSync\(\s*([A-Za-z_$][\w$.]*)/g)].map((m) => m[1]);
-  assert.deepEqual(reads, ["baselinePath"]);
+  assert.deepEqual(reads, ["headersPath", "baselinePath"]);
+  assert.match(src, /headersPath = realpathSync\(process\.env\.BROWSER_SMOKE_HEADERS_FILE\)/);
+  assert.match(src, /info\.size > 16384/);
   const stats = [...src.matchAll(/statSync\(\s*([A-Za-z_$][\w$.]*)/g)].map((m) => m[1]);
-  assert.deepEqual(stats, ["baselinePath"]);
+  assert.deepEqual(stats, ["headersPath", "baselinePath"]);
 });

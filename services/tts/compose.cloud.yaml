@@ -1,0 +1,19 @@
+services:
+  tts:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8092:8092"
+    environment:
+      GOOGLE_TTS_NODE_ID: cloud
+      GOOGLE_TTS_CLUSTER_MODE: "true"
+      GOOGLE_TTS_MONTHLY_THRESHOLD: "800000"
+      GOOGLE_TTS_BACKEND_TOKEN: ${GOOGLE_TTS_CLOUD_TOKEN:?private cloud token required}
+    volumes:
+      - tts-data:/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+volumes:
+  tts-data:

@@ -1,0 +1,25 @@
+// Reproducible live check; only a fixed, non-private Korean sample reaches Google.
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
+import assert from 'node:assert/strict';
+const directory = process.env.GOOGLE_TTS_DATA_DIR || join(process.env.LOCALAPPDATA || homedir(),'VoiceGrok','Tts');
+const token = process.env.GOOGLE_TTS_BACKEND_TOKEN || readFileSync(join(directory,'backend-token'),'utf8').trim();
+const endpoint = process.env.GOOGLE_TTS_VERIFY_URL || 'http://127.0.0.1:8092';
+const proxy = endpoint.includes('/api/google-tts');
+const headers = {authorization:`Bearer ${proxy ? process.env.GOOGLE_TTS_ACCESS_TOKEN : token}`,'content-type':'application/json'};
+const status = await (await fetch(proxy ? endpoint : endpoint+'/status',{headers})).json();
+assert.equal(status.authentication,true); assert.equal(status.config.voice,'ko-KR-Chirp3-HD-Leda');
+assert.ok(status.voices.length > 0);
+const segmentId = crypto.randomUUID();
+const target = proxy ? endpoint : endpoint+'/synthesize';
+const format = process.env.GOOGLE_TTS_VERIFY_FORMAT;
+const response = await fetch(target,{method:'POST',headers,body:JSON.stringify({text:'안녕하세요. 레다 스트리밍 테스트입니다.',segmentId,speed:1,format})});
+assert.equal(response.status,200);
+const frames = (await response.text()).trim().split('\n').map(line=>JSON.parse(line));
+assert.equal(frames.find(frame=>frame.type==='meta').voice,'ko-KR-Chirp3-HD-Leda');
+assert.ok(frames.some(frame=>frame.type==='audio' && frame.encoding===(format === 'mp3' ? 'mp3':'pcm')));
+assert.ok(frames.some(frame=>frame.type==='done'));
+const duplicate = await fetch(target,{method:'POST',headers,body:JSON.stringify({text:'안녕하세요. 레다 스트리밍 테스트입니다.',segmentId})});
+assert.equal(duplicate.status,409);
+console.log(JSON.stringify({authenticated:true,voice:status.config.voice,waveNetVoices:status.voices.map(v=>v.id),audioFrames:frames.filter(f=>f.type==='audio').length,ttfaMs:frames.find(f=>f.type==='latency').ttfaMs,duplicateBlocked:true}));

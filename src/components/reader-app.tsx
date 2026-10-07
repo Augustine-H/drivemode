@@ -113,9 +113,10 @@ import {
 import { AutoBackupQueue } from "@/lib/auto-backup";
 import { importGrokShare } from "@/lib/grok-share";
 import { imagineImage, startVideo, videoStatus } from "@/lib/imagine";
-import { speakLine } from "@/lib/tts";
+import { speakSelectedLine as speakLine, selectedTts } from "@/lib/google-tts-client";
 import { useDictation } from "@/lib/use-dictation";
 import { useReader } from "@/lib/use-reader";
+import { GoogleTtsSettings } from "@/components/google-tts-settings";
 import {
   SAMPLE_TURNS,
   chunkText,
@@ -499,6 +500,12 @@ export function ReaderApp() {
   turnsNow.current = turns;
 
   const reader = useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok });
+  const [googleTtsActive, setGoogleTtsActive] = useState(true);
+  useEffect(() => {
+    const update = () => setGoogleTtsActive(selectedTts() === 'google');
+    update(); window.addEventListener('tts-provider-change',update);
+    return () => window.removeEventListener('tts-provider-change',update);
+  }, []);
   const busyRef = useRef(false);
   const jobEpoch = useRef(0);
   const answerAbort = useRef<AbortController | null>(null);
@@ -584,9 +591,15 @@ export function ReaderApp() {
               .accepted;
           }
         : undefined,
-    paused: asking || reader.status === "playing" || reader.preparing,
-    keepListening: wakeOn,
-    forceRecord: wakeOn,
+    paused: googleTtsActive ? asking && reader.status !== 'playing' && !reader.preparing : asking || reader.status === "playing" || reader.preparing,
+    keepListening: wakeOn || (googleTtsActive && autoReply),
+    forceRecord: wakeOn || googleTtsActive,
+    onSpeechStart: () => {
+      if (!googleTtsActive || (reader.status !== 'playing' && !reader.preparing)) return;
+      jobEpoch.current++; answerAbort.current?.abort(); answerAbort.current = null;
+      reader.stop(); busyRef.current = false; setAsking(false);
+      setThreads(previous => Object.fromEntries(Object.entries(previous).map(([id,list]) => [id,list.map(turn => turn.streaming ? { ...turn, streaming:false, responseStatus:'cancelled' as const } : turn)])));
+    },
     idleMs: wakeOn && wakeSession ? wakeIdleSeconds * 1000 : undefined,
     silenceMs: Math.round(silence * 1000),
     autoSend: wakeOn || autoReply,
@@ -4378,9 +4391,10 @@ export function ReaderApp() {
                     목소리 · 재생
                   </summary>
                   <div className="space-y-3 pt-2">
+                    <GoogleTtsSettings />
                     {" "}
                     <VoiceSelect
-                      label="내 목소리 · 남자"
+                      label="xAI 내 목소리 · 남자"
                       value={voiceMe}
                       voices={MALE_VOICES}
                       previewing={previewing === voiceMe}
@@ -4388,7 +4402,7 @@ export function ReaderApp() {
                       onPreview={() => void previewVoice(voiceMe)}
                     />
                     <VoiceSelect
-                      label={`${selectedPersona?.name ?? "그록"} 목소리 · 여자`}
+                      label={`xAI ${selectedPersona?.name ?? "그록"} 목소리 · 여자`}
                       value={voiceGrok}
                       voices={FEMALE_VOICES}
                       previewing={previewing === voiceGrok}
@@ -4569,8 +4583,8 @@ export function ReaderApp() {
                       그 말투로 받고 말하기가 켜집니다. 셀카나 사진을 보내 달라고 하면 그림을,
                       영상이라고 하면 짧은 영상을 채팅에 넣고 읽어 줍니다. 만들기 전에는 만들었다고
                       말하지 않습니다. 장소, 가격, 소식 같은 정보는 그록이 인터넷에서 찾아 읽어
-                      줍니다. 설정한 시간 동안 음성이 없으면 대답하고, 읽는 동안에는 마이크를 잠깐
-                      멈춥니다.
+                      줍니다. 설정한 시간 동안 음성이 없으면 대답합니다. Google TTS에서는
+                      마이크가 켜져 있으면 새 발화를 감지해 현재 읽기를 중단합니다.
                     </p>
                     <p className="text-center text-xs text-muted">
                       {APP_NAME} {APP_VERSION}

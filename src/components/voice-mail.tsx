@@ -19,7 +19,7 @@ import {
   type VoiceMail,
 } from "@/lib/voice-mail";
 import { transcribeSpeech } from "@/lib/stt";
-import { speakLine } from "@/lib/tts";
+import { speakSelectedLine as speakLine } from "@/lib/google-tts-client";
 import { type Turn } from "@/lib/transcript";
 
 type Persona = { id: string; name: string; voice?: string };

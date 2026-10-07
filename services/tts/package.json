@@ -1,0 +1,1 @@
+{"name":"voice-grok-tts-backend","version":"1.0.0","private":true,"type":"module","dependencies":{"@google-cloud/text-to-speech":"7.1.1"}}

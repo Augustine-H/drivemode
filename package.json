@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",
+    "@google-cloud/text-to-speech": "^7.1.1",
     "@hookform/resolvers": "^5.7.0",
     "@huggingface/transformers": "3.8.1",
     "@radix-ui/react-accordion": "^1.2.12",

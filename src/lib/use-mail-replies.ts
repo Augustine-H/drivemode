@@ -3,7 +3,7 @@ import { voiceResponse } from "./voice-formatter";
 import { useEffect, useRef } from "react";
 import { askGrok } from "@/lib/ask-grok";
 import { transcribeSpeech } from "@/lib/stt";
-import { speakLine } from "@/lib/tts";
+import { speakSelectedLine as speakLine } from "@/lib/google-tts-client";
 import {
   personaInstructions,
   memoryForQuestion,

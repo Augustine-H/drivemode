@@ -336,6 +336,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     process.exit(1);
   }
   if (!existsSync("/proc/self")) {
+    if (process.platform === 'win32') {
+      await (await import('./preview-windows.mjs')).windowsPreview(args.action);
+      process.exit(0);
+    }
     console.error("[preview] no /proc — this script only runs inside the sandbox");
     process.exit(1);
   }

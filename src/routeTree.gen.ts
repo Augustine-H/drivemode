@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiAskRouteImport } from './routes/api/ask'
+import { Route as ApiGoogleTtsRouteImport } from './routes/api/google-tts'
 import { Route as ApiMediaSourceRouteImport } from './routes/api/media-source'
 import { Route as ApiVideoSourceRouteImport } from './routes/api/video-source'
 
@@ -22,6 +23,11 @@ const IndexRoute = IndexRouteImport.update({
 const ApiAskRoute = ApiAskRouteImport.update({
   id: '/api/ask',
   path: '/api/ask',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiGoogleTtsRoute = ApiGoogleTtsRouteImport.update({
+  id: '/api/google-tts',
+  path: '/api/google-tts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMediaSourceRoute = ApiMediaSourceRouteImport.update({
@@ -38,12 +44,14 @@ const ApiVideoSourceRoute = ApiVideoSourceRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/ask': typeof ApiAskRoute
+  '/api/google-tts': typeof ApiGoogleTtsRoute
   '/api/media-source': typeof ApiMediaSourceRoute
   '/api/video-source': typeof ApiVideoSourceRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/ask': typeof ApiAskRoute
+  '/api/google-tts': typeof ApiGoogleTtsRoute
   '/api/media-source': typeof ApiMediaSourceRoute
   '/api/video-source': typeof ApiVideoSourceRoute
 }
@@ -51,20 +59,38 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/ask': typeof ApiAskRoute
+  '/api/google-tts': typeof ApiGoogleTtsRoute
   '/api/media-source': typeof ApiMediaSourceRoute
   '/api/video-source': typeof ApiVideoSourceRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/ask' | '/api/media-source' | '/api/video-source'
+  fullPaths:
+    | '/'
+    | '/api/ask'
+    | '/api/google-tts'
+    | '/api/media-source'
+    | '/api/video-source'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/ask' | '/api/media-source' | '/api/video-source'
-  id: '__root__' | '/' | '/api/ask' | '/api/media-source' | '/api/video-source'
+  to:
+    | '/'
+    | '/api/ask'
+    | '/api/google-tts'
+    | '/api/media-source'
+    | '/api/video-source'
+  id:
+    | '__root__'
+    | '/'
+    | '/api/ask'
+    | '/api/google-tts'
+    | '/api/media-source'
+    | '/api/video-source'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiAskRoute: typeof ApiAskRoute
+  ApiGoogleTtsRoute: typeof ApiGoogleTtsRoute
   ApiMediaSourceRoute: typeof ApiMediaSourceRoute
   ApiVideoSourceRoute: typeof ApiVideoSourceRoute
 }
@@ -83,6 +109,13 @@ declare module '@tanstack/react-router' {
       path: '/api/ask'
       fullPath: '/api/ask'
       preLoaderRoute: typeof ApiAskRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/google-tts': {
+      id: '/api/google-tts'
+      path: '/api/google-tts'
+      fullPath: '/api/google-tts'
+      preLoaderRoute: typeof ApiGoogleTtsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/media-source': {
@@ -105,6 +138,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiAskRoute: ApiAskRoute,
+  ApiGoogleTtsRoute: ApiGoogleTtsRoute,
   ApiMediaSourceRoute: ApiMediaSourceRoute,
   ApiVideoSourceRoute: ApiVideoSourceRoute,
 }

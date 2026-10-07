@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import { checkedOutputPath, checkedUrl } from "./browser-guard.mjs";
 import { computeBrandWarnings } from "./brand-check.mjs";
@@ -27,10 +28,11 @@ if (args.error) {
 }
 
 const url = checkedUrl(args.url);
-const outPng = checkedOutputPath(args.outPng, ["/workspace"]);
+const smokeRoots = process.platform === 'win32' ? [dirname(dirname(fileURLToPath(import.meta.url)))] : ["/workspace"];
+const outPng = checkedOutputPath(args.outPng, smokeRoots);
 const derived = derivedPaths(outPng);
-const mobilePng = checkedOutputPath(derived.mobilePng, ["/workspace"]);
-const outJson = checkedOutputPath(derived.verdictJson, ["/workspace"], "verdict JSON");
+const mobilePng = checkedOutputPath(derived.mobilePng, smokeRoots);
+const outJson = checkedOutputPath(derived.verdictJson, smokeRoots, "verdict JSON");
 
 const MAX_BASELINE_BYTES = 1024 * 1024;
 const baselineRequested = Boolean(args.baseline);
@@ -38,7 +40,7 @@ let baselinePath = null;
 let baselineResolveError = null;
 if (baselineRequested) {
   try {
-    baselinePath = checkedOutputPath(realpathSync(args.baseline), ["/workspace"], "baseline");
+    baselinePath = checkedOutputPath(realpathSync(args.baseline), smokeRoots, "baseline");
   } catch (err) {
     baselineResolveError = err?.code ?? "unresolvable path";
   }
@@ -60,6 +62,19 @@ if (baselineRequested) {
 }
 
 const timeoutMs = Number(process.env.BROWSER_SMOKE_TIMEOUT_MS || 45000);
+// Explicit operator-supplied credentials stay outside source and verdict output.
+let headersPath = null;
+let extraHTTPHeaders;
+if (process.env.BROWSER_SMOKE_HEADERS_FILE) {
+  headersPath = realpathSync(process.env.BROWSER_SMOKE_HEADERS_FILE);
+  const info = statSync(headersPath);
+  if (!info.isFile() || info.size > 16384) throw new Error('Invalid headers file');
+  extraHTTPHeaders = JSON.parse(readFileSync(headersPath, 'utf8'));
+  if (!extraHTTPHeaders || Array.isArray(extraHTTPHeaders) || typeof extraHTTPHeaders !== 'object' ||
+      Object.entries(extraHTTPHeaders).some(([k,v]) => !/^[A-Za-z0-9-]+$/.test(k) || typeof v !== 'string' || /[\r\n]/.test(v))) {
+    throw new Error('Invalid HTTP headers');
+  }
+}
 
 const VIEWPORTS = [
   { name: "desktop", width: 1280, height: 800, screenshot: outPng },
@@ -91,6 +106,7 @@ function compareAgainstBaseline(verdict) {
 let browser = null;
 try {
   browser = await chromium.launch({
+    ...(process.env.BROWSER_EXECUTABLE_PATH ? { executablePath: process.env.BROWSER_EXECUTABLE_PATH } : {}),
     headless: true,
     args: ["--no-sandbox", "--disable-dev-shm-usage"],
   });
@@ -100,9 +116,10 @@ try {
     const errors = { consoleErrors: [], pageErrors: [] };
     const page = await browser.newPage({
       viewport: { width: vp.width, height: vp.height },
+      ...(extraHTTPHeaders ? { extraHTTPHeaders } : {}),
     });
     page.on("console", (msg) => {
-      if (msg.type() === "error") errors.consoleErrors.push(msg.text());
+      if (msg.type() === "error") errors.consoleErrors.push(msg.text() + (msg.location().url ? ` [${msg.location().url}]` : ''));
     });
     page.on("pageerror", (err) => errors.pageErrors.push(String(err?.message || err)));
     // `domcontentloaded`, not `networkidle`: Vite keeps an HMR websocket open, so
@@ -111,6 +128,14 @@ try {
     const status = resp?.status() ?? 0;
     await page.waitForTimeout(1000);
 
+    if (process.env.BROWSER_SMOKE_READY_SELECTOR) await page.locator(process.env.BROWSER_SMOKE_READY_SELECTOR).waitFor({ state:'visible', timeout:timeoutMs });
+    if (process.env.BROWSER_SMOKE_TTS_SETTINGS === '1') {
+      await page.getByRole('button',{name:'설정',exact:true}).click();
+      await page.getByText('목소리 · 재생',{exact:true}).click();
+      const period = new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit'}).format(new Date());
+      await page.getByText(`Voice Grok 추정 사용량 · ${period}`,{exact:true}).waitFor({state:'visible',timeout:timeoutMs});
+      await page.getByLabel('Chirp 월 사용량').scrollIntoViewIfNeeded();
+    }
     const title = await page.title();
     const hasCanvas = (await page.locator("canvas").count()) > 0;
     const bodyText = await page

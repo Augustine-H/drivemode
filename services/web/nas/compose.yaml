@@ -1,0 +1,43 @@
+services:
+  config-init:
+    image: node:24-bookworm-slim
+    user: "0:0"
+    command: ["sh", "-c", "cp /input/runtime.json /config/runtime.json && chown 1000:1000 /config /config/runtime.json && chmod 700 /config && chmod 600 /config/runtime.json && chown 0:0 /input /input/runtime.json && chmod 700 /input && chmod 600 /input/runtime.json"]
+    network_mode: none
+    restart: "no"
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - ./private:/input
+      - web-config:/config
+  web:
+    image: voice-grok-web:1.30.0-xai1
+    build: .
+    depends_on:
+      config-init:
+        condition: service_completed_successfully
+    network_mode: host
+    environment:
+      VOICE_GROK_WEB_PORT: "8097"
+    # Resolve tailnet names through MagicDNS even after a NAS reboot.
+    dns:
+      - 100.100.100.100
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - web-config:/run/config:ro
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    mem_limit: 384m
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: "3"
+volumes:
+  web-config:

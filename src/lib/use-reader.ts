@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { speakLine } from "@/lib/tts";
 import { chunkText, type Speaker, type Turn } from "@/lib/transcript";
 import { API_VOICES } from "@/lib/voices";
+import { GoogleTtsProvider, selectedTts } from "@/lib/google-tts-client";
 
 export type PlayStatus = "idle" | "playing" | "paused";
 
@@ -78,6 +79,9 @@ export function useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok }: Op
   const ctxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
   const budgetRef = useRef(RUN_BUDGET);
+  const googleRef = useRef<GoogleTtsProvider | null>(null);
+  const googleAbortRef = useRef<AbortController | null>(null);
+  const playbackIdRef = useRef('');
   const settleRef = useRef<((result: "ended" | "stopped" | "error" | "blocked") => void) | null>(
     null,
   );
@@ -127,6 +131,9 @@ export function useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok }: Op
   };
 
   const haltAudio = () => {
+    googleAbortRef.current?.abort();
+    googleAbortRef.current = null;
+    googleRef.current?.stop();
     const audio = audioRef.current;
     if (audio) {
       audio.onended = null;
@@ -182,6 +189,7 @@ export function useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok }: Op
     (t: number, c: number) => {
       const next = pieceAt(turnsRef.current, t, c, onlyGrokRef.current);
       if (!next) return;
+      if (selectedTts() === 'google') return;
       if (singleTurnRef.current !== null && next.t !== singleTurnRef.current) return;
       const voiceId =
         next.voice && API_VOICES.has(next.voice) ? next.voice : voiceFor(next.speaker);
@@ -286,6 +294,7 @@ export function useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok }: Op
       haltAudio();
       cancelDevice();
       const gen = ++genRef.current;
+      playbackIdRef.current = crypto.randomUUID();
       budgetRef.current = RUN_BUDGET;
       setError(null);
       setStatusBoth("playing");
@@ -340,7 +349,29 @@ export function useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok }: Op
           prefetch(t, c + 1);
 
           let played = false;
-          if (API_VOICES.has(voiceId)) {
+          if (selectedTts() === 'google' && voiceId !== 'device') {
+            setPreparing(true);
+            try {
+              prime();
+              const context = ctxRef.current;
+              if (!context) throw new Error('이 기기에서 스트리밍 음성을 재생할 수 없습니다.');
+              await context.resume();
+              if (gen !== genRef.current) return;
+              const abort = new AbortController(); googleAbortRef.current = abort;
+              const provider = googleRef.current ?? new GoogleTtsProvider(); googleRef.current = provider;
+              await provider.stream(piece.text, `${playbackIdRef.current}:${turnsRef.current[t].id}:${c}`, context, abort.signal, () => setPreparing(false), rateRef.current);
+              if (gen !== genRef.current) return;
+              googleAbortRef.current = null;
+              played = true;
+            } catch (err) {
+              if (gen !== genRef.current) return;
+              setPreparing(false);
+              setError(err instanceof Error ? err.message : 'Google 음성을 재생하지 못했습니다.');
+              setStatusBoth('paused');
+              return;
+            }
+          }
+          if (!played && API_VOICES.has(voiceId)) {
             setPreparing(true);
             try {
               const url = await fetchAudio(piece.text, voiceId, rateRef.current);
@@ -425,6 +456,12 @@ export function useReader({ turns, rate, gap, voiceMe, voiceGrok, onlyGrok }: Op
     cancelDevice();
     setPreparing(false);
   }, []);
+  useEffect(() => {
+    const changed = () => { stopAll(); setStatusBoth('idle'); };
+    window.addEventListener('tts-provider-change', changed);
+    window.addEventListener('pagehide', changed);
+    return () => { window.removeEventListener('tts-provider-change', changed); window.removeEventListener('pagehide', changed); };
+  }, [stopAll]);
   useEffect(() => {
     mountedRef.current = true;
     return () => {

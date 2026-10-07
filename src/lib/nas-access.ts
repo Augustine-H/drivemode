@@ -1,0 +1,15 @@
+// Trust these headers only on the loopback listener behind Tailscale Serve.
+export function nasAccess(headers: Headers, env: Record<string, string | undefined> = process.env) {
+  if (env.VOICE_GROK_PRIVATE_NAS !== 'true') return { enabled: false, allowed: false, origin: '' };
+  const origin = env.VOICE_GROK_NAS_ORIGIN || '';
+  const login = env.VOICE_GROK_NAS_LOGIN || '';
+  let allowed = false;
+  try {
+    const url = new URL(origin);
+    allowed = !!login && url.protocol === 'https:' && url.pathname === '/' && !url.username && !url.password && !url.search && !url.hash
+      && headers.get('tailscale-user-login') === login
+      && headers.get('x-forwarded-host') === url.host
+      && headers.get('x-forwarded-proto') === 'https';
+  } catch { /* Fail closed for missing or invalid runtime configuration. */ }
+  return { enabled: true, allowed, origin };
+}

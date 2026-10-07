@@ -1,0 +1,44 @@
+services:
+  tts-init:
+    image: node:24-bookworm-slim
+    user: "0:0"
+    restart: "no"
+    network_mode: none
+    command:
+      - node
+      - -e
+      - >-
+        const f=require('node:fs');
+        for(const name of ['adc.json','backend-token']){
+        f.chmodSync('/input/'+name,0o600);f.chownSync('/input/'+name,0,0);
+        f.copyFileSync('/input/'+name,'/data/'+name);
+        f.chmodSync('/data/'+name,0o600);f.chownSync('/data/'+name,1000,1000);}
+        f.chmodSync('/input',0o700);f.chownSync('/input',0,0);
+        f.chmodSync('/data',0o700);f.chownSync('/data',1000,1000);
+    volumes:
+      - ./private:/input
+      - tts-data:/data
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
+    security_opt: [no-new-privileges:true]
+  tts:
+    build: .
+    depends_on:
+      tts-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8092:8092"
+    environment:
+      GOOGLE_TTS_NODE_ID: nas
+      GOOGLE_TTS_CLUSTER_MODE: "true"
+      GOOGLE_TTS_MONTHLY_THRESHOLD: "100000"
+      GOOGLE_APPLICATION_CREDENTIALS: /data/adc.json
+    volumes:
+      - tts-data:/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+volumes:
+  tts-data:
