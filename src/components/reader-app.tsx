@@ -118,6 +118,7 @@ import { speakSelectedLine as speakLine, selectedTts } from "@/lib/google-tts-cl
 import { useDictation } from "@/lib/use-dictation";
 import { useReader } from "@/lib/use-reader";
 import { GoogleTtsSettings } from "@/components/google-tts-settings";
+import { GoogleWorkspaceSettings } from "@/components/google-workspace-settings";
 import {
   SAMPLE_TURNS,
   chunkText,
@@ -4387,6 +4388,10 @@ export function ReaderApp() {
                     </div>
                   </details>
                 </div>
+                <details className="rounded-2xl border border-line p-3">
+                  <summary className="min-h-11 cursor-pointer py-3 font-medium">Google 일정 · Drive · Gmail</summary>
+                  <GoogleWorkspaceSettings />
+                </details>
                 <details className="rounded-2xl border border-line p-3">
                   <summary className="min-h-11 cursor-pointer py-3 font-medium">
                     목소리 · 재생
