@@ -36,6 +36,10 @@ try {
     settings=Object.fromEntries(db.prepare('SELECT key,value FROM settings').all().map(r=>[r.key,JSON.parse(r.value)]));
   }finally{db.close();}
 }finally{for(const suffix of ['','-wal','-shm'])fs.rmSync(dbPath+suffix,{force:true});}
-const web8097=isPC||/8097/.test(files.get('web/compose.yaml')?.toString()||'');
+const compose=files.get('web/compose.yaml')?.toString()||'',start=files.get('web/start.mjs')?.toString()||'';
+const explicitPort=compose.match(/VOICE_GROK_WEB_PORT:\s*["']?(\d+)/)?.[1];
+const web8097=isPC||((explicitPort==='8097'||(!explicitPort&&/NITRO_PORT\s*=.*VOICE_GROK_WEB_PORT.*['"]8097['"]/.test(start)))&&
+  /127\.0\.0\.1:8097/.test(files.get('web/enable-private-https.sh')?.toString()||'')&&
+  /127\.0\.0\.1:8097/.test(files.get('network/serve.json')?.toString()||''));
 console.log(JSON.stringify({passed:credentialsConsistent&&web8097,authenticatedDecryption:true,credentialsConsistent,databaseIntegrity:'ok',web8097,usage,settings,createdUtc:manifest.createdUtc,files:[...files.keys()],sha256:createHash('sha256').update(fs.readFileSync(archive)).digest('hex'),plaintextCredentialsExtracted:false}));
 if(!web8097)process.exitCode=1;
