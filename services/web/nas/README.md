@@ -2,6 +2,14 @@
 
 This deployment moves the web application and Google TTS proxy onto NAS. Cloud infrastructure is not created. The existing TTS and music projects remain separate.
 
+## 1.30.1 TTS correction (2026-10-07)
+
+Image `voice-grok-web:1.30.1-ttsfix1` was built and the NAS web container recreated successfully using the existing private runtime and 8097 listener. The NAS app reports 1.30.1. Leda synthesis completed, increasing the local Chirp ledger from 317 to 341 characters, while the connection label remained NAS. Status updates retain proxy routing metadata; the settings panel refreshes on return/online and offers a retry with a 15-second timeout.
+
+Replies previously retained only two or three sentences for speech. All completed sentences now remain in the streaming speech buffer. Replaying older saved text replies rebuilds their speech parts from the original reply without changing history. A live five-sentence xAI reply completed; replay reached the final fifth sentence in the reading indicator. Automated regression/routing/security tests (42) and typecheck passed. Default Vercel and NAS builds passed; desktop/mobile render checks showed no console/page errors or horizontal overflow, with matching dev/production verdicts.
+
+The user's existing home-screen app points to `https://drivemode.grok.me/` version 1.30.0, which is a separate platform deployment. A NAS update or GitHub push does not update that origin. Its actual backend configuration could not be inspected because the browser shows the Grok sign-in gate. Use the existing private NAS app address for NAS/PC TTS; installing that address creates a separate app and separate browser-local history/settings. Export/import conversations through the application's backup controls before removing an old app. The Grok platform origin has not been redeployed by this work.
+
 ## Build and package
 
 Build with `VOICE_GROK_DEPLOY_TARGET=nas` and `npm run build`. The default build still uses Vercel. Copy the complete `.output` contents into `app/` beside the supplied Dockerfile, start.mjs and compose.yaml. Package those public deployment files only; never include private runtime configuration or Google credentials. Nitro's standalone Node build requires no npm installation on NAS.

@@ -13,7 +13,7 @@ services:
       - ./private:/input
       - web-config:/config
   web:
-    image: voice-grok-web:1.30.0-xai1
+    image: voice-grok-web:1.30.1-ttsfix1
     build: .
     depends_on:
       config-init:

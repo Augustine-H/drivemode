@@ -98,6 +98,7 @@ import { useDropboxImport } from "@/components/dropbox-import";
 import { APP_NAME, APP_VERSION } from "@/lib/app-meta";
 import { askGrok } from "@/lib/ask-grok";
 import { speechParts } from "@/lib/stream-speech";
+import { speechForTurn } from '@/lib/reader-parts';
 import { streamAsk } from "@/lib/ask-stream";
 import { chatsFromJson, type ImportedChat } from "@/lib/grok-import";
 import { buildBackup, parseNangdokBackup, type NangdokBackup } from "@/lib/nangdok-backup";
@@ -1062,7 +1063,7 @@ export function ReaderApp() {
   const duration = formatDuration(readingSeconds(turns, rate));
   const active = turns[reader.turnIndex];
   const activeChunks = active
-    ? (active.speechParts ?? chunkText(active.voiceText ?? active.text))
+    ? speechForTurn(active)
     : [];
   const activeLine = filming
     ? "영상 만드는 중"

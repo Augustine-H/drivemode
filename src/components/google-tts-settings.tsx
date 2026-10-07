@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { GOOGLE_TTS_DEFAULT, GoogleTtsProvider, selectedTts, ttsHeaders, ttsSnapshot, type GoogleTtsStatus, type TtsSelection } from '@/lib/google-tts-client';
+import { mergeTtsStatus } from '@/lib/tts-status';
 
 export function GoogleTtsSettings() {
   const [provider, setProvider] = useState<TtsSelection>('google');
@@ -8,6 +9,7 @@ export function GoogleTtsSettings() {
   const [latency, setLatency] = useState<number | null>(null), [warning, setWarning] = useState<number | null>(null);
   const [code, setCode] = useState('');
   const [testing, setTesting] = useState(false);
+  const loadingRef = useRef(false), loadEpoch = useRef(0);
   const testRef = useRef<{ provider:GoogleTtsProvider; abort:AbortController; context:AudioContext } | null>(null);
   function stopSample() { testRef.current?.abort.abort(); testRef.current?.provider.stop(); void testRef.current?.context.close(); testRef.current = null; setTesting(false); }
   async function sample() {
@@ -20,13 +22,15 @@ export function GoogleTtsSettings() {
     finally { if (testRef.current?.abort === abort) stopSample(); }
   }
   async function load(settings?: object) {
+    const epoch = ++loadEpoch.current;
+    loadingRef.current = true;
     setBusy(true); setError('');
     try {
-      const response = await fetch('/api/google-tts' + (settings ? '?action=settings' : ''), { method: settings ? 'POST':'GET', headers: ttsHeaders(), body: settings ? JSON.stringify(settings):undefined });
+      const response = await fetch('/api/google-tts' + (settings ? '?action=settings' : ''), { method: settings ? 'POST':'GET', headers: ttsHeaders(), body: settings ? JSON.stringify(settings):undefined, signal:AbortSignal.timeout(15000) });
       const data = await response.json(); if (!response.ok) throw new Error(data.error);
-      setStatus(data);
-    } catch (err) { setError(err instanceof Error ? err.message : 'Google 연결을 확인하세요.'); }
-    finally { setBusy(false); }
+      if(epoch === loadEpoch.current) setStatus(data);
+    } catch (err) { if(epoch === loadEpoch.current) setError(err instanceof Error && err.name !== 'TimeoutError' ? err.message : 'Google 서버 응답이 지연됩니다. 연결을 다시 확인하세요.'); }
+    finally { if(epoch === loadEpoch.current) { loadingRef.current = false; setBusy(false); } }
   }
   useEffect(() => {
     setProvider(selectedTts()); void load();
@@ -34,27 +38,32 @@ export function GoogleTtsSettings() {
     if (saved.playbackLatencyMs !== undefined) setLatency(saved.playbackLatencyMs as number);
     const update = (event: Event) => {
       const data = (event as CustomEvent).detail;
-      if (data.status) setStatus(data.status);
+      if (data.status) { setStatus(previous => mergeTtsStatus(previous,data.status)); if (!data.error) setError(''); }
       if (data.routing) setStatus(previous => previous ? { ...previous, routing:data.routing } : previous);
       if (data.playbackLatencyMs !== undefined) setLatency(data.playbackLatencyMs);
       if (data.warnings?.length) setWarning(Math.max(...data.warnings));
       if (data.error) setError(data.error);
     };
     window.addEventListener('google-tts-status', update);
+    const refresh = () => { if(document.visibilityState === 'visible' && selectedTts() === 'google' && !loadingRef.current) void load(); };
+    const timer = window.setInterval(refresh,30000);
+    window.addEventListener('online',refresh);
+    document.addEventListener('visibilitychange',refresh);
     const cancel = () => stopSample();
     window.addEventListener('tts-provider-change',cancel);
     window.addEventListener('pagehide',cancel);
-    return () => { window.removeEventListener('google-tts-status', update); window.removeEventListener('tts-provider-change',cancel); window.removeEventListener('pagehide',cancel); testRef.current?.abort.abort(); testRef.current?.provider.stop(); void testRef.current?.context.close(); };
+    return () => { loadEpoch.current++;window.clearInterval(timer);window.removeEventListener('online',refresh);document.removeEventListener('visibilitychange',refresh);window.removeEventListener('google-tts-status', update); window.removeEventListener('tts-provider-change',cancel); window.removeEventListener('pagehide',cancel); testRef.current?.abort.abort(); testRef.current?.provider.stop(); void testRef.current?.context.close(); };
   }, []);
   const used = status?.usage.googleChirpCharacters ?? 0, threshold = status?.config.threshold ?? 1_000_000;
   const percent = used/threshold*100;
   return <div className="space-y-3 rounded-xl border border-line p-3 text-sm">
     <label className="block space-y-2"><span>TTS Provider</span><select aria-label="TTS Provider" className="h-11 w-full rounded-xl border border-line bg-surface px-3 text-fg" value={provider} onChange={event => {
-      const next = event.target.value as TtsSelection; localStorage.setItem('voice-grok-tts-provider', next); setProvider(next); window.dispatchEvent(new Event('tts-provider-change'));
+      const next = event.target.value as TtsSelection; localStorage.setItem('voice-grok-tts-provider', next); setProvider(next); window.dispatchEvent(new Event('tts-provider-change')); if(next === 'google') void load();
     }}><option value="google">Google Cloud · Leda</option><option value="xai">xAI · 기존 목소리</option></select></label>
     {provider === 'google' && <>
       <p className="font-medium">{status?.config.voice.split('-').at(-1) ?? GOOGLE_TTS_DEFAULT.displayName} — Chirp 3 HD</p>
-      <p>연결 서버: {({ cloud:'클라우드', nas:'NAS', pc:'PC' } as Record<string,string>)[status?.routing?.activeBackend ?? ''] ?? '연결 대기'}</p>
+      <p>연결 서버: {({ cloud:'클라우드', nas:'NAS', pc:'PC' } as Record<string,string>)[status?.routing?.activeBackend ?? ''] ?? (busy ? '확인 중…' : error ? '연결 실패' : '서버 확인 필요')}</p>
+      <button type="button" className="min-h-11 rounded-xl border border-line px-3" disabled={busy} onClick={() => void load()}>{busy ? '확인 중…':'서버 연결 다시 확인'}</button>
       {status?.routing?.usageScope === 'allocated' && <p className="text-muted">{status.routing.priority.map(id => ({ cloud:'클라우드', nas:'NAS', pc:'PC' } as Record<string,string>)[id] ?? id).join(' → ')} 자동 연결 · 아래 사용량은 현재 서버 기준입니다. 설정된 서버의 합산 한도 {status.routing.totalBudget.toLocaleString()}자를 서버별로 나눠 보호합니다.</p>}
       <button type="button" className="min-h-11 rounded-xl border border-line px-3" onClick={() => void sample()} disabled={!status?.authentication}>{testing ? '음성 테스트 중단':'Leda 음성 테스트'}</button>
       <p className="text-muted">현재 TTS: Google {status?.currentEngine === 'wavenet' ? `WaveNet · ${status.fallbackReason === 'error' ? 'Chirp 오류에 따른 대체 음성':'월 기준 사용량에 따른 자동 전환'}`:'Chirp 3 HD'}</p>

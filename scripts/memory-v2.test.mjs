@@ -150,14 +150,14 @@ test("weather and news still select the live facts path", () => {
   assert.equal(buildGrokContext({ message: "최신 뉴스" }).facts, true);
   assert.equal(buildGrokContext({ message: "지난 영화 기억해?" }).facts, false);
 });
-test("streaming voice prefixes remain stable and late warnings replace only the third slot", () => {
+test("streaming voice includes every completed sentence and appends late warnings", () => {
   const first = "2026.10.04에 1.25달러를 내면 돼.";
   const second = "아라는 기다리고 있어.";
   const third = "자세한 설명을 보여줄게.";
   const warning = "주의: 운전 중 화면을 조작하지 마.";
   assert.equal(voiceResponse(first + " 아직", false), first);
   const prefix = voiceResponse(first + second + third, false);
-  assert.equal(prefix, first + " " + second);
+  assert.equal(prefix, first + " " + second + " " + third);
   assert.equal(voiceResponse(first + second + third + warning, true), prefix + " " + warning);
 });
 test("unfinished code blocks never leak into an already emitted voice prefix", () => {
@@ -174,7 +174,7 @@ test("full answer is untouched while voice removes markup without arbitrary 700-
   const voice = voiceResponse(full);
   assert.equal(full, copy);
   assert.ok(voice.length > 700);
-  assert.ok(voice.endsWith("남겨."));
+  assert.ok(voice.endsWith("추가 내용."));
   assert.ok(!voice.includes("**"));
 });
 test("schema v2 round trip preserves summaries, facts, settings and over 2000 original turns", () => {

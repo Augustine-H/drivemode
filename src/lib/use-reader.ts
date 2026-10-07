@@ -3,6 +3,7 @@ import { speakLine } from "@/lib/tts";
 import { chunkText, type Speaker, type Turn } from "@/lib/transcript";
 import { API_VOICES } from "@/lib/voices";
 import { GoogleTtsProvider, selectedTts } from "@/lib/google-tts-client";
+import { speechForTurn } from './reader-parts';
 
 export type PlayStatus = "idle" | "playing" | "paused";
 
@@ -30,8 +31,7 @@ function pieceAt(turns: Turn[], t: number, c: number, onlyGrok: boolean): Piece 
       ci = 0;
       continue;
     }
-    const chunks =
-      turns[ti]?.speechParts ?? chunkText(turns[ti]?.voiceText ?? turns[ti]?.text ?? "");
+    const chunks = speechForTurn(turns[ti]);
     if (ci < chunks.length) {
       return { t: ti, c: ci, text: chunks[ci], speaker: turns[ti].speaker, voice: turns[ti].voice };
     }
