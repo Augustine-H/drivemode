@@ -77,3 +77,11 @@ The owner switched the OAuth app to External/In Production, revoked the old Test
 Calendar speech uses Seoul dates, weekday and morning/afternoon times. Mail speech prefers sender display names or the address local part. Individual long plain-text bodies are summarized in Korean with a bounded, non-stored xAI request; explicit original-text requests bypass summaries. Search lists describe snippets as previews. Summaries use at most 12000 source characters and identify longer bodies as partial summaries. Original speech is capped at 10000 characters. Mail content is untrusted data and cannot execute tools or writes through summarization.
 
 Validation: 35 Workspace/TTS/identity/speech tests, typecheck, NAS build and Vercel build passed. Live NAS TTS returned PCM frames and a completion frame, public browser sample completed without errors, and foreign-Origin requests returned 403. Phone speaker audibility needs separate device confirmation. No live mailbox mutation or calendar/file write was performed during these speech/TTS checks.
+
+## Playback scroll and complete mail summaries — 2026-10-08
+
+Conversation scroll no longer follows playback status, turn index or speech chunk changes. Existing new-message-ID navigation remains; replaying unchanged bubbles leaves the user's scroll position alone.
+
+Mail summaries are no longer sliced at 1000 characters. The bounded xAI output budget is 1600 tokens. An incomplete response or unfinished sentence triggers at most one shorter-summary retry; repeated incompleteness gives an explicit original-reading suggestion instead of speaking a clipped fragment. Existing 12000-character input coverage labeling remains. Tests cover preserved final sentences beyond 1000 characters, incomplete output ending with a connector, retry bounds and honest failure.
+
+26 focused regression tests, typecheck, NAS build and Vercel build passed. The same public app was republished with owner-only access retained; NAS web was rebuilt from the updated google6 package. In the actual public browser, scrollTop remained 0 while TTS remained actively playing after an upward scroll. No live Google writes, email sending or token output during verification.

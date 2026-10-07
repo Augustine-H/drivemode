@@ -18,8 +18,19 @@ test('sender keeps display names or local part without speaking address syntax',
  assert.doesNotMatch(mailIntroduction({from:'alice@example.com',subject:'안내'}),/[@<>()]/);
 });
 test('long mail summary is bounded, non-stored and treats body as data; failure is honest',async()=>{
- let calls=0;const request=async(url,options)=>{calls++;const b=JSON.parse(options.body);assert.equal(b.store,false);assert.equal(b.max_output_tokens,600);assert.equal(JSON.parse(b.input[1].content).emailBody.length,12000);assert.match(b.input[0].content,/untrusted/);return Response.json({output:[{type:'message',content:[{type:'output_text',text:'내일 회의 시간을 확인해 달라는 내용입니다.'}]}]});};
+ let calls=0;const request=async(url,options)=>{calls++;const b=JSON.parse(options.body);assert.equal(b.store,false);assert.equal(b.max_output_tokens,1600);assert.equal(JSON.parse(b.input[1].content).emailBody.length,12000);assert.match(b.input[0].content,/untrusted/);return Response.json({output:[{type:'message',content:[{type:'output_text',text:'내일 회의 시간을 확인해 달라는 내용입니다.'}]}]});};
  assert.match(await summarizeMail('본문 '.repeat(5000),request),/본문 앞부분을 기준으로 요약하면/);assert.equal(calls,1);
  assert.equal(await summarizeMail('짧은 메일입니다.',request),'짧은 메일입니다.');assert.equal(calls,1);
- assert.match(await summarizeMail('본문 '.repeat(300),async()=>{throw Error('network')}),/요약을 만들지 못해서 본문 앞부분/);
+ assert.match(await summarizeMail('본문 '.repeat(300),async()=>{throw Error('network')}),/요약을 만들지 못했습니다/);
+});
+test('summary preserves complete text past 1000 characters and retries unfinished output once',async()=>{
+ const output=text=>({status:'completed',output:[{type:'message',content:[{type:'output_text',text}]}]});
+ const long='중요한 내용을 확인하세요. '.repeat(100)+'마지막 안내입니다.';
+ assert.ok(long.length>1000);
+ assert.ok((await summarizeMail('본문 '.repeat(300),async()=>Response.json(output(long)))).endsWith('마지막 안내입니다.'));
+ let calls=0;
+ const fixed=await summarizeMail('본문 '.repeat(300),async()=>{calls++;return Response.json(calls===1?{...output('확인했습니다. 근데'),status:'incomplete',incomplete_details:{reason:'max_output_tokens'}}:output('내일 회의가 있습니다. 참석 여부를 알려주세요.'));});
+ assert.equal(calls,2);assert.ok(fixed.endsWith('알려주세요.'));assert.doesNotMatch(fixed,/근데/);
+ calls=0;const failed=await summarizeMail('본문 '.repeat(300),async()=>{calls++;return Response.json(output('근데'));});
+ assert.equal(calls,2);assert.match(failed,/원문 읽기/);assert.doesNotMatch(failed,/근데/);
 });

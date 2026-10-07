@@ -1007,13 +1007,7 @@ export function ReaderApp() {
     reader.turnIndex,
   ]);
 
-  useEffect(() => {
-    if (!autoScroll || reader.status !== "playing") return;
-    const id = turns[reader.turnIndex]?.id;
-    if (!id) return;
-    revealInScroller(scrollerRef.current, `turn-${id}`, "end");
-  }, [autoScroll, reader.status, reader.turnIndex, reader.chunkIndex, turns]);
-
+  // Playback progress never changes the conversation's scroll position.
   const latestId = turns[turns.length - 1]?.id ?? "";
   useEffect(() => {
     if (!hydrated || !latestId) return;
