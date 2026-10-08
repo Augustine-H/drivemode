@@ -2,6 +2,7 @@ private
 .env
 .env.*
 tests
+integration
 __pycache__
 .pytest_cache
 .venv

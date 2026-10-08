@@ -24,6 +24,8 @@ Python 3.12 / 공식 `mcp==1.30.0`의 Streamable HTTP `/mcp`, 내부 포트 3001
 
 ## 클라우드 개발 및 자동 테스트
 
+계정 없이 HTTPS와 공식 MCP SDK의 실제 통신을 점검하는 도구는 [integration/README.md](integration/README.md)에 있다. 합성 데이터로 인증·토큰 회전·프로세스 재시작을 검증하며, 기본 endpoint 점검은 메일을 읽지 않는다.
+
 저장소를 그대로 사용한다. 로컬 PC 파일이나 인증정보가 필요하지 않다.
 
 ```sh

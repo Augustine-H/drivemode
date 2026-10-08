@@ -4,6 +4,8 @@
 
 ## 실행한 자동 검증
 
+아래 표는 최초 구현 커밋의 검증이다. 후속 HTTPS 도구 작업의 재검증 결과는 다음 절에 따로 기록한다.
+
 | 검증 | 결과 | 범위 |
 |---|---|---|
 | Python `pytest -q tests` | **27 passed**, skipped 0 | 읽기 전용 IMAP, MIME, 도구, 인증/회전, 실제 합성 TLS/SDK 전송 |
@@ -39,6 +41,21 @@ AGENT_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium AGENT_BROWSER_ARGS=--no-sandbox 
 `--no-sandbox`는 이 클라우드의 headless Chromium 실행 옵션이며 Docker 서비스는 cap-drop/no-new-privileges/non-root를 유지한다. 브라우저 CA 파일은 이 클라우드의 제공된 신뢰 root다. 다른 환경은 그 환경의 올바른 신뢰 root를 사용한다. QA JSON의 `/api/naver-mail`은 **합성 응답으로 mock**한다. production QA는 URL만 8081로 변경한 동일 순서로 실행한다. 실제 메일 성공이나 음성 재생으로 표시하지 않는다.
 
 ## 요청된 18개 테스트 구분
+
+### 후속 작업: 계정 없는 HTTPS 점검 도구
+
+2026-10-08 UTC, 같은 `feature/naver-mail-mcp-v1` 브랜치에서 사용자가 선택한 “계정 없이 HTTPS 테스트 환경·통합 점검 도구 준비”를 수행했다.
+
+- `integration.https_canary`: IMAP 연결 없는 합성 데이터, loopback 전용 HTTPS, 임시 CA/개인 키/역할별 토큰을 private 파일로 생성.
+- `integration.probe`: 기본 모드는 메일을 읽지 않고 HTTPS 인증·프로토콜·7개 읽기 전용 도구 목록만 검사. `--canary` 조회는 loopback만 허용. URL 내 자격증명·query·fragment와 redirect를 차단.
+- `integration.self_check`: 별도 서버 프로세스에서 합성 한글 목록·본문, 인증서 신뢰 요구, 무인증/잘못된 토큰 401, Host/Origin 차단, 웹 역할 기본 거부, scope 누락/확대 거부, 토큰 overlap/즉시 폐기, 재시작 후 신규 토큰 정상·폐기 토큰 거부를 검사. 종료 시 서버·임시 private 파일 정리.
+- 테스트 파일 `tests/test_integration_tools.py`의 11개 케이스 포함 전체 Python **38 passed**, failed/skipped 0. 기존 Starlette TestClient deprecation warning 1건.
+- 전체 `npm test` 재실행 **450 passed**, failed/skipped 0. Voice Grok 앱 소스와 production 서버·Dockerfile·의존성은 이번 후속 작업에서 변경하지 않았다. 타입/빌드/브라우저/Docker 검증은 위 최초 구현 기록이며 이번에 재실행한 것으로 표시하지 않는다.
+- `git diff --check` 통과. 실제 네이버 계정, 공개 HTTPS ingress, NAS, Grok 웹, 유료 xAI, Android 음성은 이번에도 **미실행**. 최종 실서비스 완료 기준은 아직 충족하지 않았다.
+
+이번 변경 파일은 `services/naver-mail/integration/{__init__.py,https_canary.py,probe.py,self_check.py,README.md}`, `services/naver-mail/tests/test_integration_tools.py`, `services/naver-mail/.dockerignore`, `services/naver-mail/README.md`, 이 검증 문서다. 테스트 도구는 production 이미지의 build context에서도 제외한다. 신뢰 CA·개인 키·토큰·registry·실제 메일 데이터는 Git에 저장하지 않았다. 운영 단계별 설정과 미검증 항목은 [HTTPS 점검 안내](../services/naver-mail/integration/README.md)에 있다.
+
+### 최초 구현의 항목별 결과
 
 | # | 요청 항목 | 자동 검증 | 실제 통합 |
 |---|---|---|---|
