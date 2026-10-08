@@ -160,12 +160,23 @@ Grok Custom 초기 화면에는 이름·서버 URL만 있다는 운영자 확인
 - NAS의 인증된 loopback diagnostic은 registered_clients=0, pending_consents=0, active_grants=0, denied_redirect_origins=[]를 반환했다. 이는 완료된 OAuth 등록/승인/콜백 거부 기록이 없다는 뜻이며, metadata 또는 실패한 등록 요청이 전혀 없었다는 증거는 아니다.
 - 클라우드에서 HTTPS 8446 metadata와 `/mcp` 재점검은 upstream timeout 503이었다. 443 metadata도 같은 timeout으로 해당 후보가 사용 가능한 공개 경로라고 판단하지 않는다. 외부 접속 정책과 운영자 측 정확한 metadata 응답은 추가 확인이 필요하다. 실계정 웹 게이트는 유지한다.
 
+## 2026-10-08 방화벽 규칙 적용 후 공개 canary 검증
+
+운영자가 NAS firewall에 시험용 TCP 8446 전체 소스 허용 규칙을 적용했다고 보고한 직후, 동일 클라우드 HTTPS 경로로 재점검했다. 이전 upstream timeout이 정상 응답으로 바뀌었다. 기존 서비스 포트나 실계정 MCP 게이트를 변경하지 않았다.
+
+- `/.well-known/oauth-authorization-server`: **200**. 예상 HTTPS issuer/authorize/token/register/revoke, canary.read 및 PKCE S256 확인.
+- `/.well-known/oauth-protected-resource/mcp`: **200**. 정확한 HTTPS `/mcp` resource 및 authorization server 확인.
+- 무인증 `/mcp`: **401**, SDK invalid_token/Authentication required와 정확한 resource_metadata challenge 확인.
+- 시험용 잘못된 Bearer `/mcp`: **401**. 허용되지 않은 Origin으로 metadata 요청: **403**.
+- HTTPS 요청은 기본 TLS 검증을 유지했으며 검증 우회는 사용하지 않았다. 클라우드 HTTPS 프록시 경로에서 수행했다. 직접 TCP/TLS probe는 여전히 거부되어 NAS 인증서 chain/만료일을 직접 socket으로 확인한 결과라고 표현하지 않는다.
+- 위 요청은 공개 합성 서버 경계 점검이며 OAuth grant나 실제 메일 읽기를 수행하지 않았다. Grok 웹 실제 인증·도구 인식·합성 읽기/요약은 방화벽 수정 후 재시도해야 한다. 실계정 웹 공개는 계속 보류한다.
+
 ## 단계 완료 상태와 위험
 
 1. 기존 프로젝트/공식 문서/실제 SDK 버전 조사: 완료.
 2. 읽기 전용 IMAP/MCP·인증·Docker 파일: 구현 및 자동 검증 완료.
-3. NAS 설치: 실제 준비·네이버 인증·서버 시작/컨테이너 재시작 확인. HTTPS 노출·커넥터·NAS reboot/restore는 미검증.
-4. Grok 공식 웹: 미실행. Custom 인증 방식이 불명확하고 SDK 1.30.0의 2026-07-28 지원이 없으므로 실계정 공개 배포 보류.
+3. NAS 설치: 실제 준비·네이버 인증·서버 시작/컨테이너 재시작 확인. 별도 합성 서버의 공개 HTTPS metadata/무인증 401 및 잘못된 토큰·Origin 차단 확인. 실제 메일 HTTPS/커넥터·NAS reboot/restore는 미검증.
+4. Grok 공식 웹: 첫 합성 연결 시도 실패. 방화벽 수정 후 재시도 대기. 실제 인증 호환성이 입증되지 않았고 SDK 1.30.0의 2026-07-28 지원이 없으므로 실계정 공개 배포 보류.
 5. Voice Grok: 코드·모의 API·브라우저 경계 검증 완료. 실제 xAI remote MCP response 형식/협상 및 유료 모델/한국어 음성은 다음 단계.
 6. 운영/복구 설명서: 작성 완료. 실제 암호화 NAS backup/복구는 미수행.
 
