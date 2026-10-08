@@ -110,11 +110,23 @@ AGENT_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium AGENT_BROWSER_ARGS=--no-sandbox 
 | 17 | 토큰 회전 | 새/기존 동시 사용, 즉시 폐기 후 401, restart 통과 | 웹 connector 토큰 갱신 미실행 |
 | 18 | 기존 회귀 | 기존 439개 + 신규 11개 총450 통과, 타입/빌드 통과 | 사용자 실제 서비스 관찰 미실행 |
 
+## 2026-10-08 실제 NAS 후속 결과
+
+아래는 NAS 운영자가 실행한 명령의 출력·화면을 확인한 결과다. 클라우드 에이전트가 NAS에 직접 로그인해 실행한 결과로 표시하지 않는다.
+
+- 실제 DSM 7.2/DS218+에서 archive 검증·image load·스테이징 파일/토큰 분리·UID 10001 읽기 권한·Compose 설정 점검 통과.
+- 대화형 SSH 입력 도구로 NAS private에 인증정보 저장 통과. 값은 채팅·Git에 입력하지 않았다.
+- 실제 네이버 IMAP TLS LOGIN/LOGOUT 성공. 메일 목록·본문·FLAGS 비교는 미수행.
+- 새 MCP 서버 시작 및 해당 컨테이너 restart 후 인증 health 복구 성공. 바인딩 `127.0.0.1:13001->3001/tcp` 확인.
+- 컨테이너 loopback의 무인증 health 401 및 평문 HTTP MCP 403 확인. 실제 공개 HTTPS endpoint의 무인증 거부는 미수행.
+- NAS 커널의 PIDs cgroup 미지원 경고로 `pids_limit:64`가 적용되지 않음. 메모리 제한/로그 회전 실제 적용, NAS reboot/backup restore는 별도 미검증.
+- 공개 합성 HTTPS/Grok Custom 인증, 실제 xAI remote MCP, Voice Grok 실제 음성, 한국어 실메일/flags 검증은 여전히 미수행. Grok 웹 인증 증명 전 실계정 공개 라우트와 웹 게이트를 활성화하지 않는다.
+
 ## 단계 완료 상태와 위험
 
 1. 기존 프로젝트/공식 문서/실제 SDK 버전 조사: 완료.
 2. 읽기 전용 IMAP/MCP·인증·Docker 파일: 구현 및 자동 검증 완료.
-3. NAS 설치·HTTPS 노출: 준비 문서만 완료, 실제 설정/실행 미수행.
+3. NAS 설치: 실제 준비·네이버 인증·서버 시작/컨테이너 재시작 확인. HTTPS 노출·커넥터·NAS reboot/restore는 미검증.
 4. Grok 공식 웹: 미실행. Custom 인증 방식이 불명확하고 SDK 1.30.0의 2026-07-28 지원이 없으므로 실계정 공개 배포 보류.
 5. Voice Grok: 코드·모의 API·브라우저 경계 검증 완료. 실제 xAI remote MCP response 형식/협상 및 유료 모델/한국어 음성은 다음 단계.
 6. 운영/복구 설명서: 작성 완료. 실제 암호화 NAS backup/복구는 미수행.

@@ -1,6 +1,6 @@
 # Synology DS218+ 설치 준비
 
-이 단계는 설치 파일·Linux amd64 이미지·오프라인 설정 점검을 준비한다. 실제 NAS 배포, 네이버 로그인, 공개 Tunnel, Grok/xAI 연결은 수행하지 않았다. DSM 버전과 Docker/Container Manager 패키지 지원 여부는 NAS에서 확인해야 한다. 기존 Voice Grok/TTS/음악/백업 프로젝트를 덮어쓰지 않는다.
+이 문서는 설치 파일·Linux amd64 이미지·오프라인 설정 점검과 실제 NAS 검증을 구분해 기록한다. NAS 준비와 네이버 로그인·서버 시작은 아래 운영자 보고로 확인됐으며 공개 HTTPS·Grok/xAI 연결은 아직 검증하지 않았다. 기존 Voice Grok/TTS/음악/백업 프로젝트를 덮어쓰지 않는다.
 
 ## 설치 묶음
 
@@ -50,6 +50,12 @@ Voice·health·웹 토큰은 network-none/non-privileged/read-only-root 설정 �
 이미 `voice-v1`·`web-v1`·`health-token`·`tokens.json`이 존재한다면 재생성이나 삭제를 하지 않는다. [deployment/nas_stage_verify.sh](deployment/nas_stage_verify.sh)를 새 root 일회성 작업에서 실행해 현재 스테이징 상태를 읽기 전용으로 확인한다. 토큰 파일과 registry hash의 일치, 역할 분리, 초기 config·Compose mapping, 제한된 권한, 실제 UID 10001의 server 파일 읽기, Compose 문법을 검사한다. 값이나 hash는 출력하지 않으며 모든 mount는 읽기 전용이다. `STAGING_VERIFIED=yes`는 이 준비 상태만 검증하고 IMAP 로그인이나 서비스 실행을 검증하지 않는다.
 
 2026-10-08 NAS 운영자가 `STAGING_FILES_CHECK=passed`, `RUNTIME_PRIVATE_READ_CHECK=passed`, `COMPOSE_CONFIG_CHECK=passed`, `STAGING_VERIFIED=yes`를 보고했다. 실제 NAS 스테이징 준비 상태는 확인됐으며 파일 변경·서비스 시작·IMAP 인증은 이 점검에서 수행하지 않았다.
+
+같은 날 SSH 터미널의 대화형 입력으로 `IMAP_CONFIGURATION_WRITE=passed`를 보고했고, 별도 오프라인 설정 점검 및 네이버 `IMAP_AUTHENTICATION=passed`를 확인했다. 인증 시험은 LOGIN/LOGOUT만 수행했으며 메일함 조회·본문 읽기·FLAGS 비교는 하지 않았다.
+
+후속 서버 시작 시험에서는 `MCP_HEALTH_CHECK=passed`, `MCP_RESTART_RECOVERY=passed`, `UNAUTHENTICATED_HEALTH_REJECTED=passed`, `PLAIN_HTTP_MCP_REJECTED=passed`를 보고했다. 새 컨테이너는 `127.0.0.1:13001->3001/tcp`에 바인딩했다. 무인증 `/health` 401과 평문 HTTP `/mcp` 403을 확인한 것이며 공개 HTTPS MCP 인증 거부를 검증한 것은 아니다. 재시작 직후 `health: starting` 표시는 Docker 주기 검사 대기 상태였고 직접 인증 health 검사와 restart 후 재검사는 통과했다. NAS 재부팅·백업 복원은 미검증이다.
+
+Docker는 `Your kernel does not support PIDs limit capabilities ... PIDs limit discarded`를 출력했다. Compose의 `pids_limit:64`는 이 NAS에서 적용되지 않았다. 서버 시작과 나머지 검사 성공으로 이 경고가 해소됐다고 표시하지 않으며 기존 NAS 커널·컨테이너 설정을 변경하지 않는다. 메모리 제한·로그 회전의 실제 커널/엔진 적용 여부도 별도 운영 점검 대상이다.
 
 클라우드의 실제 Docker에서 `tests/verify_nas_stage.py --release <검증된 release 폴더>`로 새 스테이징, 원래 PermissionError 재현, 중간 상태 복구, 변경된 소스·기존 자격증명·토큰 거부, 토큰 분리 및 파일 권한을 검사한다. 실제 NAS 결과와 구분하며 네이버·Grok·xAI 연결은 하지 않는다.
 
