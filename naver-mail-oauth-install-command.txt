@@ -1,0 +1,17 @@
+# Run this WHOLE block in an interactive NAS SSH terminal, NOT Windows PowerShell.
+# sudo Password: your NAS login password, only if requested.
+# Choose a NEW 16+ character MAIL access approval passphrase when prompted twice.
+# Do NOT use your NAS/Naver password. Do NOT share any password/token.
+# Default MODE=validation: synthetic mail only; existing proxy/services stay unchanged.
+(
+set -eu
+umask 077
+nas_oauth_download=$(mktemp -d /tmp/naver-mail-oauth.XXXXXX)
+trap 'rm -f "$nas_oauth_download/bundle.tar.gz" "$nas_oauth_download/stage.sh"; rmdir "$nas_oauth_download"' 0
+cd "$nas_oauth_download"
+curl --fail --show-error --location --proto '=https' --tlsv1.2 'https://raw.githubusercontent.com/Augustine-H/drivemode/ce94664c62d55e68b85c78464f9c5baded24949f/naver-mail-oauth-runtime.tar.gz' -o bundle.tar.gz
+curl --fail --show-error --location --proto '=https' --tlsv1.2 'https://raw.githubusercontent.com/Augustine-H/drivemode/191eb9bb38de4e9137772cc027ef08320c4cd578/services/naver-mail/deployment/nas_oauth_stage.sh' -o stage.sh
+printf '%s\n' '5426d42254160d5f202d71612ddb9b6e465177184f95a83f2e392d8805a01ed0  bundle.tar.gz' '9a7a51a98b7d402b9dad44a9fa64f454b2a125838460f2ab6a563f17fe3bf0d3  stage.sh' | sha256sum -c -
+sudo cp -n bundle.tar.gz /volume1/docker/voice-grok-naver-mail-release/naver-mail-oauth-runtime.tar.gz
+sudo env NAS_OAUTH_BUNDLE_SHA256=5426d42254160d5f202d71612ddb9b6e465177184f95a83f2e392d8805a01ed0 NAS_OAUTH_ISSUER=https://imhmh.synology.me:8446 sh "$nas_oauth_download/stage.sh"
+)
