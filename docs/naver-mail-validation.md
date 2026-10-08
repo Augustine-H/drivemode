@@ -70,7 +70,23 @@ AGENT_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium AGENT_BROWSER_ARGS=--no-sandbox 
 
 변경 파일: `services/naver-mail/integration/{sdk_bridge.py,voice_check.py,voice_flow.mjs,README.md}`, `services/naver-mail/tests/test_voice_flow.py`, 이 문서. 테스트 서버와 private 파일은 종료 시 정리했으며 실제 인증정보를 생성·커밋하지 않았다. 기존 합성 토큰도 임시 파일로만 존재한다.
 
-### 최초 구현의 18개 항목별 결과
+### 후속 작업: Synology 설치 묶음 준비
+
+2026-10-08 KST, 사용자가 NAS/인증 HTTPS가 아직 없다고 답하고 “NAS 배포 준비부터 진행”을 선택했다. 기존 서비스 구성은 변경하지 않았다.
+
+`scripts/build-naver-mail-release.py`는 깨끗한 커밋의 MCP 서비스/문서만 archive하고, Linux amd64·UID/GID 10001 및 런타임 소스/requirements 해시가 일치하는 Docker 이미지만 export한다. 기존 다른 release tag와 출력 디렉터리를 덮어쓰지 않는다. 생성된 묶음에는 manifest와 SHA256SUMS를 제공한다. 실제 `.env`, private 파일, NAS/네이버 인증정보는 포함하지 않는다. source 묶음은 전체 Voice Grok checkout이 아니므로 앱 배포/Node 테스트는 전체 저장소를 사용한다.
+
+`deployment/private_check.py`는 네트워크 없이 private 파일 형식·0440/0400 권한·분리된 역할/hash·health token·초기 HTTPS/웹 차단 게이트를 검사한다. JSON 결과는 계정/토큰/예외 내용을 포함하지 않는다. 실제 password 인증, DSM ACL/포트 충돌/proxy peer를 확인했다고 표시하지 않는다. 초기 설치용이므로 웹 게이트가 이미 true인 설정은 거부하며 운영 환경의 게이트를 자동으로 변경하지 않는다.
+
+- Python 전체 **48 passed**, failed/skipped 0, 기존 TestClient warning 1건. 신규 6개 케이스는 private 값 미출력 및 위험한 권한·웹 게이트·proxy 신뢰·health Host·공유 토큰 hash 거부다.
+- 기존 이미지 `sha256:1127503de36f7a88344d99d8dea8b4f6f1f9e856ccea9b20c5c486928d3e81d3`: Linux amd64, UID/GID 10001 확인. 합성 tmpfs private 파일로 새 오프라인 점검을 **실제 UID 10001/read-only root/network none**에서 실행하여 통과했다.
+- 기존 격리 Docker 인증 health/무인증 401/non-root/read-only/restart 재검증 통과. Compose config 및 git diff 검사 통과.
+- 앱 소스/운영 Dockerfile/의존성은 변경하지 않았다. 이전 450개 JS/TS 회귀·타입·빌드·브라우저 결과를 이번 재실행으로 표시하지 않는다.
+- 실제 NAS 설치, 네이버 로그인, 공개 HTTPS, Grok 웹/xAI, Android, NAS 백업·복구는 **미실행**.
+
+변경 파일은 `scripts/build-naver-mail-release.py`, `services/naver-mail/{NAS_INSTALL.md,README.md,deployment/private_check.py,tests/test_nas_private_check.py}`, 이 기록이다. 사용자/운영자가 설정할 항목과 롤백 절차는 [NAS 설치 안내](../services/naver-mail/NAS_INSTALL.md)에 있으며 실제 계정 설정 값은 안전한 NAS 관리 경로에서 입력한다. 생성 archive의 원본 커밋과 image ID는 묶음의 `manifest.json`을 기준으로 확인한다.
+
+### 최초 구현의 18개 시험 결과
 
 | # | 요청 항목 | 자동 검증 | 실제 통합 |
 |---|---|---|---|

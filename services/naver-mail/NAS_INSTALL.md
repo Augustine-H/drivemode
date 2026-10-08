@@ -1,0 +1,73 @@
+# Synology DS218+ 설치 준비
+
+이 단계는 설치 파일·Linux amd64 이미지·오프라인 설정 점검을 준비한다. 실제 NAS 배포, 네이버 로그인, 공개 Tunnel, Grok/xAI 연결은 수행하지 않았다. DSM 버전과 Docker/Container Manager 패키지 지원 여부는 NAS에서 확인해야 한다. 기존 Voice Grok/TTS/음악/백업 프로젝트를 덮어쓰지 않는다.
+
+## 설치 묶음
+
+클라우드에서 생성하는 release 폴더에는 다음 파일만 들어간다.
+
+| 파일 | 용도 |
+| --- | --- |
+| `naver-mail-source.tar.gz` | 해당 커밋의 MCP 서비스·운영 문서·테스트 도구 |
+| `naver-mail-image.tar.gz` | `voice-grok-naver-mail:1.0.0`, Linux amd64, UID/GID 10001 |
+| `manifest.json` | 원본 Git 커밋·image ID·소스 SHA256·미검증 상태 |
+| `SHA256SUMS` | 전송 후 무결성 점검 |
+
+source 묶음은 전체 Voice Grok 저장소가 아니다. Voice Grok 백엔드 배포 및 Node/Python 전체 테스트에는 해당 브랜치의 전체 체크아웃이 필요하다. private 폴더·실제 `.env`·계정 정보·토큰은 포함하지 않는다. 체크섬은 전송 손상을 확인하며 배포자의 신원을 증명하는 서명은 아니다.
+
+재생성은 전체 저장소의 깨끗한 커밋에서 `python scripts/build-naver-mail-release.py --output <새 release 디렉터리>`로 한다. 준비된 image와 tracked runtime Python 파일/requirements의 SHA256을 비교한다. 기존 release image tag가 다른 이미지를 가리키면 덮어쓰지 않고 실패한다.
+
+## NAS 운영자 절차
+
+1. 원래 NAS의 컨테이너·listen 포트·Tailscale Serve/Tunnel·백업 구성을 기록한다. 알려진 포트는 TTS 8092, 음악 8094, 앱 8097, HTTPS 8445다. 실제 3001 사용 여부는 미확인이다. 충돌하면 새 서비스의 host port만 변경한다.
+2. 별도 공유 폴더에 네 파일을 전송한다. `sha256sum -c SHA256SUMS`로 점검한다. 경로는 예를 들어 `/volume1/docker/voice-grok-naver-mail-release`다.
+3. `docker load -i naver-mail-image.tar.gz`로 이미지를 import한다. Container Manager UI import의 지원 확장자가 다르면 gzip을 풀어 `.tar`를 import한다. image ID는 manifest와 비교한다. 이미지 load만으로 서비스가 시작되거나 공개되지 않는다.
+4. `tar -xzf naver-mail-source.tar.gz`로 풀고 `services/naver-mail`로 이동한다. 처음에는 기존 Compose 파일과 병합하지 않고 새 MCP 프로젝트만 구성한다.
+5. `private/server`를 새로 만들고 `config.example.json`을 바탕으로 config를 작성한다. `allowed_hosts`에는 health용 `127.0.0.1:3001`을 반드시 포함한다. Host port가 달라도 컨테이너 내부 health port는 3001이다. `web_auth_verified:false`, `token_file:/run/secrets/tokens.json`, `credentials_file:/run/secrets/imap.json`을 유지한다. Origin과 proxy CIDR는 실제 배치에 맞춰 지정한다. 이 초기 점검은 웹 게이트를 켠 설정을 거부한다.
+6. NAS의 안전한 관리 경로에서 `private/server/imap.json`의 `username`과 `password`를 입력한다. 네이버 IMAP 활성화와 앱 비밀번호가 필요하다. 채팅·Git·명령행 인자·스크린샷에 값을 넣지 않는다. Shell history에 평문 비밀번호를 남기는 heredoc/echo 명령을 사용하지 않는다.
+7. 별도 Voice·health·웹 토큰을 파일로 생성한다. 아래 명령은 값 대신 파일만 생성한다. 기존 NAS 인증 mount를 이 프로젝트에 재사용하지 않는다.
+
+```sh
+docker run --rm --network=none --user "$(id -u):$(id -g)" \
+  --cap-drop=ALL --security-opt=no-new-privileges:true --read-only \
+  -v "$PWD/private:/private" --entrypoint python voice-grok-naver-mail:1.0.0 \
+  -m naver_mail.manage_tokens add --registry /private/server/tokens.json \
+  --id voice-v1 --client voice --output /private/clients/voice-v1
+```
+
+같은 명령의 ID·역할·출력 경로만 바꿔 `health-v1`/`voice`/`/private/server/health-token`, `web-v1`/`grok_web`/`/private/clients/web-v1`를 생성한다. `private/server`는 먼저 만들어 둔다. 초기 token 파일은 0600으로 생성되므로 다음 권한 정리가 필요하다. UID가 없는 DSM 계정이어도 실제 numeric UID/GID로 컨테이너를 실행하며 사용자명 매칭을 가정하지 않는다.
+
+8. 관리자 권한으로 server 디렉터리의 그룹을 10001로 맞춘다. 운영자(또는 root)가 소유하고 gid 10001, 디렉터리 0750, 파일 0440으로 두면 container가 읽고 운영자만 교체할 수 있다. Client token은 별도 0700 폴더·0600 파일로 유지한다. Voice Grok에 설치할 토큰은 별도 앱 UID 1000이 읽을 수 있도록 안전하게 전송/권한 설정하며 server private 전체를 앱에 넘기지 않는다. DSM ACL은 POSIX mode와 별도로 확인한다.
+9. 아래 오프라인 점검을 실행한다. 네이버나 HTTPS에 접속하지 않으며 실제 production UID 10001로 private mount를 읽는다. failed면 서비스를 시작하지 않는다.
+
+```sh
+docker run --rm --network=none --read-only --user 10001:10001 \
+  --cap-drop=ALL --security-opt=no-new-privileges:true \
+  -v "$PWD/private/server:/run/secrets:ro" \
+  -v "$PWD/deployment:/check:ro" --entrypoint python \
+  voice-grok-naver-mail:1.0.0 /check/private_check.py
+```
+
+`deployment`와 소스 파일은 비밀이 아니며 archive의 0755/0644 권한을 유지한다. 검사 성공은 형식·읽기 권한·분리된 token hashes만 의미한다. 실제 앱 비밀번호 인증, DSM ACL의 다른 사용자 접근, proxy 실제 peer, host port 사용 여부는 이 도구가 확인하지 않는다.
+
+10. Compose v2는 `docker compose`, 구버전 Docker 패키지는 설치된 `docker-compose` 명령으로 문법을 점검한다. 이미지 import 경로에서는 새 빌드를 하지 않는다.
+
+```sh
+docker compose config --quiet
+docker compose up -d --no-build naver-mail
+docker compose exec -T naver-mail python -m naver_mail.health
+docker compose restart naver-mail
+docker compose exec -T naver-mail python -m naver_mail.health
+```
+
+health는 인증된 HTTP 생존 검사이며 네이버 로그인 성공이 아니다. 설치된 Docker가 restart/health/mem_limit/read_only/log rotation 설정을 반영하는지 확인한다. 공개 라우트 없이 loopback에만 노출되어야 한다. raw private 파일이나 container 전체 환경을 로그/채팅으로 출력하지 않는다.
+
+## 공개 연결 전 별도 검증
+
+- 실제 네이버의 한국어·UNSEEN·날짜 검색과 BODY.PEEK 전후 **전체 FLAGS**·UIDVALIDITY 비교.
+- 실제 trusted proxy peer, Host/Origin·TLS·무인증 401, 토큰 회전·폐기 확인.
+- 실계정과 분리된 공개 합성 canary에서 Grok Custom의 인증 UI/호환성 증명. 증명 전 실계정 공개 라우트와 웹 게이트를 켜지 않는다.
+- 실제 xAI remote MCP 협상·scope 헤더·응답 형식 확인 후 기존 NAS 앱에 `voice-grok.compose.override.yaml` 적용. `NAVER_MAIL_ENABLED`는 초기 false로 유지한다.
+- [RECOVERY.md](RECOVERY.md)에 따라 private 파일은 인증된 암호화 백업에만 포함하고 새 NAS 폴더에서 복구 검증.
+
+NAS 서비스만 롤백할 때는 해당 프로젝트의 `docker compose stop naver-mail`로 중지한다. 기존 Voice Grok 설정을 적용했다면 `NAVER_MAIL_ENABLED=false`로 돌린다. 공유된 전체 NAS 프로젝트의 `down`, `prune`, 기존 컨테이너 삭제는 하지 않는다. 복구 시 오래된 폐기 토큰을 다시 활성화하지 않는다.

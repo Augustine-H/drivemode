@@ -55,6 +55,8 @@ DOCKER_CONFIG=/workspace/.onboarding/docker-client \
 
 ## NAS 설치 준비 — 실제 실행은 별도 단계
 
+검증된 이미지와 설치 묶음을 사용한 상세 절차는 [NAS_INSTALL.md](NAS_INSTALL.md)에 있다. [deployment/private_check.py](deployment/private_check.py)는 실제 container UID로 private mount 형식·권한을 검사하며 IMAP에 접속하지 않는다.
+
 DS218+는 x86-64 플랫폼이다. 저장소의 기존 서비스 포트는 TTS 8092, 음악 8094, 웹 8097 및 Tailscale HTTPS 8445 등으로 문서화되어 있다. 새 서비스 내부/기본 host 포트는 3001로 선언상 겹치지 않는다. **실제 NAS listener/Container Manager/Serve/Tunnel 설정은 조사하지 않았다.** 설치 전에 `docker ps`, listen socket, 기존 Compose와 HTTPS 경로를 확인하며 기존 서비스를 변경하거나 중지하지 않는다.
 
 1. 별도 `/volume1/docker/voice-grok-naver-mail` 프로젝트로 소스를 설치한다. private 폴더는 배포 archive/Git과 분리한다.
