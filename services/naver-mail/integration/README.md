@@ -1,5 +1,7 @@
 # 계정 없는 HTTPS 통합 점검
 
+Synology/Grok Custom의 URL 이후 OAuth 인증을 확인하는 별도 합성 서버는 [SYNOLOGY_OAUTH_CANARY.md](SYNOLOGY_OAUTH_CANARY.md)를 따른다. 기존 loopback HTTPS 도구와 실계정 private 설정을 그대로 공개하지 않는다. 새 canary는 실제 계정을 mount하지 않고 별도 승인 암호·SDK OAuth로 합성 데이터만 제공한다.
+
 이 도구는 클라우드 체크아웃에서 실행하며 네이버·NAS·xAI 인증정보가 필요하지 않다. 운영 entrypoint와 Docker 이미지에는 포함하지 않는다. 메일 객체는 고정 합성 데이터이며 IMAP 연결을 만들지 않는다. 기존 Voice Grok 코드와 설정은 변경하지 않는다.
 
 ## 자동 점검

@@ -122,6 +122,20 @@ AGENT_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium AGENT_BROWSER_ARGS=--no-sandbox 
 - NAS 커널의 PIDs cgroup 미지원 경고로 `pids_limit:64`가 적용되지 않음. 메모리 제한/로그 회전 실제 적용, NAS reboot/backup restore는 별도 미검증.
 - 공개 합성 HTTPS/Grok Custom 인증, 실제 xAI remote MCP, Voice Grok 실제 음성, 한국어 실메일/flags 검증은 여전히 미수행. Grok 웹 인증 증명 전 실계정 공개 라우트와 웹 게이트를 활성화하지 않는다.
 
+## 2026-10-08 OAuth 합성 시험 서버 준비
+
+Grok Custom 초기 화면에는 이름·서버 URL만 있다는 운영자 확인을 바탕으로 별도 OAuth 시험 서버를 구현했다. URL 입력 후 실제 인증 탐색을 확인하기 위한 준비이며 Grok의 인증 방식이나 연결 성공이 입증된 것은 아니다.
+
+- 최종 Python suite: **70 passed, failed/skipped 0**. 기존 48개에 OAuth/SDK 22개 추가. Starlette TestClient/httpx deprecation warning 1개가 남아 있다.
+- 공식 MCP SDK OAuth metadata/PKCE S256, public/post/basic client 인증, owner 승인/CSRF/Origin, 1회성 코드, resource/scope, refresh 회전·재사용 탐지·폐기, expiry/restart, HTTPS/Host/body/rate 경계를 검증했다. 인증 성공 후 7개 읽기 전용 도구와 합성 structuredContent를 확인했다. 실제 Grok/IMAP 요청은 수행하지 않았다.
+- `tests/verify_oauth_canary.py`: 실제 Docker root/TTY 입력 비노출, scrypt hash만 저장, private 권한, UID 10001/read-only, 별도 authenticated health/무인증 401/평문 MCP 403, 재시작 통과. 실제 계정 private mount는 없다.
+- `tests/verify_oauth_nas_stage.py`: 전체 root 스테이징 script를 격리 Docker/중첩 TTY로 실행하여 Compose 시작·재시작, loopback bind와 read-only mounts를 확인했다. NAS 장비 자체의 canary 설치 검증과는 구분한다.
+- agent-browser: 명시적으로 신뢰한 로컬 시험 CA를 사용한 HTTPS에서 데스크톱 1280×800·모바일 390×844 승인 화면, 잘못된 암호 안내, 가로 overflow 없음·44px 입력/버튼을 확인하고 두 screenshot을 검토했다. 인증서 검증을 끄지 않았다. `no-referrer`가 브라우저 form POST의 Origin을 null로 만드는 문제를 발견해 `same-origin`으로 수정했다. 외부 사이트로 승인 URL이 전달되지 않는다. 실제 Grok callback 이동은 수행하지 않았다.
+- 신규 설치는 별도 프로젝트/bridge, `127.0.0.1:13002`, 후보 HTTPS 8446을 사용한다. 기존 실계정 13001과 private/config를 변경하지 않는다. 원래 검증된 Docker 이미지 ID를 재사용하며 공개 소스만 read-only mount한다. 실계정 공개 gate는 유지한다.
+- 앱·Google/TTS 소스는 변경하지 않아 이번 단계에서 JS/TS 450개·앱 build를 재실행한 것으로 표시하지 않는다. 기존 결과는 앞 절의 실행 기록이다.
+
+설치·인증서·DSM 역방향 프록시·시험 종료 절차는 [Synology OAuth 합성 시험 안내](../services/naver-mail/integration/SYNOLOGY_OAUTH_CANARY.md)에 있다. 실제 NAS canary 설치, 공개 CA HTTPS, Grok 등록/인증/합성 읽기/요약/무인증 거부와 xAI는 **미실행**이다. 승인 암호는 운영자가 SSH에서 숨겨 입력하며 NAS/Naver 계정 비밀번호와 다르게 정한다. OAuth 저장소는 메모리만 사용하므로 재시작 후 다시 연결해야 한다.
+
 ## 단계 완료 상태와 위험
 
 1. 기존 프로젝트/공식 문서/실제 SDK 버전 조사: 완료.
