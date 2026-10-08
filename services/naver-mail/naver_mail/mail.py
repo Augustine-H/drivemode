@@ -271,9 +271,13 @@ class ReadOnlyMail:
         self.ok(connection.select(quoted(utf7(folder)), readonly=True))
         _, data = connection.response('UIDVALIDITY')
         try:
-            validity = positive(int(data[0]))
+            validity = int(data[0])
         except (TypeError, ValueError, IndexError):
             raise MailError('uidvalidity_unavailable') from None
+        # A zero/nonstandard epoch cannot establish a stable folder+UID
+        # identity. Do not fabricate an epoch or read message data on failure.
+        if not 1 <= validity <= 4294967295:
+            raise MailError('uidvalidity_unsupported')
         if expected is not None and positive(expected) != validity:
             raise MailError('uidvalidity_changed')
         return validity

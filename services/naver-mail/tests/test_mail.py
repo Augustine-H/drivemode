@@ -60,6 +60,20 @@ def test_pagination_and_uidvalidity(mail):
         mail.message('INBOX', 1, 76)
 
 
+@pytest.mark.parametrize('validity', [0, -1, 4294967296])
+def test_unsupported_uidvalidity_blocks_search_and_message_before_data_read(validity):
+    fake = FakeIMAP(validity=validity)
+    reader = ReadOnlyMail('synthetic-user', 'synthetic-password', factory=lambda: fake)
+    try:
+        with pytest.raises(MailError, match='^uidvalidity_unsupported$'):
+            reader.search(limit=1)
+        with pytest.raises(MailError, match='^uidvalidity_unsupported$'):
+            reader.message('INBOX', 1, 77)
+        assert not any(call[0] in {'SEARCH', 'FETCH'} for call in fake.calls)
+    finally:
+        reader.close()
+
+
 def test_large_response_is_bounded_without_attachment_download():
     fake = FakeIMAP(huge=True)
     value = ReadOnlyMail('user', 'password', factory=lambda: fake).message('INBOX', 1, 77, body_chars=100)

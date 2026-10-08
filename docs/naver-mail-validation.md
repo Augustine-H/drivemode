@@ -260,3 +260,11 @@ services/naver-mail/tests/verify_container.py
 운영자가 새 런타임의 `OAUTH_STAGING_COMPLETE=yes`/`MODE=validation` 및 명시적 Docker restart 출력을 제공했다. 재연결 없는 후속 Grok 화면에서 `Naver Mail OAuth Test Mail Get Message 사용함`과 예상 합성 본문이 확인됐다. 실제 NAS의 새 provider 도구 호출 및 재시작 후 연결 사용은 확인했으며 실제 refresh 만료/회전 동작 전체를 입증하지는 않는다.
 
 실제 메일 audit 첫 호출은 `No module named naver_mail.read_only_audit`로 실패했다. 기존 이미지의 WorkingDir `/app`에서 기존 package가 새 `/code` package보다 먼저 선택되는 문제였다. 이 실행에서는 IMAP/mail audit가 시작되지 않았다. 일회성 Docker 호출에 `--workdir /code`를 추가했다. 클라우드에서 동일한 고정 이미지/nonroot/no-network 조건으로 기존 호출 오류를 재현하고 수정 호출의 audit `--help` 기동을 확인했다. 실제 계정의 audit 결과는 여전히 미확인이다. 운영 compose는 원래 working_dir /code로 설정돼 있어 변경하지 않았다.
+
+## 2026-10-09 실제 네이버 UIDVALIDITY=0 호환성 차단
+
+운영자의 비밀 비노출 단계별 진단에서 IMAP 접속/LOGIN 통과, INBOX mailbox_uidvalidity 검사에서 numeric_range_validation 실패를 확인했다. 별도 EXAMINE/UIDVALIDITY 응답 분류 결과는 `uidvalidity_category=zero`, `mail_body_read=false`였다. 실제 네이버 메일 조회/flags audit는 통과하지 않았으며 실계정 OAuth 공개는 보류한다. 시험 모드 Grok 연결은 유지된다.
+
+nonzero uint32 epoch를 사용할 수 없어 folder+UID의 메일함 재생성 안전성을 입증할 수 없다. 0을 임의 값으로 바꾸거나 검증을 비활성화하지 않는다. 오류를 `uidvalidity_unsupported`로 구분하고 audit에도 고정 코드만 표시하도록 수정했다. 0/음수/uint32 초과 epoch에서 SEARCH/FETCH 전 차단을 검사하는 회귀 3개를 추가했다. 이 변경은 별도 브랜치 코드이며 NAS 배포 파일을 이번에 갱신하거나 NAS private를 수정하지 않았다. 네이버 호환 대체 식별 방식은 아직 구현/검증하지 않았다.
+
+수정 후 Python 전체 테스트: **90 passed**, 기존 deprecation 경고 1개, 실패/skip 없음.

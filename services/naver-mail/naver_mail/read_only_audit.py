@@ -54,6 +54,9 @@ def main():
         credentials=json.loads(Path(args.credentials).read_text())
         mail=ReadOnlyMail(credentials['username'],credentials['password'])
         report=audit(mail)
+    except MailError as error:
+        code = 'uidvalidity_unsupported' if str(error) == 'uidvalidity_unsupported' else 'read_only_audit_unavailable'
+        report={'status':'failed','error':code,'mail_values_printed':False,'credential_values_printed':False}
     except Exception:
         report={'status':'failed','error':'read_only_audit_unavailable','mail_values_printed':False,'credential_values_printed':False}
     finally:
