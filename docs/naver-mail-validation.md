@@ -145,6 +145,14 @@ Grok Custom 초기 화면에는 이름·서버 URL만 있다는 운영자 확인
 - `REAL_MAIL_ACCOUNT_CONNECTED=no`, `PUBLIC_HTTPS_CONFIGURED=no`, `GROK_WEB_VERIFIED=no`. 이 단계에서는 합성 서버 시작만 확인했으며 실제 메일/공개 HTTPS/Grok 연결 성공이 아니다.
 - NAS의 PIDs limit 미지원 경고가 canary에서도 발생했다. 해당 제한은 적용되지 않았다. DSM 역방향 프록시·인증서·외부 접속과 인증 검증은 다음 단계다.
 
+## 공개 HTTPS 도달성 점검 — 포트포워딩 설정 후
+
+운영자 화면에서 DSM reverse proxy의 HTTPS DDNS:8446 → HTTP 127.0.0.1:13002와 해당 DDNS 인증서 선택을 확인했고, 포트포워딩 완료를 보고받았다. 선택된 인증서의 외부 chain/기간 검증은 아직 아니다.
+
+- 클라우드 HTTPS 경로로 `/.well-known/oauth-authorization-server`, `/.well-known/oauth-protected-resource/mcp`, `/mcp`를 요청했다. 모두 upstream 연결 timeout에 해당하는 503을 반환했다. 이 응답은 시험 MCP의 인증 응답으로 판단하지 않는다.
+- 같은 클라우드 경로의 기존 DSM HTTPS 5119는 HTTP 200을 반환했다. 직접 TCP는 8446·5119 모두 거부되어 직접 경로의 실패만으로 NAS 포트 문제를 확정하지 않는다.
+- 외부 NAS TLS 인증서, OAuth metadata, 무인증 MCP 401은 **미검증**이다. 운영자 측 외부 접속 결과와 NAT/firewall 경로를 확인한 뒤 재점검한다. TLS 검증을 끄거나 실계정 13001을 공개하지 않는다.
+
 ## 단계 완료 상태와 위험
 
 1. 기존 프로젝트/공식 문서/실제 SDK 버전 조사: 완료.
