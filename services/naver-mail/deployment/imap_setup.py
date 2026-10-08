@@ -51,7 +51,7 @@ def main():
         raise SystemExit(1)
     try:
         warnings.simplefilter('error', getpass.GetPassWarning)
-        with open('/dev/tty', 'r+') as terminal:
+        with open('/dev/tty', 'rb', buffering=0) as terminal:
             if not terminal.isatty():
                 raise ValueError('controlling_terminal_required')
         if os.geteuid() != 0 or os.getegid() != 10001:
