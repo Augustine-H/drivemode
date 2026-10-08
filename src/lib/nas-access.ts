@@ -3,7 +3,7 @@ export function nasRequestOriginAllowed(origin:string|null,requestUrl:string,nas
   if(!origin || origin===nasOrigin)return true;
   try {
     const path=new URL(requestUrl).pathname;
-    return origin===GOOGLE_APP_ORIGIN && (path.startsWith('/api/google-workspace/') || path==='/api/google-tts');
+    return origin===GOOGLE_APP_ORIGIN && (path.startsWith('/api/google-workspace/') || path==='/api/google-tts' || path==='/api/naver-mail');
   } catch { return false; }
 }
 // Trust these headers only on the loopback listener behind Tailscale Serve.

@@ -1,0 +1,10 @@
+# Copy beside the existing services/web/nas deployment; compose with both files.
+# Credentials go in that deployment's private/naver-client/token, never here.
+services:
+  web:
+    environment:
+      NAVER_MAIL_ENABLED: "${NAVER_MAIL_ENABLED:-false}"
+      NAVER_MAIL_MCP_URL: "${NAVER_MAIL_MCP_URL:-https://naver-mail.example.com/mcp}"
+      NAVER_MAIL_TOKEN_FILE: /run/naver-client/token
+    volumes:
+      - ./private/naver-client:/run/naver-client:ro

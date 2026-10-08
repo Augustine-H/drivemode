@@ -1,0 +1,9 @@
+{
+  "allowed_hosts": ["localhost:3001", "127.0.0.1:3001", "naver-mail.example.com"],
+  "allowed_origins": ["https://grok.com", "https://drivemode.grok.me"],
+  "trusted_proxies": ["127.0.0.1/32"],
+  "token_file": "/run/secrets/tokens.json",
+  "credentials_file": "/run/secrets/imap.json",
+  "requests_per_minute": 60,
+  "web_auth_verified": false
+}

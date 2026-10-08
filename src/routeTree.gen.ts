@@ -14,6 +14,7 @@ import { Route as ApiAskRouteImport } from './routes/api/ask'
 import { Route as ApiGoogleTtsRouteImport } from './routes/api/google-tts'
 import { Route as ApiGoogleWorkspaceRouteImport } from './routes/api/google-workspace'
 import { Route as ApiMediaSourceRouteImport } from './routes/api/media-source'
+import { Route as ApiNaverMailRouteImport } from './routes/api/naver-mail'
 import { Route as ApiVideoSourceRouteImport } from './routes/api/video-source'
 import { Route as ApiGoogleWorkspaceSplatRouteImport } from './routes/api/google-workspace/$'
 import { Route as ApiGoogleWorkspaceCallbackRouteImport } from './routes/api/google-workspace/callback'
@@ -43,6 +44,11 @@ const ApiMediaSourceRoute = ApiMediaSourceRouteImport.update({
   path: '/api/media-source',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiNaverMailRoute = ApiNaverMailRouteImport.update({
+  id: '/api/naver-mail',
+  path: '/api/naver-mail',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiVideoSourceRoute = ApiVideoSourceRouteImport.update({
   id: '/api/video-source',
   path: '/api/video-source',
@@ -66,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/api/google-tts': typeof ApiGoogleTtsRoute
   '/api/google-workspace': typeof ApiGoogleWorkspaceRouteWithChildren
   '/api/media-source': typeof ApiMediaSourceRoute
+  '/api/naver-mail': typeof ApiNaverMailRoute
   '/api/video-source': typeof ApiVideoSourceRoute
   '/api/google-workspace/$': typeof ApiGoogleWorkspaceSplatRoute
   '/api/google-workspace/callback': typeof ApiGoogleWorkspaceCallbackRoute
@@ -76,6 +83,7 @@ export interface FileRoutesByTo {
   '/api/google-tts': typeof ApiGoogleTtsRoute
   '/api/google-workspace': typeof ApiGoogleWorkspaceRouteWithChildren
   '/api/media-source': typeof ApiMediaSourceRoute
+  '/api/naver-mail': typeof ApiNaverMailRoute
   '/api/video-source': typeof ApiVideoSourceRoute
   '/api/google-workspace/$': typeof ApiGoogleWorkspaceSplatRoute
   '/api/google-workspace/callback': typeof ApiGoogleWorkspaceCallbackRoute
@@ -87,6 +95,7 @@ export interface FileRoutesById {
   '/api/google-tts': typeof ApiGoogleTtsRoute
   '/api/google-workspace': typeof ApiGoogleWorkspaceRouteWithChildren
   '/api/media-source': typeof ApiMediaSourceRoute
+  '/api/naver-mail': typeof ApiNaverMailRoute
   '/api/video-source': typeof ApiVideoSourceRoute
   '/api/google-workspace/$': typeof ApiGoogleWorkspaceSplatRoute
   '/api/google-workspace/callback': typeof ApiGoogleWorkspaceCallbackRoute
@@ -99,6 +108,7 @@ export interface FileRouteTypes {
     | '/api/google-tts'
     | '/api/google-workspace'
     | '/api/media-source'
+    | '/api/naver-mail'
     | '/api/video-source'
     | '/api/google-workspace/$'
     | '/api/google-workspace/callback'
@@ -109,6 +119,7 @@ export interface FileRouteTypes {
     | '/api/google-tts'
     | '/api/google-workspace'
     | '/api/media-source'
+    | '/api/naver-mail'
     | '/api/video-source'
     | '/api/google-workspace/$'
     | '/api/google-workspace/callback'
@@ -119,6 +130,7 @@ export interface FileRouteTypes {
     | '/api/google-tts'
     | '/api/google-workspace'
     | '/api/media-source'
+    | '/api/naver-mail'
     | '/api/video-source'
     | '/api/google-workspace/$'
     | '/api/google-workspace/callback'
@@ -130,6 +142,7 @@ export interface RootRouteChildren {
   ApiGoogleTtsRoute: typeof ApiGoogleTtsRoute
   ApiGoogleWorkspaceRoute: typeof ApiGoogleWorkspaceRouteWithChildren
   ApiMediaSourceRoute: typeof ApiMediaSourceRoute
+  ApiNaverMailRoute: typeof ApiNaverMailRoute
   ApiVideoSourceRoute: typeof ApiVideoSourceRoute
 }
 
@@ -168,6 +181,13 @@ declare module '@tanstack/react-router' {
       path: '/api/media-source'
       fullPath: '/api/media-source'
       preLoaderRoute: typeof ApiMediaSourceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/naver-mail': {
+      id: '/api/naver-mail'
+      path: '/api/naver-mail'
+      fullPath: '/api/naver-mail'
+      preLoaderRoute: typeof ApiNaverMailRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/video-source': {
@@ -213,6 +233,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGoogleTtsRoute: ApiGoogleTtsRoute,
   ApiGoogleWorkspaceRoute: ApiGoogleWorkspaceRouteWithChildren,
   ApiMediaSourceRoute: ApiMediaSourceRoute,
+  ApiNaverMailRoute: ApiNaverMailRoute,
   ApiVideoSourceRoute: ApiVideoSourceRoute,
 }
 export const routeTree = rootRouteImport

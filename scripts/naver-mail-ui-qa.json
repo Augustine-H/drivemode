@@ -1,0 +1,38 @@
+[
+  ["set", "viewport", "1280", "800"],
+  ["open", "http://127.0.0.1:8080/"],
+  ["wait", "#composer"],
+  [
+    "network",
+    "route",
+    "**/api/naver-mail",
+    "--body",
+    "{\"text\":\"합성 네이버 메일 · 보낸 사람 · 한국어 제목 · 2026-10-08\\n개인정보경계검증_합성본문\",\"voiceText\":\"\",\"items\":[{\"folder\":\"INBOX\",\"uid\":4,\"uidvalidity\":77,\"from\":\"합성 보낸 사람\",\"subject\":\"합성 제목\"}],\"notice\":\"메일 데이터는 xAI 처리 정책이 적용되며 기억과 자동 백업에 저장하지 않습니다.\"}"
+  ],
+  ["fill", "#composer", "네이버 메일 목록 보여줘"],
+  ["click", "button[type=submit]"],
+  ["wait", "700"],
+  [
+    "eval",
+    "if (!document.querySelector('[aria-label=\"네이버 메일 조회 결과\"]')?.textContent.includes('개인정보경계검증_합성본문')) throw Error('mail result missing'); if(Object.values(localStorage).some(v=>v.includes('개인정보경계검증_합성본문'))) throw Error('mail persisted'); 'private result visible; storage clean'"
+  ],
+  ["screenshot", "/workspace/screenshots/naver-ui-desktop.png"],
+  ["set", "viewport", "390", "844"],
+  [
+    "eval",
+    "if(document.documentElement.scrollWidth > innerWidth) throw Error('horizontal overflow'); 'mobile width clean'"
+  ],
+  ["screenshot", "/workspace/screenshots/naver-ui-mobile.png"],
+  ["find", "role", "button", "click", "--name", "결과 닫기"],
+  [
+    "eval",
+    "if(document.querySelector('[aria-label=\"네이버 메일 조회 결과\"]')) throw Error('panel not cleared'); 'panel closed'"
+  ],
+  ["reload"],
+  ["wait", "#composer"],
+  [
+    "eval",
+    "if(document.body.textContent.includes('개인정보경계검증_합성본문')) throw Error('mail restored'); if(Object.values(localStorage).some(v=>v.includes('개인정보경계검증_합성본문'))) throw Error('mail persisted'); 'reload and storage contain no mail body'"
+  ],
+  ["errors"]
+]

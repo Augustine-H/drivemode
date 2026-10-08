@@ -1,0 +1,31 @@
+services:
+  naver-mail:
+    image: voice-grok-naver-mail:1.0.0
+    build: .
+    # Loopback only. A separately verified HTTPS proxy is required.
+    ports:
+      - "127.0.0.1:${NAVER_MAIL_HOST_PORT:-3001}:3001"
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      # Mount a directory so atomic token rotation is visible immediately.
+      - ./private/server:/run/secrets:ro
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    mem_limit: 384m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "python", "-m", "naver_mail.health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s

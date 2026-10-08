@@ -120,6 +120,8 @@ import { useReader } from "@/lib/use-reader";
 import { GoogleTtsSettings } from "@/components/google-tts-settings";
 import { GoogleWorkspaceConfirmation } from "@/components/google-workspace-confirmation";
 import { workspaceConversation } from "@/lib/google-workspace-client";
+import { clearNaverMailSelection, isNaverMailRequest, naverMailConversation } from "@/lib/naver-mail-client";
+import { NAVER_MAIL_NOTICE, type NaverMailReply } from "@/lib/naver-mail-contract";
 import { GoogleWorkspaceSettings } from "@/components/google-workspace-settings";
 import {
   SAMPLE_TURNS,
@@ -410,6 +412,9 @@ export function ReaderApp() {
     );
   const { restore: restoreMemory } = memoryEngine;
   const [memoryMetrics, setMemoryMetrics] = useState<ContextMetrics | null>(null);
+  // Private mail replies stay outside threads, persistent storage, memories,
+  // ordinary model history and automatic backups.
+  const [naverMailResult, setNaverMailResult] = useState<NaverMailReply | null>(null);
   const [sheet, setSheet] = useState<"script" | "save" | "voice" | null>(null);
   const [draft, setDraft] = useState("");
   const [draftNote, setDraftNote] = useState<string | null>(null);
@@ -1764,6 +1769,27 @@ export function ReaderApp() {
     }
   }
 
+  async function askNaverMail(text: string, active?: PersonaItem) {
+    const job = ++jobEpoch.current;
+    const abort = new AbortController();
+    answerAbort.current = abort;
+    busyRef.current = true;
+    setAsking(true);
+    setComposer("");
+    reader.stop();
+    setNaverMailResult({ text: "네이버 메일을 조회하는 중…", voiceText: "", items: [], notice: NAVER_MAIL_NOTICE });
+    try {
+      const result = await naverMailConversation(text, active ? personaInstructions(active) : persona, abort.signal);
+      if (job !== jobEpoch.current) return;
+      setNaverMailResult(result);
+      if (result.voiceText) reader.playFrom([{ id: `naver-transient-${job}`, speaker: "grok", text: result.text, voiceText: result.voiceText, speechParts: speechParts(result.voiceText, true), personaId: active?.id, personaName: active?.name, voice: active?.voice }], 0);
+    } catch {
+      if (job === jobEpoch.current) setNaverMailResult(null);
+    } finally {
+      if (job === jobEpoch.current) { busyRef.current = false; setAsking(false); }
+    }
+  }
+
   async function ask(spoken?: string, target?: string, fromMail = false) {
     if (deleteAllStage || deletingChats) return;
     let text = (spoken ?? composer).trim();
@@ -1797,6 +1823,10 @@ export function ReaderApp() {
     const id = target ?? personaIdRef.current;
     const audience = roomMembers[id] ?? (id.startsWith("group:") ? legacyGroupMembers : [id]);
     const active = personas.find((item) => item.id === id);
+    if (!fromMail && isNaverMailRequest(text)) {
+      await askNaverMail(text, active);
+      return;
+    }
     if (!fromMail && deleteChat) {
       if (
         /^(응|네|예|그래|확인|삭제해|모두삭제|전체삭제|정말모두삭제)[.!]*$/.test(
@@ -2397,6 +2427,11 @@ export function ReaderApp() {
       .map((id) => personas.find((item) => item.id === id))
       .filter((p): p is PersonaItem => Boolean(p));
     if (members.length < 2) return;
+    if (isNaverMailRequest(text)) {
+      // One private query, never a mail response shared into every persona's memory.
+      await askNaverMail(text, members.find(member => member.id === addressed) || members[0]);
+      return;
+    }
     const job = ++jobEpoch.current;
     busyRef.current = true;
     setAsking(true);
@@ -3063,6 +3098,19 @@ export function ReaderApp() {
           })}
         </div>
       </header>
+
+      {naverMailResult && (
+        <section aria-label="네이버 메일 조회 결과" className="max-h-[45vh] shrink-0 overflow-y-auto border-b border-line px-4 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-medium">네이버 메일 · 조회 전용</h2>
+            <button type="button" className="rounded-full border border-line px-3 py-2 text-sm" onClick={() => { reader.stop(); answerAbort.current?.abort(); clearNaverMailSelection(); setNaverMailResult(null); }}>결과 닫기</button>
+          </div>
+          <p className="mt-2 text-xs text-muted">{naverMailResult.notice}</p>
+          <p className="mt-3 whitespace-pre-wrap break-words text-sm" role="status">{naverMailResult.text}</p>
+          {naverMailResult.nextOffset != null && <p className="mt-2 text-xs text-muted">다음 목록은 {naverMailResult.nextOffset} 위치부터 요청할 수 있습니다.</p>}
+          {naverMailResult.nextBodyOffset != null && <p className="mt-2 text-xs text-muted">다음 본문은 {naverMailResult.nextBodyOffset}자 위치부터 요청할 수 있습니다.</p>}
+        </section>
+      )}
 
       <main
         ref={scrollerRef}
