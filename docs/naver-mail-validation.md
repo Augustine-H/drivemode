@@ -134,7 +134,16 @@ Grok Custom 초기 화면에는 이름·서버 URL만 있다는 운영자 확인
 - 신규 설치는 별도 프로젝트/bridge, `127.0.0.1:13002`, 후보 HTTPS 8446을 사용한다. 기존 실계정 13001과 private/config를 변경하지 않는다. 원래 검증된 Docker 이미지 ID를 재사용하며 공개 소스만 read-only mount한다. 실계정 공개 gate는 유지한다.
 - 앱·Google/TTS 소스는 변경하지 않아 이번 단계에서 JS/TS 450개·앱 build를 재실행한 것으로 표시하지 않는다. 기존 결과는 앞 절의 실행 기록이다.
 
-설치·인증서·DSM 역방향 프록시·시험 종료 절차는 [Synology OAuth 합성 시험 안내](../services/naver-mail/integration/SYNOLOGY_OAUTH_CANARY.md)에 있다. 실제 NAS canary 설치, 공개 CA HTTPS, Grok 등록/인증/합성 읽기/요약/무인증 거부와 xAI는 **미실행**이다. 승인 암호는 운영자가 SSH에서 숨겨 입력하며 NAS/Naver 계정 비밀번호와 다르게 정한다. OAuth 저장소는 메모리만 사용하므로 재시작 후 다시 연결해야 한다.
+설치·인증서·DSM 역방향 프록시·시험 종료 절차는 [Synology OAuth 합성 시험 안내](../services/naver-mail/integration/SYNOLOGY_OAUTH_CANARY.md)에 있다. 실제 NAS canary 설치 결과는 아래 운영자 확인 절에 기록한다. 공개 CA HTTPS, Grok 등록/인증/합성 읽기/요약/무인증 거부와 xAI는 **미실행**이다. 승인 암호는 운영자가 SSH에서 숨겨 입력하며 NAS/Naver 계정 비밀번호와 다르게 정한다. OAuth 저장소는 메모리만 사용하므로 재시작 후 다시 연결해야 한다.
+
+## 실제 NAS OAuth canary 설치 — 운영자 화면 확인
+
+운영자가 SSH에서 설치 명령을 실행한 화면에서 다음을 확인했다. 클라우드 에이전트의 직접 NAS 실행 결과가 아니다.
+
+- `CANARY_HEALTH_CHECK=passed`, `CANARY_RESTART_RECOVERY=passed`, `CANARY_STAGING_COMPLETE=yes`.
+- 별도 `voice-grok-naver-canary-canary-1` 컨테이너 시작 및 loopback bind `127.0.0.1:13002` 보고. 후보 HTTPS 포트 8446 사전 점검을 통과해 설치가 완료됐다.
+- `REAL_MAIL_ACCOUNT_CONNECTED=no`, `PUBLIC_HTTPS_CONFIGURED=no`, `GROK_WEB_VERIFIED=no`. 이 단계에서는 합성 서버 시작만 확인했으며 실제 메일/공개 HTTPS/Grok 연결 성공이 아니다.
+- NAS의 PIDs limit 미지원 경고가 canary에서도 발생했다. 해당 제한은 적용되지 않았다. DSM 역방향 프록시·인증서·외부 접속과 인증 검증은 다음 단계다.
 
 ## 단계 완료 상태와 위험
 
