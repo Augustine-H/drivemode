@@ -23,7 +23,21 @@ source 묶음은 전체 Voice Grok 저장소가 아니다. Voice Grok 백엔드 
 
 첫 점검은 일반 NAS 로그인 사용자로 실행돼 Docker server에 접근하지 못했다. 이는 Docker 미설치나 중지를 확정하는 결과가 아니다. [deployment/nas_inventory.sh](deployment/nas_inventory.sh)를 별도 일회성 작업에서 **root**로 실행해 Docker/Compose, 기존 publish port, 후보 13001을 확인한다. SSH 공개 키 등록 작업은 해당 NAS 로그인 사용자를 유지한다. 점검 스크립트는 설정을 변경하지 않으며 root가 아니면 명시적으로 실패한다. `not_listening`은 그 순간 TCP listener가 없다는 뜻이며 Docker publish port/range도 함께 확인하고 설치 직전에 다시 검사한다.
 
-13001 사용 가능이 확인되면 Compose host port 설정에 `NAVER_MAIL_HOST_PORT=13001`을 적용한다. 서버 내부 health Host는 `127.0.0.1:3001`로 유지하고 NAS의 HTTPS proxy upstream만 host 13001을 사용한다. 후보 포트가 사용 중이면 다른 포트를 점검하며 아직 검증되지 않은 주소를 활성화하지 않는다.
+후속 root 점검에서 Docker 24.0.2 및 Compose v2.20.1-6047-g6817716, 3001을 점유한 `uptime-kuma`, `/volume1/docker`가 확인됐다. 13001 TCP listener는 없었고 전달된 Docker publish 목록에도 13001은 없었다. 이 시점의 점검이므로 실제 시작 직전 다시 확인한다. 기존 `uptime-kuma`/Voice Grok/TTS/music 컨테이너를 변경하지 않는다.
+
+13001을 사용할 때 Compose host port 설정에 `NAVER_MAIL_HOST_PORT=13001`을 적용한다. 서버 내부 health Host는 `127.0.0.1:3001`로 유지하고 NAS의 HTTPS proxy upstream만 host 13001을 사용한다. 후보 포트가 사용 중이면 다른 포트를 점검하며 아직 검증되지 않은 주소를 활성화하지 않는다.
+
+### 작업 스케줄러를 통한 설치 파일 준비
+
+현재 클라우드 SSH 경로로 로그인하지 못했으므로 실제 NAS 작업은 운영자가 일회성 작업 스케줄러로 실행한다. 먼저 File Station의 `docker` 공유 폴더에 `voice-grok-naver-mail-release` 폴더를 만들고 신뢰한 두 archive를 원래 이름으로 업로드한다. 경로는 `/volume1/docker/voice-grok-naver-mail-release`다.
+
+[deployment/nas_stage.sh](deployment/nas_stage.sh)는 root 일회성 작업용이며 신뢰한 archive의 SHA256을 `NAS_RELEASE_SOURCE_SHA256`/`NAS_RELEASE_IMAGE_SHA256` 변수에 미리 넣어야 한다. 클라우드에서 제공하는 맞춤 작업 스크립트에는 확인한 release 해시를 포함한다. NAS에 있는 변경 가능한 SHA256SUMS 파일만 신뢰해서 root 압축 해제를 실행하지 않는다.
+
+작업은 두 파일의 pinned hash를 확인하고, 다른 이미지인 기존 `1.0.0` tag와 이미 존재하는 설치 폴더를 거부한다. 이미지를 import하고 새 `/volume1/docker/voice-grok-naver-mail`에 소스를 풀어 `services/naver-mail/compose.nas.yaml`을 만든다. NAS Compose 2.20 호환성을 위해 별도 YAML에서 host mapping 한 줄만 13001로 고정하며 port merge나 새 `!override` 태그를 사용하지 않는다. Docker CLI plugin과 standalone docker-compose를 모두 검사한다.
+
+Voice·health·웹 토큰은 network-none/non-privileged/read-only-root 설정 관리 컨테이너에서 private 파일로만 생성한다. Server 폴더 gid 10001/mode 0750, server 파일 0440, client 폴더 0700 및 token 0600을 설정한다. 초기 config는 loopback Host만 허용하고 trusted proxies는 비우며 웹 게이트는 false다. NAS 운영자용 설정 관리 작업만 root이며 실제 서비스 사용자 10001은 유지한다.
+
+이 작업은 **IMAP 자격증명을 생성하지 않고 서비스를 시작하지 않는다.** `STAGING_COMPLETE=yes`, `SERVICE_STARTED=no`, `IMAP_CREDENTIALS_CONFIGURED=no` 출력 후 실제 네이버 private 설정·점검은 다음 단계다. 기존 파일을 자동으로 덮어쓰지 않으므로 실패 시 임의로 폴더 삭제/재실행하지 않고 실패 항목부터 확인한다. Syntax와 non-root 거부는 클라우드에서 검사했으며 실제 NAS staging 성공은 운영자의 실행 결과를 받은 뒤에만 기록한다.
 
 1. 원래 NAS의 컨테이너·listen 포트·Tailscale Serve/Tunnel·백업 구성을 기록한다. 알려진 포트는 TTS 8092, 음악 8094, 앱 8097, HTTPS 8445다. 실제 3001 사용 여부는 미확인이다. 충돌하면 새 서비스의 host port만 변경한다.
 2. 별도 공유 폴더에 네 파일을 전송한다. `sha256sum -c SHA256SUMS`로 점검한다. 경로는 예를 들어 `/volume1/docker/voice-grok-naver-mail-release`다.
