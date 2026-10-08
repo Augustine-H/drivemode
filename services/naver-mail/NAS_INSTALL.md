@@ -47,6 +47,8 @@ Voice·health·웹 토큰은 network-none/non-privileged/read-only-root 설정 �
 
 복구는 원본 archive의 모든 소스 파일과 현재 파일을 비교한다. 심볼릭 링크, 변경된 소스·Compose·config, 기존 토큰·IMAP 자격증명·알 수 없는 private 파일을 거부한다. 기존 토큰을 덮어쓰거나 회전하지 않는다. 소스와 private 검사 후 `RESUME_SOURCE_AND_PRIVATE_CHECK=passed`, 마지막에 `STAGING_COMPLETE=yes`를 확인한다. 성공한 프로젝트에는 복구 스크립트를 다시 실행하지 않는다.
 
+이미 `voice-v1`·`web-v1`·`health-token`·`tokens.json`이 존재한다면 재생성이나 삭제를 하지 않는다. [deployment/nas_stage_verify.sh](deployment/nas_stage_verify.sh)를 새 root 일회성 작업에서 실행해 현재 스테이징 상태를 읽기 전용으로 확인한다. 토큰 파일과 registry hash의 일치, 역할 분리, 초기 config·Compose mapping, 제한된 권한, 실제 UID 10001의 server 파일 읽기, Compose 문법을 검사한다. 값이나 hash는 출력하지 않으며 모든 mount는 읽기 전용이다. `STAGING_VERIFIED=yes`는 이 준비 상태만 검증하고 IMAP 로그인이나 서비스 실행을 검증하지 않는다.
+
 클라우드의 실제 Docker에서 `tests/verify_nas_stage.py --release <검증된 release 폴더>`로 새 스테이징, 원래 PermissionError 재현, 중간 상태 복구, 변경된 소스·기존 자격증명·토큰 거부, 토큰 분리 및 파일 권한을 검사한다. 실제 NAS 결과와 구분하며 네이버·Grok·xAI 연결은 하지 않는다.
 
 1. 원래 NAS의 컨테이너·listen 포트·Tailscale Serve/Tunnel·백업 구성을 기록한다. 알려진 포트는 TTS 8092, 음악 8094, 앱 8097, HTTPS 8445다. 실제 3001 사용 여부는 미확인이다. 충돌하면 새 서비스의 host port만 변경한다.
