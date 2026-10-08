@@ -19,6 +19,12 @@ source 묶음은 전체 Voice Grok 저장소가 아니다. Voice Grok 백엔드 
 
 ## NAS 운영자 절차
 
+2026-10-08 실제 NAS 작업 결과: DSM 7.2 build 64570 update 4, x86_64, `/volume1/docker`가 확인됐고 `0.0.0.0:3001`/`:::3001`에서 이미 listen 중이었다. 기존 3001 서비스를 중지하거나 포트를 변경하지 않는다. 후보 host port는 13001이며 아직 사용 가능 여부를 확인하지 않았다. MCP 컨테이너 내부 port는 계속 3001이다.
+
+첫 점검은 일반 NAS 로그인 사용자로 실행돼 Docker server에 접근하지 못했다. 이는 Docker 미설치나 중지를 확정하는 결과가 아니다. [deployment/nas_inventory.sh](deployment/nas_inventory.sh)를 별도 일회성 작업에서 **root**로 실행해 Docker/Compose, 기존 publish port, 후보 13001을 확인한다. SSH 공개 키 등록 작업은 해당 NAS 로그인 사용자를 유지한다. 점검 스크립트는 설정을 변경하지 않으며 root가 아니면 명시적으로 실패한다. `not_listening`은 그 순간 TCP listener가 없다는 뜻이며 Docker publish port/range도 함께 확인하고 설치 직전에 다시 검사한다.
+
+13001 사용 가능이 확인되면 Compose host port 설정에 `NAVER_MAIL_HOST_PORT=13001`을 적용한다. 서버 내부 health Host는 `127.0.0.1:3001`로 유지하고 NAS의 HTTPS proxy upstream만 host 13001을 사용한다. 후보 포트가 사용 중이면 다른 포트를 점검하며 아직 검증되지 않은 주소를 활성화하지 않는다.
+
 1. 원래 NAS의 컨테이너·listen 포트·Tailscale Serve/Tunnel·백업 구성을 기록한다. 알려진 포트는 TTS 8092, 음악 8094, 앱 8097, HTTPS 8445다. 실제 3001 사용 여부는 미확인이다. 충돌하면 새 서비스의 host port만 변경한다.
 2. 별도 공유 폴더에 네 파일을 전송한다. `sha256sum -c SHA256SUMS`로 점검한다. 경로는 예를 들어 `/volume1/docker/voice-grok-naver-mail-release`다.
 3. `docker load -i naver-mail-image.tar.gz`로 이미지를 import한다. Container Manager UI import의 지원 확장자가 다르면 gzip을 풀어 `.tar`를 import한다. image ID는 manifest와 비교한다. 이미지 load만으로 서비스가 시작되거나 공개되지 않는다.
