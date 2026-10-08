@@ -61,3 +61,7 @@ OAuth 승인 페이지가 나타나면 **합성 시험 서버 연결 승인** �
 실제 NAS에서 이미 확인된 PIDs cgroup 미지원 때문에 이 시험 Compose의 pids_limit도 적용되지 않을 수 있다. 기존 kernel/서비스를 변경해 경고를 숨기지 않는다. 메모리 384 MiB·read_only·cap_drop·log rotation 설정과 실제 적용은 구분한다.
 
 시험 종료는 **canary 프로젝트의 canary 서비스만** 중지하고 새 proxy/NAT 규칙을 운영자가 제거한다. 실제 mail/Voice Grok 프로젝트에 down/prune/restart를 실행하지 않는다. 저장된 canary private는 승인 암호 hash/health token을 포함하므로 Git·공개 release·로그에 추가하지 않는다.
+
+## 확인된 Grok 결과
+
+2026-10-08 운영자 화면에서 방화벽 8446 허용 후 Custom 추가 성공 보고와 실제 **Mail Get Message** 호출, 합성 한국어 본문·회의 날짜 요약을 확인했다. 이는 합성 서버의 인증된 도구 호환성 증거다. 전체 도구 호출·양성 한국어 검색·실제 token lifecycle·네이버 읽기/flags 검증은 별도이며 production gate를 자동 변경하지 않는다. 구체적인 성공·미검증 항목은 [검증 기록](../../../docs/naver-mail-validation.md)을 기준으로 확인한다.
