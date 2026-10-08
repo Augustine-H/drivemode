@@ -81,6 +81,7 @@ AGENT_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium AGENT_BROWSER_ARGS=--no-sandbox 
 - Python 전체 **48 passed**, failed/skipped 0, 기존 TestClient warning 1건. 신규 6개 케이스는 private 값 미출력 및 위험한 권한·웹 게이트·proxy 신뢰·health Host·공유 토큰 hash 거부다.
 - 기존 이미지 `sha256:1127503de36f7a88344d99d8dea8b4f6f1f9e856ccea9b20c5c486928d3e81d3`: Linux amd64, UID/GID 10001 확인. 합성 tmpfs private 파일로 새 오프라인 점검을 **실제 UID 10001/read-only root/network none**에서 실행하여 통과했다.
 - 기존 격리 Docker 인증 health/무인증 401/non-root/read-only/restart 재검증 통과. Compose config 및 git diff 검사 통과.
+- 설치 이미지 export 후 `docker load`를 실행하여 같은 image ID·Linux amd64·UID 10001이 복원되는 것을 확인했다. Source archive의 필수 파일·private 미포함과 `SHA256SUMS` 검증도 통과했다. Source 파일/폴더 mode는 Git archive의 umask를 명시해 0644/0755로 생성한다. Archive 원본 커밋·실제 체크섬은 release manifest/SHA256SUMS를 기준으로 확인한다.
 - 앱 소스/운영 Dockerfile/의존성은 변경하지 않았다. 이전 450개 JS/TS 회귀·타입·빌드·브라우저 결과를 이번 재실행으로 표시하지 않는다.
 - 실제 NAS 설치, 네이버 로그인, 공개 HTTPS, Grok 웹/xAI, Android, NAS 백업·복구는 **미실행**.
 

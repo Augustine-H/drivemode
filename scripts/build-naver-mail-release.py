@@ -29,11 +29,16 @@ def build(output, image):
              ROOT/'services/naver-mail/requirements.txt']
     source_hashes = {str(path.relative_to(ROOT/'services/naver-mail')):
                      hashlib.sha256(path.read_bytes()).hexdigest() for path in files}
-    code = ('import pathlib,hashlib,json; paths=list(pathlib.Path("/app/naver_mail").glob("*.py"))'
-            '+[pathlib.Path("/app/requirements.txt")]; '
+    code = ('import pathlib,hashlib,json; paths=list(pathlib.Path("/app/naver_mail").glob("*.py")); '
             'print(json.dumps({str(p.relative_to("/app")):hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}))')
     image_hashes = json.loads(command('docker', 'run', '--rm', '--network=none', '--read-only',
         '--cap-drop=ALL', '--security-opt=no-new-privileges:true', '--entrypoint', 'python', image, '-c', code))
+    # Build-time lock can be root-owned 0600, runtime files owned 10001/0600.
+    # Read each as its owner; neither inspection has network/mounts/capabilities.
+    lock_code = ('import pathlib,hashlib,json; '
+                 'print(json.dumps({"requirements.txt":hashlib.sha256(pathlib.Path("/app/requirements.txt").read_bytes()).hexdigest()}))')
+    image_hashes.update(json.loads(command('docker', 'run', '--rm', '--user=0:0', '--network=none', '--read-only',
+        '--cap-drop=ALL', '--security-opt=no-new-privileges:true', '--entrypoint', 'python', image, '-c', lock_code)))
     if source_hashes != image_hashes:
         raise ValueError('image_does_not_match_tracked_runtime_source')
     # A pre-existing different release tag is never overwritten.
@@ -44,7 +49,7 @@ def build(output, image):
         command('docker', 'tag', image, TAG)
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=False)
-    source = command('git', 'archive', '--format=tar', 'HEAD', 'services/naver-mail',
+    source = command('git', '-c', 'tar.umask=0022', 'archive', '--format=tar', 'HEAD', 'services/naver-mail',
                      'docs/naver-mail-architecture.md', 'docs/naver-mail-validation.md',
                      'scripts/build-naver-mail-release.py')
     import tarfile
@@ -52,7 +57,8 @@ def build(output, image):
         for member in archive:
             path = Path(member.name)
             if (path.is_absolute() or '..' in path.parts or 'private' in path.parts
-                    or path.name == '.env' or member.issym() or member.islnk()):
+                    or (path.name.startswith('.env') and path.name != '.env.example')
+                    or member.issym() or member.islnk()):
                 raise ValueError('unsafe_source_archive_member')
     with (output/'naver-mail-source.tar.gz').open('wb') as handle:
         with gzip.GzipFile(filename='', mode='wb', fileobj=handle, mtime=0) as compressed:
