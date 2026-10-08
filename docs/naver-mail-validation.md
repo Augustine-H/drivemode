@@ -254,3 +254,9 @@ services/naver-mail/tests/verify_container.py
 - 실제 NAS 설치·새 영구 provider의 Grok 연결·실제 네이버 메일 flags audit·실제 Voice 음성/remote MCP는 **미실행**. 기존 실제 canary의 Grok 검색/Get Message/한국어 요약 증거는 새 런타임의 실제 검증으로 대체하지 않는다.
 
 [새 운영 가이드](../services/naver-mail/OAUTH_INSTALL.md)에 설치/시험 프록시 전환/실계정 제한 audit/정책 동의/실계정 전환/폐기/되돌리기와 암호화 백업을 제공한다. 공개 설치물에는 code와 compose/setup helper만 포함하며 private/state/실계정 값은 포함하지 않는다.
+
+## 2026-10-09 실제 NAS OAuth 시험과 audit 호출 수정
+
+운영자가 새 런타임의 `OAUTH_STAGING_COMPLETE=yes`/`MODE=validation` 및 명시적 Docker restart 출력을 제공했다. 재연결 없는 후속 Grok 화면에서 `Naver Mail OAuth Test Mail Get Message 사용함`과 예상 합성 본문이 확인됐다. 실제 NAS의 새 provider 도구 호출 및 재시작 후 연결 사용은 확인했으며 실제 refresh 만료/회전 동작 전체를 입증하지는 않는다.
+
+실제 메일 audit 첫 호출은 `No module named naver_mail.read_only_audit`로 실패했다. 기존 이미지의 WorkingDir `/app`에서 기존 package가 새 `/code` package보다 먼저 선택되는 문제였다. 이 실행에서는 IMAP/mail audit가 시작되지 않았다. 일회성 Docker 호출에 `--workdir /code`를 추가했다. 클라우드에서 동일한 고정 이미지/nonroot/no-network 조건으로 기존 호출 오류를 재현하고 수정 호출의 audit `--help` 기동을 확인했다. 실제 계정의 audit 결과는 여전히 미확인이다. 운영 compose는 원래 working_dir /code로 설정돼 있어 변경하지 않았다.

@@ -29,7 +29,7 @@ umask 077
 oauth_project=/volume1/docker/voice-grok-naver-mail-oauth
 docker run --rm --read-only --user 10001:10001 --cap-drop=ALL \
   --security-opt=no-new-privileges:true --network=voice-grok-naver-oauth \
-  -e PYTHONPATH=/code:/app -v "$oauth_project/code:/code:ro" \
+  --workdir /code -e PYTHONPATH=/code:/app -v "$oauth_project/code:/code:ro" \
   -v /volume1/docker/voice-grok-naver-mail/services/naver-mail/private/server:/run/mail-private:ro \
   --entrypoint python voice-grok-naver-mail:1.0.0 \
   -m naver_mail.read_only_audit > "$oauth_project/read-only-audit.json"
