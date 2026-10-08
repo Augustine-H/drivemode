@@ -2,6 +2,8 @@
 
 **2026-10-09 실계정 전환 보류:** 운영자가 실제 NAS에서 확인한 네이버 INBOX의 UIDVALIDITY는 0이다. IMAP의 nonzero uint32 epoch 요구와 맞지 않아 현재 folder+UID 식별 방식으로는 메일함 재생성 안전성을 검증할 수 없다. 접속·인증은 통과했지만 검색/audit는 실패했으며 실제 본문 검사는 미실행이다. 아래 실계정 전환 명령은 이 문제가 해결되고 audit가 통과하기 전에는 실행하지 않는다. 검증을 제거하거나 0을 임의 epoch로 바꾸지 않는다. 별도 호환 설계 없이 실계정 공개 완료로 보고하지 않는다.
 
+로그인 후 CAPABILITY 진단에서도 OBJECTID 미지원이 확인돼 MAILBOXID/EMAILID 표준 대체 경로를 사용할 수 없다. CONDSTORE/QRESYNC/IMAP4REV2도 광고되지 않았다. 추가 실제 메일 진단 대신 [네이버 문의 초안](../../docs/naver-mail-imap-support-request.md)의 공식 UID 식별 동작 확인을 진행한다. 문의는 자동 전송하지 않았다.
+
 기존 서버와 canary를 유지하는 선택 설치다. 기존 이미지 `voice-grok-naver-mail:1.0.0`의 고정 ID를 확인하고 공개 Python 코드만 읽기 전용으로 추가한다. 새로운 프로젝트는 `/volume1/docker/voice-grok-naver-mail-oauth`, 컨테이너는 `voice-grok-naver-oauth-mail-oauth-1`, 내부 포트는 3001, 호스트 주소는 **127.0.0.1:13003**이다. 3001의 uptime-kuma, 기존 13001 메일 서버, 13002 canary는 변경하지 않는다.
 
 ## 1. 시험 모드 설치

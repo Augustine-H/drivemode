@@ -268,3 +268,9 @@ services/naver-mail/tests/verify_container.py
 nonzero uint32 epoch를 사용할 수 없어 folder+UID의 메일함 재생성 안전성을 입증할 수 없다. 0을 임의 값으로 바꾸거나 검증을 비활성화하지 않는다. 오류를 `uidvalidity_unsupported`로 구분하고 audit에도 고정 코드만 표시하도록 수정했다. 0/음수/uint32 초과 epoch에서 SEARCH/FETCH 전 차단을 검사하는 회귀 3개를 추가했다. 이 변경은 별도 브랜치 코드이며 NAS 배포 파일을 이번에 갱신하거나 NAS private를 수정하지 않았다. 네이버 호환 대체 식별 방식은 아직 구현/검증하지 않았다.
 
 수정 후 Python 전체 테스트: **90 passed**, 기존 deprecation 경고 1개, 실패/skip 없음.
+
+## 2026-10-09 로그인 후 CAPABILITY 및 공식 대체 식별 경로
+
+운영자 화면에서 진단 status=passed, OBJECTID/CONDSTORE/QRESYNC/IMAP4REV2 모두 false, mail_body_read=false, credential_values_printed=false를 확인했다. OBJECTID 미지원이므로 RFC 8474의 MAILBOXID/EMAILID 경로는 사용할 수 없다. 관찰하지 않은 다른 capability 또는 네이버 전체 계정 동작은 추정하지 않는다. 기존 zero UIDVALIDITY 호환성 차단과 실계정 전환 보류를 유지한다.
+
+[네이버 고객센터 문의 초안](naver-mail-imap-support-request.md)을 준비했다. UIDVALIDITY 동작/공식 해결 방법/UID 재사용 안정성/공식 대체 읽기 전용 식별 경로를 문의하며 인증정보·메일 원문·NAS 주소는 포함하지 않는다. 문의는 전송하지 않았다. 이번 변경은 문서만으로, NAS 서비스/계정/기존 코드와 직전 Python 90개 결과를 변경하지 않았다.
