@@ -59,4 +59,3 @@ label:has(input[type=checkbox]){display:flex;align-items:center;gap:.75rem;min-h
         response = RedirectResponse(redirect,status_code=303)
         response.delete_cookie('naver_mail_consent',path='/consent')
         return response
-

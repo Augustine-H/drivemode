@@ -60,4 +60,3 @@ class SyntheticMail:
     def thread(self, folder, uid, uidvalidity, limit=10, offset=0):
         self.identity(folder, uid, uidvalidity)
         return {**self.page([dict(self.ITEM)], limit, offset), 'supported': True}
-
