@@ -49,6 +49,8 @@ Voice·health·웹 토큰은 network-none/non-privileged/read-only-root 설정 �
 
 이미 `voice-v1`·`web-v1`·`health-token`·`tokens.json`이 존재한다면 재생성이나 삭제를 하지 않는다. [deployment/nas_stage_verify.sh](deployment/nas_stage_verify.sh)를 새 root 일회성 작업에서 실행해 현재 스테이징 상태를 읽기 전용으로 확인한다. 토큰 파일과 registry hash의 일치, 역할 분리, 초기 config·Compose mapping, 제한된 권한, 실제 UID 10001의 server 파일 읽기, Compose 문법을 검사한다. 값이나 hash는 출력하지 않으며 모든 mount는 읽기 전용이다. `STAGING_VERIFIED=yes`는 이 준비 상태만 검증하고 IMAP 로그인이나 서비스 실행을 검증하지 않는다.
 
+2026-10-08 NAS 운영자가 `STAGING_FILES_CHECK=passed`, `RUNTIME_PRIVATE_READ_CHECK=passed`, `COMPOSE_CONFIG_CHECK=passed`, `STAGING_VERIFIED=yes`를 보고했다. 실제 NAS 스테이징 준비 상태는 확인됐으며 파일 변경·서비스 시작·IMAP 인증은 이 점검에서 수행하지 않았다.
+
 클라우드의 실제 Docker에서 `tests/verify_nas_stage.py --release <검증된 release 폴더>`로 새 스테이징, 원래 PermissionError 재현, 중간 상태 복구, 변경된 소스·기존 자격증명·토큰 거부, 토큰 분리 및 파일 권한을 검사한다. 실제 NAS 결과와 구분하며 네이버·Grok·xAI 연결은 하지 않는다.
 
 1. 원래 NAS의 컨테이너·listen 포트·Tailscale Serve/Tunnel·백업 구성을 기록한다. 알려진 포트는 TTS 8092, 음악 8094, 앱 8097, HTTPS 8445다. 실제 3001 사용 여부는 미확인이다. 충돌하면 새 서비스의 host port만 변경한다.
@@ -57,6 +59,8 @@ Voice·health·웹 토큰은 network-none/non-privileged/read-only-root 설정 �
 4. `tar -xzf naver-mail-source.tar.gz`로 풀고 `services/naver-mail`로 이동한다. 처음에는 기존 Compose 파일과 병합하지 않고 새 MCP 프로젝트만 구성한다.
 5. `private/server`를 새로 만들고 `config.example.json`을 바탕으로 config를 작성한다. `allowed_hosts`에는 health용 `127.0.0.1:3001`을 반드시 포함한다. Host port가 달라도 컨테이너 내부 health port는 3001이다. `web_auth_verified:false`, `token_file:/run/secrets/tokens.json`, `credentials_file:/run/secrets/imap.json`을 유지한다. Origin과 proxy CIDR는 실제 배치에 맞춰 지정한다. 이 초기 점검은 웹 게이트를 켠 설정을 거부한다.
 6. NAS의 안전한 관리 경로에서 `private/server/imap.json`의 `username`과 `password`를 입력한다. 네이버 IMAP 활성화와 앱 비밀번호가 필요하다. 채팅·Git·명령행 인자·스크린샷에 값을 넣지 않는다. Shell history에 평문 비밀번호를 남기는 heredoc/echo 명령을 사용하지 않는다.
+
+   안전한 대화형 입력 도구는 [deployment/imap_setup.py](deployment/imap_setup.py)다. 현재 NAS에 압축 해제된 예전 source archive에는 이 새 도구가 없으므로 신뢰한 최신 파일을 별도로 전송하고 pinned SHA256을 확인한다. SSH 터미널에서 관리 컨테이너의 UID 0/GID 10001, capability 제거, network none, read-only root, `private/server`만 read-write mount, 도구는 read-only mount 조건으로 직접 실행한다. 모듈 import 대신 mount한 Python 파일을 실행한다. 도구는 ID와 앱 비밀번호를 모두 숨겨 입력하고 비밀번호를 재확인하며, 0:10001/mode 0440으로 파일을 원자적으로 생성한다. 기존 파일·심볼릭 링크는 덮어쓰지 않는다. TTY가 없거나 getpass가 입력을 표시하려 하면 실패하므로 **DSM 작업 스케줄러에서는 입력 도구를 실행하지 않는다.** 비밀번호를 작업 스크립트나 명령행 인자로 넣지 않는다. 설정 저장 성공은 실제 네이버 로그인 성공을 의미하지 않는다.
 7. 별도 Voice·health·웹 토큰을 파일로 생성한다. 아래 명령은 값 대신 파일만 생성한다. 기존 NAS 인증 mount를 이 프로젝트에 재사용하지 않는다.
 
 ```sh
