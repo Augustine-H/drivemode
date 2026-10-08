@@ -55,7 +55,22 @@ AGENT_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium AGENT_BROWSER_ARGS=--no-sandbox 
 
 이번 변경 파일은 `services/naver-mail/integration/{__init__.py,https_canary.py,probe.py,self_check.py,README.md}`, `services/naver-mail/tests/test_integration_tools.py`, `services/naver-mail/.dockerignore`, `services/naver-mail/README.md`, 이 검증 문서다. 테스트 도구는 production 이미지의 build context에서도 제외한다. 신뢰 CA·개인 키·토큰·registry·실제 메일 데이터는 Git에 저장하지 않았다. 운영 단계별 설정과 미검증 항목은 [HTTPS 점검 안내](../services/naver-mail/integration/README.md)에 있다.
 
-### 최초 구현의 항목별 결과
+### 후속 작업: Voice Grok 백엔드와 HTTPS MCP 연결 검증
+
+2026-10-08 KST, 사용자의 “다음 진행”에 따라 클라우드 설정의 존재 여부만 확인했다. `NAVER_MAIL_ENABLED`, `NAVER_MAIL_MCP_URL`, `NAVER_MAIL_TOKEN_FILE`, `XAI_API_KEY`가 없고 MCP 토큰 파일도 준비되지 않아 실제 외부 연결을 실행하지 않았다. 인증정보 값은 읽거나 출력하지 않았다.
+
+기존 `naverMailEndpoint`와 별도 프로세스의 합성 HTTPS MCP 서버를 연결하는 `integration.voice_check`를 추가했다. 기존 백엔드가 만든 scope/Authorization/인자를 공식 Python SDK에 전달하고 실제 HTTPS 도구 응답을 기존 결과 해석 코드에 입력한다. xAI 계획·요약·remote 응답 envelope는 모의 값이며 실제 유료 API에 접근하지 않는다. Node 기본 fetch는 테스트에서 차단된다.
+
+앱 identity/Origin 거부, 7개 도구, 한글 목록 → 실제 반환된 메시지 선택 → 원문/TTS용 텍스트/모의 요약, scope 확대 거부, UIDVALIDITY 변경 안내, 쓰기 명령 upstream 호출 차단, 폐기 토큰의 한국어 오류, no-store 및 토큰/API 키/기억 미포함을 확인했다. SDK 연결은 11회 시도했으며 마지막은 폐기 토큰으로 인증 실패를 기대하는 경우다. 실제 route HTTP listener·Tailscale proxy·브라우저·음성 재생은 이 도구에서 시험하지 않는다.
+
+- 전체 Python 재실행: **42 passed**, failed/skipped 0, 기존 TestClient deprecation warning 1건. 신규 4개 테스트는 외부/HTTP 주소·쓰기 도구를 SDK bridge가 연결 전에 거부하는 것과 전체 Voice 흐름이다.
+- 전체 `npm test` 재실행: **450 passed** = 395 + 55, failed/skipped 0.
+- `git diff --check`: 통과. 앱/production 서버/의존성/Docker 설정은 변경하지 않았으며 이전 타입·빌드·UI·Docker 검증을 이번 재실행으로 표시하지 않는다.
+- 실제 네이버·NAS·공개 HTTPS·Grok 웹·xAI·Android 마이크/TTS는 **미실행**. 보고서도 `xai_verified`, `grok_web_verified`, `android_voice_verified`를 false로 반환한다. 외부 연결 전에 서버 private 토큰 파일·HTTPS URL·서버 전용 xAI 키와 인증된 NAS 앱 설정이 필요하며 채팅/Git에 값 자체를 제공하지 않는다.
+
+변경 파일: `services/naver-mail/integration/{sdk_bridge.py,voice_check.py,voice_flow.mjs,README.md}`, `services/naver-mail/tests/test_voice_flow.py`, 이 문서. 테스트 서버와 private 파일은 종료 시 정리했으며 실제 인증정보를 생성·커밋하지 않았다. 기존 합성 토큰도 임시 파일로만 존재한다.
+
+### 최초 구현의 18개 항목별 결과
 
 | # | 요청 항목 | 자동 검증 | 실제 통합 |
 |---|---|---|---|

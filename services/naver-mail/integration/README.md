@@ -8,6 +8,7 @@
 
 ```sh
 python -m integration.self_check
+python -m integration.voice_check
 python -m pytest -q
 ```
 
@@ -25,6 +26,14 @@ python -m pytest -q
 - 새 서버 프로세스에서 새 토큰 정상 사용, 폐기된 토큰 계속 거부
 
 이 테스트는 IMAP·Docker·NAS 재시작 시험을 대체하지 않는다. 기존 IMAP/Docker 자동 테스트는 별도이며, 합성 객체의 조회가 실제 네이버 검색 동작을 입증하지 않는다.
+
+### Voice Grok 백엔드와 HTTPS 서버 연결
+
+`voice_check`는 Node 24와 Python 테스트 환경을 사용해 기존 `naverMailEndpoint`를 그대로 실행하고, 백엔드가 만든 remote MCP 요청의 Authorization·scope·인자를 공식 Python SDK로 전달한다. SDK는 임시 합성 서버에 실제 HTTPS로 연결한다. 메일 도구 결과를 기존 백엔드가 해석하고 사용자 응답과 TTS용 텍스트를 만드는 것까지 검사한다.
+
+xAI 계획·요약·`mcp_call` envelope는 명시적인 모의 응답이다. 실제 xAI 요청은 하지 않으며 Node의 기본 fetch는 차단한다. 백엔드가 사용하는 상수 API 키도 합성 값이다. 따라서 이 테스트는 모델의 실제 tool 선택·요약 품질·출력 형식 호환성을 입증하지 않는다. Node HTTP route listener, 실제 Tailscale proxy, 브라우저, Android 마이크·TTS 재생도 실행하지 않는다.
+
+검증 흐름은 앱 identity/Origin 거부 → 한글 목록 → 반환된 메시지 선택 → 원문/TTS 텍스트 → tool 없는 합성 요약 → 나머지 도구 조회 → scope 확대 거부 → UIDVALIDITY 변경 안내 → 쓰기 요청의 upstream 호출 차단 → 폐기 토큰의 한국어 오류다. 응답의 no-store, 토큰/API 키 미포함, 기존 기억/history 미전달도 검사한다. 총 11회 SDK 연결 시도 중 마지막은 폐기 토큰의 인증 실패를 기대하는 경우다. 보고서는 본문·토큰을 출력하지 않으며 서버와 private 파일을 정리한다.
 
 ## 지속 실행용 합성 서버
 
@@ -65,6 +74,7 @@ python -m integration.probe \
 | 단계 | 필요한 설정 | 이번 작업 상태 |
 | --- | --- | --- |
 | 로컬 합성 HTTPS 및 토큰 회전·재시작 | 자동 생성 fixture | 통과 |
+| 기존 Voice Grok 백엔드와 합성 HTTPS MCP 연결 | 자동 생성 fixture·모의 xAI·Node 24 | 통과 |
 | 공개 HTTPS ingress의 TLS·Host·Origin·무인증 차단 | 별도 proxy/Tunnel·DNS·전용 토큰 | 미실행 |
 | Grok 웹 Custom 인증·도구 인식·합성 조회 | 공식 웹의 실제 인증 UI 검증 | 미실행 |
 | xAI Responses remote MCP의 scope 헤더·결과 형식·요약 | 서버 전용 API 키·합성 HTTPS endpoint | 미실행 |
