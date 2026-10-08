@@ -242,3 +242,15 @@ services/naver-mail/tests/test_mcp.py
 services/naver-mail/tests/test_transport.py
 services/naver-mail/tests/verify_container.py
 ```
+
+## 2026-10-08 영구 OAuth 운영 런타임 — 클라우드 검증
+
+공식 SDK의 7개 읽기 전용 도구를 공유하는 dual OAuth/Voice Bearer 서버를 별도 프로젝트로 구현했다. 모드 및 계정에 grant를 묶어 시험 token의 실계정 승격을 금지했다. AES-GCM SQLite 저장소, 동시 code 교환, refresh 회전·재사용 탐지, owner/전체 grant 폐기, xAI 데이터 전달 필수 동의, 숨김 승인 암호 설정과 root 전환 게이트를 추가했다. 기존 SDK/이미지의 hash 잠금은 유지하며 cryptography 50.0.2는 기존 잠금에 이미 포함된 버전을 직접 의존성으로 명시했다.
+
+- Python 전체: **87 passed**, 1 Starlette/httpx 기존 deprecation warning, 실패/skip 없음. Fake IMAP의 UIDVALIDITY·모든 flags·SEEN 유지, 빈 INBOX를 통과시키지 않는 audit 검증 포함.
+- `node --test scripts/naver-mail.test.mjs`: **11 passed**. 기존 Voice scope/페르소나/TTS/Google 흐름 계약 회귀 확인. 이번 후속 작업에는 Android/TypeScript 소스를 변경하지 않았으며 전체 앱 빌드·전체 JS suite는 이번 단계에서 재실행하지 않았다.
+- `tests/verify_production_oauth_nas_stage.py`: 실제 Docker에서 root/TTY 설치, nonroot/read-only, loopback13003 분리, 원본 private 미mount, SDK 합성 도구 호출, 기존 access token의 restart 복구, refresh 회전 및 replay 후 family 폐기, 새 모드 공개·복귀 및 정책 미동의 거부 통과. 실제 계정은 사용하지 않았다.
+- TLS 검증을 유지하고 로컬 test CA를 명시적으로 신뢰한 브라우저 fixture에서 PC 1280×800/모바일390×844 화면 확인. 가로 넘침 없음, 버튼44px, xAI 안내·필수 동의, 틀린 승인 암호 오류 표시 확인. 화면은 합성 데이터만 사용했다.
+- 실제 NAS 설치·새 영구 provider의 Grok 연결·실제 네이버 메일 flags audit·실제 Voice 음성/remote MCP는 **미실행**. 기존 실제 canary의 Grok 검색/Get Message/한국어 요약 증거는 새 런타임의 실제 검증으로 대체하지 않는다.
+
+[새 운영 가이드](../services/naver-mail/OAUTH_INSTALL.md)에 설치/시험 프록시 전환/실계정 제한 audit/정책 동의/실계정 전환/폐기/되돌리기와 암호화 백업을 제공한다. 공개 설치물에는 code와 compose/setup helper만 포함하며 private/state/실계정 값은 포함하지 않는다.

@@ -109,3 +109,7 @@ python -m naver_mail.manage_tokens add --registry private/server/tokens.json \
 5. Voice Grok: 인증된 NAS 사용자로 텍스트/실제 Android 음성 요청 → 한국어 목록·선택·요약·TTS, 페르소나 유지, Google 회귀, reload/백업/기억에 메일 데이터 없는지 검증. 다른 NAS identity와 Origin은 403, Android network 응답에 backend token이 없는지 검사한다.
 
 각 단계는 실제 성공 후에만 완료로 표시한다. 자동 fixture 시험은 위 통합 성공을 대체하지 않는다. [검증 기록](../../docs/naver-mail-validation.md)과 [백업/복구](RECOVERY.md)를 참고한다.
+
+## 선택 설치: 재시작에 대응하는 OAuth
+
+[OAUTH_INSTALL.md](OAUTH_INSTALL.md)에 별도 13003 시험 모드 설치, Grok 검증, 실계정 읽기 전용 검사와 동의, 전환·되돌리기·폐기·백업 절차를 정리했다. 기존 13001 서버와 Google/TTS 흐름은 유지한다. 새 영구 OAuth 런타임의 실제 NAS/Grok 검증과 실제 메일 flag 검사는 아직 실행하지 않았다.

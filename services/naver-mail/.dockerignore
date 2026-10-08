@@ -6,3 +6,4 @@ integration
 __pycache__
 .pytest_cache
 .venv
+state

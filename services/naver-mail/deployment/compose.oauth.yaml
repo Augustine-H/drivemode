@@ -1,0 +1,35 @@
+services:
+  mail-oauth:
+    image: voice-grok-naver-mail:1.0.0
+    entrypoint: [python, -m, naver_mail.oauth_server]
+    working_dir: /code
+    environment:
+      PYTHONPATH: /code:/app
+    user: "10001:10001"
+    ports: ["127.0.0.1:13003:3001"]
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - ./code:/code:ro
+      - ./private:/oauth-private:ro
+      - ./state:/oauth-state
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    mem_limit: 384m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options: {max-size: 5m, max-file: "3"}
+    healthcheck:
+      test: [CMD, python, -m, naver_mail.oauth_health]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks: [oauth-only]
+networks:
+  oauth-only:
+    external: true
+    name: voice-grok-naver-oauth

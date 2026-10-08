@@ -1,0 +1,5 @@
+# Opt-in only after the bounded read-only audit succeeds and grants are reset.
+services:
+  mail-oauth:
+    volumes:
+      - /volume1/docker/voice-grok-naver-mail/services/naver-mail/private/server:/run/mail-private:ro
