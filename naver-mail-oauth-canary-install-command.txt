@@ -1,0 +1,17 @@
+# Run the WHOLE block in your existing interactive NAS SSH terminal.
+# sudo Password: your NAS login password, if requested.
+# New CANARY-only approval passphrase: choose a NEW 16+ character test phrase.
+# Do not reuse your NAS/Naver password or share any password/token.
+# This installs only synthetic data. DSM reverse proxy is a separate next step.
+(
+set -eu
+umask 077
+nas_canary_download=$(mktemp -d /tmp/naver-mail-canary.XXXXXX)
+trap 'rm -f "$nas_canary_download/bundle.tar.gz" "$nas_canary_download/stage.sh"; rmdir "$nas_canary_download"' 0
+cd "$nas_canary_download"
+curl --fail --show-error --location --proto '=https' --tlsv1.2 'https://raw.githubusercontent.com/Augustine-H/drivemode/bad9a9230f241fc528091f5d2bb706affef37e1e/naver-mail-oauth-canary.tar.gz' -o bundle.tar.gz
+curl --fail --show-error --location --proto '=https' --tlsv1.2 'https://raw.githubusercontent.com/Augustine-H/drivemode/4a58c437c784dc17431ee0573e4de242488373ff/services/naver-mail/deployment/nas_canary_stage.sh' -o stage.sh
+printf '%s\n' 'e05d928f0d0027fd5f710b528f47e3ec26ff66f09021cc0130ecbe779d0fd2b7  bundle.tar.gz' '0c1e9b2adfaa6152c64c940ecf9d21714f2f34192e8b1c4287c58333570931ef  stage.sh' | sha256sum -c -
+sudo cp -n bundle.tar.gz /volume1/docker/voice-grok-naver-mail-release/naver-mail-oauth-canary.tar.gz
+sudo env NAS_CANARY_BUNDLE_SHA256=e05d928f0d0027fd5f710b528f47e3ec26ff66f09021cc0130ecbe779d0fd2b7 NAS_CANARY_ISSUER=https://imhmh.synology.me:8446 sh "$nas_canary_download/stage.sh"
+)
