@@ -153,6 +153,13 @@ Grok Custom 초기 화면에는 이름·서버 URL만 있다는 운영자 확인
 - 같은 클라우드 경로의 기존 DSM HTTPS 5119는 HTTP 200을 반환했다. 직접 TCP는 8446·5119 모두 거부되어 직접 경로의 실패만으로 NAS 포트 문제를 확정하지 않는다.
 - 외부 NAS TLS 인증서, OAuth metadata, 무인증 MCP 401은 **미검증**이다. 운영자 측 외부 접속 결과와 NAT/firewall 경로를 확인한 뒤 재점검한다. TLS 검증을 끄거나 실계정 13001을 공개하지 않는다.
 
+## 운영자 브라우저 응답과 Grok 첫 연결 실패
+
+- 운영자 모바일 브라우저에서 `/mcp` 요청 후 SDK JSON `invalid_token` / `Authentication required` 화면을 확인했다. 브라우저 주소 표시줄은 호스트만 표시했고 HTTP status/인증서 chain은 화면에 없으므로 401 status나 전체 TLS chain 검사 성공으로 확대하지 않는다.
+- Grok Custom에서 시험 URL 등록 후 연결 실패 화면이 나왔다. 승인 화면이나 도구 인식 성공은 확인되지 않았다.
+- NAS의 인증된 loopback diagnostic은 registered_clients=0, pending_consents=0, active_grants=0, denied_redirect_origins=[]를 반환했다. 이는 완료된 OAuth 등록/승인/콜백 거부 기록이 없다는 뜻이며, metadata 또는 실패한 등록 요청이 전혀 없었다는 증거는 아니다.
+- 클라우드에서 HTTPS 8446 metadata와 `/mcp` 재점검은 upstream timeout 503이었다. 443 metadata도 같은 timeout으로 해당 후보가 사용 가능한 공개 경로라고 판단하지 않는다. 외부 접속 정책과 운영자 측 정확한 metadata 응답은 추가 확인이 필요하다. 실계정 웹 게이트는 유지한다.
+
 ## 단계 완료 상태와 위험
 
 1. 기존 프로젝트/공식 문서/실제 SDK 버전 조사: 완료.
