@@ -1,9 +1,10 @@
 import { allowedVideoSource } from "./video-source";
+import { networkFetch } from './network.ts';
 // Sample visual frames only; audio is not transcribed by this feature.
 export async function videoFrames(url: string): Promise<string[]> {
   let objectUrl: string | undefined;
   if (allowedVideoSource(url)) {
-    const response = await fetch("/api/video-source?url=" + encodeURIComponent(url), {
+    const response = await networkFetch("/api/video-source?url=" + encodeURIComponent(url), {
       signal: AbortSignal.timeout(20000),
     });
     if (!response.ok) throw new Error("영상 주소가 만료되었거나 영상을 읽을 수 없습니다.");

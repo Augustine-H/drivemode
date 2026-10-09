@@ -1,5 +1,6 @@
 import { musicUrl, type MusicArtifact, type MusicJob, type MusicRequest } from "./music-model";
 import type { PaidPricing } from "./transcription-providers";
+import { networkConfigured, networkBase, networkFetch } from './network.ts';
 export const MUSIC_CONNECTION_CHANGED = "voice-grok-music-connection-changed";
 export type MusicConnection = { url: string; token: string };
 let current: MusicConnection | undefined;
@@ -17,7 +18,8 @@ function db() {
     r.onerror = () => reject(new Error("음악 연결 저장소를 열지 못했습니다."));
   });
 }
-export async function connection(): Promise<MusicConnection> {
+export async function connection(legacyOnly = false): Promise<MusicConnection> {
+  if (!legacyOnly && networkConfigured()) return { url: (await networkBase() || window.location.origin) + '/api/music', token: '' };
   if (!loaded) {
     const d = await db();
     try {
@@ -43,6 +45,14 @@ export async function connection(): Promise<MusicConnection> {
   }
   if (!current) throw new Error("설정 → 음악 생성에서 NAS 연결을 먼저 저장해 주세요.");
   return current;
+}
+export async function musicSourceMatches(source: string, selected: string) {
+  if (source === selected) return true;
+  if (!networkConfigured()) return false;
+  const { networkConfig } = await import('./network.ts');
+  const config = networkConfig();
+  if ([config.https, config.lan, config.tailscale, window.location.origin].filter(Boolean).map(base => base + '/api/music').includes(source)) return true;
+  try { return source === (await connection(true)).url; } catch { return false; }
 }
 export async function saveConnection(input: MusicConnection) {
   const value = { url: musicUrl(input.url), token: input.token.trim() };
@@ -94,7 +104,10 @@ async function request(path: string, options: RequestInit = {}, config?: MusicCo
   const c = config ?? (await connection());
   let response: Response;
   try {
-    response = await fetch(c.url + path, {
+    const proxy = networkConfigured() && !config;
+    response = await (proxy ? networkFetch('/api/music' + path, {
+      ...options, cache: 'no-store', signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(30000)]) : AbortSignal.timeout(30000),
+    }) : fetch(c.url + path, {
       ...options,
       credentials: "omit",
       redirect: "error",
@@ -103,11 +116,11 @@ async function request(path: string, options: RequestInit = {}, config?: MusicCo
       signal: options.signal
         ? AbortSignal.any([options.signal, AbortSignal.timeout(30000)])
         : AbortSignal.timeout(30000),
-    });
+    }));
   } catch (e) {
     if (options.signal?.aborted) throw e;
     throw new Error(
-      "NAS에 연결하지 못했습니다. 이 기기의 Tailscale 연결, NAS 상태, 브라우저의 로컬 네트워크 권한을 확인하세요. 기존 작업은 유지됩니다.",
+      "NAS에 연결하지 못했습니다. HTTPS 또는 선택한 네트워크 연결과 서버 상태를 확인하세요. 기존 작업은 유지됩니다.",
     );
   }
   if (!response.ok) {

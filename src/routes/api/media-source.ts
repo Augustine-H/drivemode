@@ -9,10 +9,12 @@ export const Route = createFileRoute("/api/media-source")({
           return new Response("허용되지 않은 원본 주소", { status: 400 });
         try {
           const upstream = await fetch(url, {
+            headers: request.headers.has('range') ? { Range: request.headers.get('range')!, ...(request.headers.get('if-range') ? { 'If-Range': request.headers.get('if-range')! } : {}) } : undefined,
             redirect: "manual",
             signal: AbortSignal.any([request.signal, AbortSignal.timeout(30000)]),
           });
           const type = upstream.headers.get("content-type")?.split(";")[0] ?? "";
+          if (upstream.status === 416) { await upstream.body?.cancel(); return new Response(null, { status: 416, headers: { 'content-range': upstream.headers.get('content-range') || 'bytes */*', 'cache-control': 'no-store' } }); }
           const limit = 200 * 1024 * 1024;
           if (
             !upstream.ok ||
@@ -49,7 +51,11 @@ export const Route = createFileRoute("/api/media-source")({
             },
           });
           return new Response(body, {
+            status: upstream.status,
             headers: {
+              ...(upstream.headers.get('content-range') ? { 'content-range': upstream.headers.get('content-range')! } : {}),
+              ...(upstream.headers.get('accept-ranges') ? { 'accept-ranges': upstream.headers.get('accept-ranges')! } : {}),
+              ...(upstream.headers.get('etag') ? { etag: upstream.headers.get('etag')! } : {}),
               "content-type": type,
               "cache-control": "private, no-store",
               "x-content-type-options": "nosniff",

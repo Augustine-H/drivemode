@@ -1,6 +1,7 @@
 import { mediaGet, mediaPut, mediaTransaction } from "./media-db.ts";
 import { validMediaId, type MediaItem } from "./media-model.ts";
 import { allowedMediaSource } from "./media-source.ts";
+import { networkFetch } from './network.ts';
 export const MAX_MEDIA_BYTES = 200 * 1024 * 1024;
 export interface MediaStorageAdapter {
   id: "opfs" | "idb";
@@ -109,7 +110,7 @@ export async function sourceBlob(url: string): Promise<Blob> {
   if (!/^(https:|blob:|data:(image|audio|video)\/)/.test(url))
     throw new Error("미디어 원본 주소가 올바르지 않습니다.");
   const target = allowedMediaSource(url) ? "/api/media-source?url=" + encodeURIComponent(url) : url;
-  const response = await fetch(target, { credentials: "omit", signal: AbortSignal.timeout(30000) });
+  const response = await (target.startsWith('/api/') ? networkFetch(target, { signal: AbortSignal.timeout(30000) }) : fetch(target, { credentials: "omit", signal: AbortSignal.timeout(30000) }));
   if (!response.ok) throw new Error("원본 접근 실패: 링크 만료·CORS·권한을 확인하세요.");
   if (Number(response.headers.get("content-length")) > MAX_MEDIA_BYTES)
     throw new Error("원본이 200MiB보다 큽니다.");

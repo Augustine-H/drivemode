@@ -1,4 +1,5 @@
 import { workspaceConversation } from './google-workspace-client.ts';
+import { networkFetch } from './network.ts';
 import type { AskResult } from "@/lib/ask-grok";
 import type { AskTurn } from "@/lib/ask-prompt";
 
@@ -21,7 +22,7 @@ export async function streamAsk(
 ): Promise<AskResult> {
   const workspace=input.workspaceResult?await input.workspaceResult:input.workspace?await workspaceConversation(input.message,signal,input.image):null;
   if(workspace!==null) {onText(workspace,workspace);return {ok:true,text:workspace,voiceText:workspace};}
-  const res = await fetch("/api/ask", {
+  const res = await networkFetch("/api/ask", {
     signal,
     method: "POST",
     headers: { "content-type": "application/json", accept: "text/event-stream" },

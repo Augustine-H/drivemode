@@ -3,6 +3,7 @@ import { selectRecent } from "@/lib/context-budget";
 import { MemorySettings } from "@/components/memory-settings";
 import { StorageSettings } from "@/components/storage-settings";
 import { MusicSettings } from "@/components/music-settings";
+import { NetworkSettings } from '@/components/network-settings';
 import { MusicJobCard } from "@/components/music-job";
 import {
   musicRequest,
@@ -4393,6 +4394,7 @@ export function ReaderApp() {
                   <summary className="min-h-11 cursor-pointer py-3 font-medium">Google 일정 · Drive · Gmail</summary>
                   <GoogleWorkspaceSettings />
                 </details>
+                <NetworkSettings />
                 <details className="rounded-2xl border border-line p-3">
                   <summary className="min-h-11 cursor-pointer py-3 font-medium">
                     목소리 · 재생

@@ -1,15 +1,18 @@
 import { GOOGLE_APP_ORIGIN,GOOGLE_BACKEND_ORIGIN,workspaceIntent,mailReadMode,type WorkspaceProposal } from './google-workspace-contract.ts';
+import { networkConfigured, networkFetch, networkBase, networkConfig } from './network.ts';
 export function workspaceEndpoint(action:string) {
-  const base=typeof window!=='undefined' && window.location.origin===GOOGLE_APP_ORIGIN?GOOGLE_BACKEND_ORIGIN:'';
+  const base=!networkConfigured() && typeof window!=='undefined' && window.location.origin===GOOGLE_APP_ORIGIN?GOOGLE_BACKEND_ORIGIN:'';
   return `${base}/api/google-workspace/${action}`;
 }
 export function connectWorkspace() {
   const origin=window.location.origin;
+  if (networkConfigured()) { void networkBase().then(base => { const target = networkConfig().https || base || origin; window.location.assign(`${target}/api/google-workspace/connect?returnOrigin=${encodeURIComponent(origin)}`); }).catch(() => window.alert('서버 연결을 먼저 확인하세요.')); return; }
   window.location.assign(`${workspaceEndpoint('connect')}?returnOrigin=${encodeURIComponent(origin)}`);
 }
 export async function workspaceRequest(action:string,params:Record<string,string>={},body?:unknown,signal?:AbortSignal) {
   try {
-    const res=await fetch(`${workspaceEndpoint(action)}?${new URLSearchParams(params)}`,{method:body===undefined?'GET':'POST',headers:body===undefined?undefined:{'content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),credentials:'omit',cache:'no-store',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(90000)]):AbortSignal.timeout(90000)});
+    const init:RequestInit={method:body===undefined?'GET':'POST',headers:body===undefined?undefined:{'content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),credentials:'omit',cache:'no-store',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(90000)]):AbortSignal.timeout(90000)};
+    const res=await (networkConfigured()?networkFetch(`/api/google-workspace/${action}?${new URLSearchParams(params)}`,init):fetch(`${workspaceEndpoint(action)}?${new URLSearchParams(params)}`,init));
     const data=await res.json();if(!res.ok)throw new Error(data.error || 'Google 서비스 요청을 완료하지 못했습니다.');return data;
   } catch(e) {if(e instanceof TypeError)throw new Error('NAS/Tailscale 서버에 연결하지 못했습니다. Tailscale 연결과 NAS 앱 접근을 확인하세요.');if(e instanceof DOMException && e.name==='TimeoutError')throw new Error('Google 요청이 지연됩니다. 변경 작업은 실제 결과를 조회한 뒤 다시 시도하세요.');throw e;}
 }

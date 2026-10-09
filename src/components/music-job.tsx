@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   connection,
+  musicSourceMatches,
   submitMusic,
   getMusic,
   cancelMusic,
@@ -64,7 +65,7 @@ export function MusicJobCard({
     async function tick() {
       try {
         const c = await connection();
-        if (c.url !== record.current.source)
+        if (!await musicSourceMatches(record.current.source, c.url))
           throw new Error("이 작업의 NAS와 현재 연결 주소가 다릅니다. 원래 NAS에 연결하세요.");
         if (!record.current.jobId && !musicRequestAuthorized(record.current.request.requestId))
           throw new Error(

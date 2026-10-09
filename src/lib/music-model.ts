@@ -179,11 +179,11 @@ export function musicUrl(raw: string) {
     u.password ||
     u.search ||
     u.hash ||
-    u.pathname !== "/" ||
-    !u.hostname.endsWith(".ts.net")
+    (u.pathname !== "/" && u.pathname !== '/api/music') ||
+    (!u.hostname.endsWith(".ts.net") && u.pathname !== '/api/music')
   )
-    throw new Error("Tailscale NAS의 HTTPS 주소를 입력해 주세요. 주소에 키를 넣지 마세요.");
-  return u.origin;
+    throw new Error("기존 Tailscale HTTPS 또는 공인 HTTPS의 /api/music 주소를 입력하세요. 주소에 키를 넣지 마세요.");
+  return u.origin + (u.pathname === '/api/music' ? '/api/music' : '');
 }
 export const musicStateLabel = (state?: string, kind?: MusicRequest['kind']): string =>
   kind === "recognition" && state === "CANCELLED" ? "노래 인식 취소됨" :

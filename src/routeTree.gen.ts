@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as HealthRouteImport } from './routes/health'
 import { Route as ApiAskRouteImport } from './routes/api/ask'
 import { Route as ApiGoogleTtsRouteImport } from './routes/api/google-tts'
 import { Route as ApiGoogleWorkspaceRouteImport } from './routes/api/google-workspace'
@@ -17,10 +18,17 @@ import { Route as ApiMediaSourceRouteImport } from './routes/api/media-source'
 import { Route as ApiVideoSourceRouteImport } from './routes/api/video-source'
 import { Route as ApiGoogleWorkspaceSplatRouteImport } from './routes/api/google-workspace/$'
 import { Route as ApiGoogleWorkspaceCallbackRouteImport } from './routes/api/google-workspace/callback'
+import { Route as ApiMusicSplatRouteImport } from './routes/api/music/$'
+import { Route as ApiNetworkSplatRouteImport } from './routes/api/network/$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HealthRoute = HealthRouteImport.update({
+  id: '/health',
+  path: '/health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAskRoute = ApiAskRouteImport.update({
@@ -59,9 +67,20 @@ const ApiGoogleWorkspaceCallbackRoute =
     path: '/callback',
     getParentRoute: () => ApiGoogleWorkspaceRoute,
   } as any)
+const ApiMusicSplatRoute = ApiMusicSplatRouteImport.update({
+  id: '/api/music/$',
+  path: '/api/music/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiNetworkSplatRoute = ApiNetworkSplatRouteImport.update({
+  id: '/api/network/$',
+  path: '/api/network/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/health': typeof HealthRoute
   '/api/ask': typeof ApiAskRoute
   '/api/google-tts': typeof ApiGoogleTtsRoute
   '/api/google-workspace': typeof ApiGoogleWorkspaceRouteWithChildren
@@ -69,9 +88,12 @@ export interface FileRoutesByFullPath {
   '/api/video-source': typeof ApiVideoSourceRoute
   '/api/google-workspace/$': typeof ApiGoogleWorkspaceSplatRoute
   '/api/google-workspace/callback': typeof ApiGoogleWorkspaceCallbackRoute
+  '/api/music/$': typeof ApiMusicSplatRoute
+  '/api/network/$': typeof ApiNetworkSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/health': typeof HealthRoute
   '/api/ask': typeof ApiAskRoute
   '/api/google-tts': typeof ApiGoogleTtsRoute
   '/api/google-workspace': typeof ApiGoogleWorkspaceRouteWithChildren
@@ -79,10 +101,13 @@ export interface FileRoutesByTo {
   '/api/video-source': typeof ApiVideoSourceRoute
   '/api/google-workspace/$': typeof ApiGoogleWorkspaceSplatRoute
   '/api/google-workspace/callback': typeof ApiGoogleWorkspaceCallbackRoute
+  '/api/music/$': typeof ApiMusicSplatRoute
+  '/api/network/$': typeof ApiNetworkSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/health': typeof HealthRoute
   '/api/ask': typeof ApiAskRoute
   '/api/google-tts': typeof ApiGoogleTtsRoute
   '/api/google-workspace': typeof ApiGoogleWorkspaceRouteWithChildren
@@ -90,11 +115,14 @@ export interface FileRoutesById {
   '/api/video-source': typeof ApiVideoSourceRoute
   '/api/google-workspace/$': typeof ApiGoogleWorkspaceSplatRoute
   '/api/google-workspace/callback': typeof ApiGoogleWorkspaceCallbackRoute
+  '/api/music/$': typeof ApiMusicSplatRoute
+  '/api/network/$': typeof ApiNetworkSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/health'
     | '/api/ask'
     | '/api/google-tts'
     | '/api/google-workspace'
@@ -102,9 +130,12 @@ export interface FileRouteTypes {
     | '/api/video-source'
     | '/api/google-workspace/$'
     | '/api/google-workspace/callback'
+    | '/api/music/$'
+    | '/api/network/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/health'
     | '/api/ask'
     | '/api/google-tts'
     | '/api/google-workspace'
@@ -112,9 +143,12 @@ export interface FileRouteTypes {
     | '/api/video-source'
     | '/api/google-workspace/$'
     | '/api/google-workspace/callback'
+    | '/api/music/$'
+    | '/api/network/$'
   id:
     | '__root__'
     | '/'
+    | '/health'
     | '/api/ask'
     | '/api/google-tts'
     | '/api/google-workspace'
@@ -122,15 +156,20 @@ export interface FileRouteTypes {
     | '/api/video-source'
     | '/api/google-workspace/$'
     | '/api/google-workspace/callback'
+    | '/api/music/$'
+    | '/api/network/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  HealthRoute: typeof HealthRoute
   ApiAskRoute: typeof ApiAskRoute
   ApiGoogleTtsRoute: typeof ApiGoogleTtsRoute
   ApiGoogleWorkspaceRoute: typeof ApiGoogleWorkspaceRouteWithChildren
   ApiMediaSourceRoute: typeof ApiMediaSourceRoute
   ApiVideoSourceRoute: typeof ApiVideoSourceRoute
+  ApiMusicSplatRoute: typeof ApiMusicSplatRoute
+  ApiNetworkSplatRoute: typeof ApiNetworkSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -140,6 +179,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/health': {
+      id: '/health'
+      path: '/health'
+      fullPath: '/health'
+      preLoaderRoute: typeof HealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/ask': {
@@ -191,6 +237,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGoogleWorkspaceCallbackRouteImport
       parentRoute: typeof ApiGoogleWorkspaceRoute
     }
+    '/api/music/$': {
+      id: '/api/music/$'
+      path: '/api/music/$'
+      fullPath: '/api/music/$'
+      preLoaderRoute: typeof ApiMusicSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/network/$': {
+      id: '/api/network/$'
+      path: '/api/network/$'
+      fullPath: '/api/network/$'
+      preLoaderRoute: typeof ApiNetworkSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -209,21 +269,25 @@ const ApiGoogleWorkspaceRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  HealthRoute: HealthRoute,
   ApiAskRoute: ApiAskRoute,
   ApiGoogleTtsRoute: ApiGoogleTtsRoute,
   ApiGoogleWorkspaceRoute: ApiGoogleWorkspaceRouteWithChildren,
   ApiMediaSourceRoute: ApiMediaSourceRoute,
   ApiVideoSourceRoute: ApiVideoSourceRoute,
+  ApiMusicSplatRoute: ApiMusicSplatRoute,
+  ApiNetworkSplatRoute: ApiNetworkSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
 
 import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
+import type { startInstance } from './start.ts'
 declare module '@tanstack/react-start' {
   interface Register {
     ssr: true
     router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
   }
 }

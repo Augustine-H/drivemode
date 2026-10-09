@@ -44,7 +44,7 @@ export function MusicSettings({ onRecover }: { onRecover: (music: MusicRecord) =
       <div className="mt-4 space-y-4 text-sm">
         <p className="text-muted">
           “잔잔한 피아노 음악 30초 만들어줘”라고 말하거나 채팅에 입력하세요. 1~120초 연주곡을
-          생성합니다. 이 기기와 NAS가 같은 Tailscale에 연결되어 있어야 합니다.
+          생성합니다. 서버 연결 설정을 사용하면 인증된 HTTPS를 통해 연결됩니다. 기존 Tailscale 전용 연결 설정도 유지됩니다.
         </p>
         <label className="block space-y-2">
           NAS 음악 HTTPS 주소

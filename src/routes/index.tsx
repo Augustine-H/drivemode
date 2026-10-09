@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ReaderApp } from "@/components/reader-app";
 import { AppSecurity } from "@/components/app-security";
+import { PublicAccessGate } from '@/components/public-access-gate';
 
 export const Route = createFileRoute("/")({ component: Home });
 
 function Home() {
   return (
-    <AppSecurity>
+    <PublicAccessGate><AppSecurity>
       <ReaderApp />
-    </AppSecurity>
+    </AppSecurity></PublicAccessGate>
   );
 }
