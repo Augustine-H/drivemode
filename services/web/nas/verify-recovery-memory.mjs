@@ -37,6 +37,25 @@ if(manifest.googleWorkspace===true && !isPC){
   googleWorkspaceRestorable=typeof session.refreshToken==='string'&&session.refreshToken.length>0&&Array.isArray(session.scopes)&&session.scopes.length>0;
   if(!googleWorkspaceRestorable)throw Error('Google account is not connected in snapshot');
 }
+let naverMailRestorable=false,naverDraftsRestorable=0;
+const naverKey=files.get('web/naver/key'),naverBytes=files.get('web/naver/credentials.enc');
+if(naverKey||naverBytes){
+  if(naverKey?.length!==32||!naverBytes||naverBytes.length<28)throw Error('Naver recovery data missing');
+  const decrypt=createDecipheriv('aes-256-gcm',naverKey,naverBytes.subarray(0,12));
+  decrypt.setAAD(Buffer.from('voicegrok-naver-v1'));decrypt.setAuthTag(naverBytes.subarray(12,28));
+  const account=JSON.parse(Buffer.concat([decrypt.update(naverBytes.subarray(28)),decrypt.final()]).toString());
+  naverMailRestorable=!!account&&typeof account.email==='string'&&account.email.endsWith('@naver.com')&&typeof account.password==='string'&&account.password.length>=8&&typeof account.generation==='string';
+  if(account&&!naverMailRestorable)throw Error('Invalid Naver recovery credentials');
+  for(const [name,bytes] of files){
+    if(!/^web\/naver\/draft-[a-f0-9]{64}\.enc$/.test(name))continue;
+    if(!naverMailRestorable||bytes.length<28)throw Error('Naver draft recovery data missing');
+    const draftDecrypt=createDecipheriv('aes-256-gcm',naverKey,bytes.subarray(0,12));
+    draftDecrypt.setAAD(Buffer.from('voicegrok-naver-draft-v1:'+name.split('/').at(-1)));draftDecrypt.setAuthTag(bytes.subarray(12,28));
+    const row=JSON.parse(Buffer.concat([draftDecrypt.update(bytes.subarray(28)),draftDecrypt.final()]).toString());
+    if(row.generation!==account.generation||typeof row.draft?.text!=='string'||typeof row.draft?.to!=='string'||!Array.isArray(row.draft?.attachments))throw Error('Invalid Naver recovery draft');
+    naverDraftsRestorable++;
+  }
+}
 const dbPath=path.join(path.resolve(privateDirectory),`.verify-${randomBytes(12).toString('hex')}.sqlite`);
 let usage,settings;
 try {
@@ -52,5 +71,5 @@ const explicitPort=compose.match(/VOICE_GROK_WEB_PORT:\s*["']?(\d+)/)?.[1];
 const web8097=isPC||((explicitPort==='8097'||(!explicitPort&&/NITRO_PORT\s*=.*VOICE_GROK_WEB_PORT.*['"]8097['"]/.test(start)))&&
   /127\.0\.0\.1:8097/.test(files.get('web/enable-private-https.sh')?.toString()||'')&&
   /127\.0\.0\.1:8097/.test(files.get('network/serve.json')?.toString()||''));
-console.log(JSON.stringify({passed:credentialsConsistent&&web8097,authenticatedDecryption:true,credentialsConsistent,googleWorkspaceRestorable,databaseIntegrity:'ok',web8097,usage,settings,createdUtc:manifest.createdUtc,files:[...files.keys()],sha256:createHash('sha256').update(fs.readFileSync(archive)).digest('hex'),plaintextCredentialsExtracted:false}));
+console.log(JSON.stringify({passed:credentialsConsistent&&web8097,authenticatedDecryption:true,credentialsConsistent,googleWorkspaceRestorable,naverMailRestorable,naverDraftsRestorable,databaseIntegrity:'ok',web8097,usage,settings,createdUtc:manifest.createdUtc,files:[...files.keys()],sha256:createHash('sha256').update(fs.readFileSync(archive)).digest('hex'),plaintextCredentialsExtracted:false}));
 if(!web8097)process.exitCode=1;

@@ -30,12 +30,16 @@ export function confirmWorkspace(proposal:WorkspaceProposal,signal?:AbortSignal)
 let context:unknown[]=[];
 const contextKey='voicegrok-workspace-selection';
 export function selectWorkspaceContext(value:unknown[]) {
+  try {if(value.length)window.sessionStorage.setItem('voicegrok-mail-provider','google');}catch { /* selection only */ }
   context=value.slice(0,15).map(row=>Object.fromEntries(Object.entries((row || {}) as Record<string,unknown>).filter(([key,value])=>['id','subject','name','summary','start','from'].includes(key) && typeof value==='string').map(([key,value])=>[key,String(value).slice(0,500)])));
   // Only selected metadata, never email bodies or OAuth tokens. A short-lived
   // per-tab selection survives a reload without mixing different browser tabs.
   try {if(typeof window!=='undefined')window.sessionStorage.setItem(contextKey,JSON.stringify({savedAt:Date.now(),context}));}catch { /* storage can be disabled */ }
 }
 export async function workspaceConversation(message:string,signal?:AbortSignal,image?:string) {
+  const naver=await (await import('./naver-mail-client.ts')).naverConversation(message,signal);
+  if(naver!==null)return naver;
+  if(/(?:gmail|구글|google)/iu.test(message))try{window.sessionStorage.setItem('voicegrok-mail-provider','google');}catch{/* optional */}
   if(!context.length)try {if(typeof window!=='undefined'){const saved=JSON.parse(window.sessionStorage.getItem(contextKey) || 'null');if(saved && Date.now()-saved.savedAt<3600000 && Array.isArray(saved.context))context=saved.context.slice(0,15);}}catch { /* no usable selection */ }
   if(!workspaceIntent(message) && !(context.some(row=>typeof (row as {subject?:unknown})?.subject==='string') && mailReadMode(message)))return null;
   try {

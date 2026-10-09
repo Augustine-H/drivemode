@@ -126,6 +126,7 @@ import { GoogleTtsSettings } from "@/components/google-tts-settings";
 import { GoogleWorkspaceConfirmation } from "@/components/google-workspace-confirmation";
 import { workspaceConversation } from "@/lib/google-workspace-client";
 import { GoogleWorkspaceSettings } from "@/components/google-workspace-settings";
+import { NaverMailSection } from "@/components/naver-mail-settings";
 import {
   SAMPLE_TURNS,
   chunkText,
@@ -4479,6 +4480,7 @@ export function ReaderApp() {
                   <summary className="min-h-11 cursor-pointer py-3 font-medium">Google 일정 · Drive · Gmail</summary>
                   <GoogleWorkspaceSettings />
                 </details>
+                <NaverMailSection />
                 <NetworkSettings />
                 <details className="rounded-2xl border border-line p-3">
                   <summary className="min-h-11 cursor-pointer py-3 font-medium">

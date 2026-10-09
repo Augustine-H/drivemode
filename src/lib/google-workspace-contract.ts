@@ -13,7 +13,7 @@ export type WorkspaceAction = {
   calendarId?: string; start?: string; end?: string; name?: string;
   data?:string; mimeType?:string;
 };
-export type WorkspaceProposal = {id:string; title:string; details:string; expiresAt:number};
+export type WorkspaceProposal = {id:string; title:string; details:string; expiresAt:number;provider?:'naver'};
 export function mailReadMode(message:string):'full'|'summary'|null {
   if(/(?:원문|전문|그대로|전체.*(?:본문|읽))/u.test(message))return 'full';
   if(/(?:요약|간추려|줄여)/u.test(message))return 'summary';

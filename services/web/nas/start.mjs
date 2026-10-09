@@ -23,6 +23,7 @@ if (config.publicOrigin) {
 }
 // OAuth client credentials are supplied only as server environment variables.
 process.env.GOOGLE_WORKSPACE_DATA_DIR='/run/google';
+process.env.NAVER_MAIL_DATA_DIR='/run/google/naver';
 // This optional credential comes only from the private runtime volume.
 if (config.xaiApiKey !== undefined) {
   if (typeof config.xaiApiKey !== 'string' || !config.xaiApiKey.trim() || /\s/.test(config.xaiApiKey)) {

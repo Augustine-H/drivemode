@@ -32,6 +32,10 @@ mkdir "$WORK/web" "$WORK/web/google" "$WORK/tts" "$WORK/network"
 cp "$CODE/private/google-oauth.env" "$WORK/web/google-oauth.env"
 "$DOCKER" cp "$WEB:/run/google/key" "$WORK/web/google/key"
 "$DOCKER" cp "$WEB:/run/google/oauth.enc" "$WORK/web/google/oauth.enc"
+if "$DOCKER" exec "$WEB" test -f /run/google/naver/credentials.enc; then
+  mkdir "$WORK/web/naver"
+  "$DOCKER" cp "$WEB:/run/google/naver/." "$WORK/web/naver/"
+fi
 cp "$CODE/compose.yaml" "$CODE/start.mjs" "$CODE/enable-private-https.sh" "$WORK/web/"
 if test -f /volume1/docker/voice-grok-tts/compose.nas.yaml; then
   cp /volume1/docker/voice-grok-tts/compose.nas.yaml "$WORK/tts/compose.nas.yaml"

@@ -29,3 +29,11 @@ recovery-key*.txt
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
+.codex-remote-attachments/
+.grok/*.log
+.grok/*-release.patch
+.grok/*-upload.patch
+screenshots/
+qa-chrome-before-restart.json
+qa-restart.tsx
+public/qa-restart.html

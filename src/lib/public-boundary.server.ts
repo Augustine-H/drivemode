@@ -4,7 +4,7 @@ import { ACCESS_COOKIE, REFRESH_COOKIE, DEVICE_COOKIE, publicOrigin, publicReque
 const attempts = new Map<string, { count: number; until: number }>();
 const reply = (data: unknown, status = 200) => Response.json(data, { status, headers: { 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' } });
 export function publicPathAllowed(path: string) {
-  return path === '/health' || ['/api/ask', '/api/google-tts', '/api/media-source', '/api/video-source', '/api/google-workspace'].includes(path)
+  return path === '/health' || ['/api/ask', '/api/google-tts', '/api/media-source', '/api/video-source', '/api/google-workspace', '/api/naver-mail'].includes(path)
     || /^\/api\/google-workspace\/(?:callback|connect|status|profile|verify|disconnect|propose|execute|chat|events|calendars|files|file|messages|message)$/.test(path)
     || /^\/api\/music\/(?:health|v1\/jobs(?:\/[a-f0-9-]{36}(?:\/cancel|\/audio\/(?:wav|mp3))?)?)$/.test(path)
     || path.startsWith('/_serverFn/');
