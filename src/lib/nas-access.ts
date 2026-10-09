@@ -1,4 +1,5 @@
 import { GOOGLE_APP_ORIGIN } from './google-workspace-contract.ts';
+import { publicRequestOrigin, publicRequest, sessionDevice } from './public-access.server.ts';
 export function nasRequestOriginAllowed(origin:string|null,requestUrl:string,nasOrigin:string) {
   if(!origin || origin===nasOrigin)return true;
   try {
@@ -8,6 +9,7 @@ export function nasRequestOriginAllowed(origin:string|null,requestUrl:string,nas
 }
 // Trust these headers only on the loopback listener behind Tailscale Serve.
 export function nasAccess(headers: Headers, env: Record<string, string | undefined> = process.env) {
+  if (env.VOICE_GROK_PUBLIC_ORIGIN && publicRequest(headers, env)) return { enabled: true, allowed: !!sessionDevice(headers, 'access', env), origin: publicRequestOrigin(headers, env) };
   if (env.VOICE_GROK_PRIVATE_NAS !== 'true') return { enabled: false, allowed: false, origin: '' };
   const origin = env.VOICE_GROK_NAS_ORIGIN || '';
   const login = env.VOICE_GROK_NAS_LOGIN || '';

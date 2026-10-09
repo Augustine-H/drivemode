@@ -3,6 +3,7 @@ import {mailHtmlText} from './mail-body.server.ts';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { nasAccess } from './nas-access.ts';
+import { clientOriginAllowed } from './public-access.server.ts';
 
 import { GOOGLE_REDIRECT_URI, GOOGLE_APP_ORIGIN, WORKSPACE_SCOPES, OAUTH_SCOPES, type WorkspaceAction } from './google-workspace-contract.ts';
 export { WORKSPACE_SCOPES } from './google-workspace-contract.ts';
@@ -50,7 +51,7 @@ export class WorkspaceStore {
 export class GoogleWorkspace {
   private config:Config; private store:Pick<WorkspaceStore,'read'|'write'>; private request:typeof fetch;
   constructor(config: Config, store: Pick<WorkspaceStore,'read'|'write'>, request: typeof fetch = fetch) {this.config=config;this.store=store;this.request=request;}
-  private redirectUri() { const value=this.config.redirectUri || GOOGLE_REDIRECT_URI; if(value!==GOOGLE_REDIRECT_URI) throw new WorkspaceError('redirect_uri_mismatch'); return value; }
+  private redirectUri() { const value=this.config.redirectUri || GOOGLE_REDIRECT_URI; const url=new URL(value); if(value!==GOOGLE_REDIRECT_URI && (url.protocol!=='https:' || url.origin!==this.config.origin || url.pathname!=='/api/google-workspace/callback' || url.username || url.password || url.search || url.hash)) throw new WorkspaceError('redirect_uri_mismatch'); return value; }
   async status() {
     const session = await this.store.read();
     return { configured:!!this.config.clientId && !!this.config.clientSecret, connected:!!session.refreshToken, email:session.email ?? null, gmail:!!session.refreshToken && !!session.scopes?.includes(WORKSPACE_SCOPES.gmail), calendar:!!session.refreshToken && !!session.scopes?.includes(WORKSPACE_SCOPES.calendar), drive:!!session.refreshToken && !!session.scopes?.includes(WORKSPACE_SCOPES.drive), expiresAt:session.expiresAt ?? null,
@@ -303,12 +304,12 @@ let operation = Promise.resolve();
 const cookieName='__Host-voicegrok-google-state';
 export async function googleWorkspace(request: Request, callback = false, routeAction?:string) {
   const access=nasAccess(request.headers),origin=request.headers.get('origin');
-  const trusted=origin===access.origin || origin===GOOGLE_APP_ORIGIN;
+  const trusted=origin===access.origin || origin===GOOGLE_APP_ORIGIN || (!!process.env.VOICE_GROK_PUBLIC_ORIGIN && clientOriginAllowed(origin));
   const cors=(response:Response)=>{if(trusted && origin){response.headers.set('access-control-allow-origin',origin);response.headers.set('vary','Origin');response.headers.set('access-control-allow-methods','GET, POST, OPTIONS');response.headers.set('access-control-allow-headers','Content-Type');}return response;};
   if(!access.allowed)return cors(json({error:messages.nas_only,errorCode:'nas_only'},403));
   if((request.method==='POST' || origin) && !trusted)return json({error:messages.origin,errorCode:'origin'},403);
   if(request.method==='OPTIONS')return cors(new Response(null,{status:204,headers:{'cache-control':'no-store'}}));
-  service ??= new GoogleWorkspace({clientId:process.env.GOOGLE_CLIENT_ID || '',clientSecret:process.env.GOOGLE_CLIENT_SECRET || '',redirectUri:process.env.GOOGLE_REDIRECT_URI,origin:access.origin,directory:process.env.GOOGLE_WORKSPACE_DATA_DIR || '/run/google'},new WorkspaceStore(process.env.GOOGLE_WORKSPACE_DATA_DIR || '/run/google'));
+  service ??= new GoogleWorkspace({clientId:process.env.GOOGLE_CLIENT_ID || '',clientSecret:process.env.GOOGLE_CLIENT_SECRET || '',redirectUri:process.env.GOOGLE_REDIRECT_URI,origin:process.env.VOICE_GROK_PUBLIC_ORIGIN || access.origin,directory:process.env.GOOGLE_WORKSPACE_DATA_DIR || '/run/google'},new WorkspaceStore(process.env.GOOGLE_WORKSPACE_DATA_DIR || '/run/google'));
   const execute=async()=> {
     const url=new URL(request.url),action=routeAction || url.searchParams.get('action') || 'status',q=(url.searchParams.get('q') || '').slice(0,500),page=(url.searchParams.get('page') || '').slice(0,2000),id=url.searchParams.get('id') || '';
     try {

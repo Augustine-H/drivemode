@@ -1,6 +1,7 @@
 import { parseBackends, routeTts } from './google-tts-routing.server.ts';
 import { nasAccess } from './nas-access.ts';
 import { GOOGLE_APP_ORIGIN } from './google-workspace-contract.ts';
+import { clientOriginAllowed } from './public-access.server.ts';
 // Loaded only by API handlers. Google credentials stay in the dedicated backend.
 export async function googleTtsProxy(request: Request, path: string) {
   const access=nasAccess(request.headers),origin=request.headers.get('origin');
@@ -25,7 +26,7 @@ async function googleTtsAuthorized(request: Request, path: string) {
   const origin = request.headers.get('origin');
   const nas = nasAccess(request.headers);
   if (nas.enabled && !nas.allowed) return Response.json({ error: 'NAS 계정의 Tailscale 연결을 확인하세요.' }, { status: 403 });
-  if (origin && origin !== (nas.enabled ? nas.origin : url.origin) && !(nas.allowed && origin===GOOGLE_APP_ORIGIN)) return Response.json({ error: '허용되지 않은 요청입니다.' }, { status: 403 });
+  if (origin && origin !== (nas.enabled ? nas.origin : url.origin) && !(nas.allowed && (origin===GOOGLE_APP_ORIGIN || (process.env.VOICE_GROK_PUBLIC_ORIGIN && clientOriginAllowed(origin))))) return Response.json({ error: '허용되지 않은 요청입니다.' }, { status: 403 });
   const access = process.env.GOOGLE_TTS_ACCESS_TOKEN;
   if (nas.allowed) {
     // Serve has authenticated the configured owner; backend tokens remain server-only.
