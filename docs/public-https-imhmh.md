@@ -65,6 +65,8 @@ DSM 역방향 프록시 목록에서 `imhmh.synology.me:443`을 사용하는 기
 
 1.33.2 패키지는 NAS에 업로드하고 app/compose 이전 파일을 `app.bak_oauth_20261009`, `compose.yaml.bak_oauth_20261009`로 보존했다. Container Manager가 실행 중인 웹 컨테이너 ID를 undefined로 표시해 교체를 완료하지 못했다. 기존 1.33.1 서비스 및 Google 연결은 정상이다. 비활성 일회성 작업을 `VoiceGrok OAuth Session Fix 20261009`로 수정하여 compose build/up 및 실패 시 이전 이미지 설정 복원을 준비했으며, 현재 DSM root 작업 저장의 패스워드 재인증을 기다린다. 보완 버전의 운영 배포는 아직 완료되지 않았다.
 
+후속 재인증 후 해당 비활성 작업을 수동 실행해 2026-10-09 12:57:02~12:58:16 KST에 정상 (0)으로 완료했다. 공개 앱 버전 1.33.2와 기존 기기 등록·대화 유지, 새 승인으로 저장된 Google 연결 유지, 일정·Drive·Gmail 읽기 API 성공을 확인했다. 운영 NAS의 데스크톱·모바일 렌더 smoke도 오류 없이 통과했으며 공개 TLS 검증 결과 0, 미등록 health 401을 확인했다. 위의 재인증 대기/미배포 설명은 적용 전 기록이며 지금은 배포 완료다. 실제 15분이 지난 Google 승인 복귀를 다시 수행하지는 않았고, 만료 access와 유효 refresh/state의 콜백 복구 및 잘못된 state/device/만료 refresh 거부는 자동 테스트로 검증했다.
+
 - Google OAuth 승인된 리디렉션 URI에 `https://imhmh.synology.me/api/google-workspace/callback`을 추가한다. 기존 Tailscale URI는 유지한다.
 - 앱의 HTTPS 서버 주소는 `https://imhmh.synology.me`, 연결 모드는 자동으로 지정한다.
 - 기기 등록은 공개 호스트 자체에서 수행한다. 기존 주소의 Memory/Media 데이터는 삭제하지 않고 내보내기·복원 절차로 옮긴다.
