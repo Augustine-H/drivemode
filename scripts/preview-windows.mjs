@@ -10,7 +10,7 @@ export async function windowsPreview(action) {
     if (Number.isSafeInteger(pid) && pid > 0) {
       const command = execFileSync('powershell.exe',['-NoProfile','-Command',`(Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}").CommandLine`],{encoding:'utf8',windowsHide:true});
       if (command.includes('npm-cli.js') && command.includes('preview')) {
-        try { execFileSync('taskkill.exe',['/PID',String(pid),'/T','/F'],{windowsHide:true,stdio:'ignore'}); } catch {}
+        try { execFileSync('taskkill.exe',['/PID',String(pid),'/T','/F'],{windowsHide:true,stdio:'ignore'}); } catch { /* The previously recorded preview may have exited already. */ }
       }
     }
   }
@@ -30,7 +30,7 @@ export async function windowsPreview(action) {
   child.unref(); writeFileSync(pidFile,JSON.stringify({pid:child.pid}));
   for (let i=0;i<100;i++) {
     try { process.kill(child.pid,0); } catch { throw new Error('Built preview process exited; check preview-windows.log'); }
-    try { const response = await fetch('http://127.0.0.1:8081/'); if (response.ok) { console.log('Built preview ready'); return; } } catch {}
+    try { const response = await fetch('http://127.0.0.1:8081/'); if (response.ok) { console.log('Built preview ready'); return; } } catch { /* Retry while the preview starts listening. */ }
     await new Promise(resolve=>setTimeout(resolve,250));
   }
   throw new Error('Built preview did not become ready');

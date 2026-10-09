@@ -14,7 +14,7 @@ services:
       - web-config:/config
       - google-data:/google
   web:
-    image: voice-grok-web:1.32.0-google6
+    image: voice-grok-web:1.33.0-https1
     build: .
     depends_on:
       config-init:
