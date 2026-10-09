@@ -59,6 +59,12 @@ DSM 역방향 프록시 목록에서 `imhmh.synology.me:443`을 사용하는 기
 
 2026-10-09 공개 HTTPS 앱의 연결 상태 확인 및 세 서비스 읽기 점검에서 일정, Drive 파일, Gmail 읽기 API가 모두 성공했다. 기존 NAS Google 토큰은 정상이다. 이어 새 공개 주소의 재연결 시작을 확인하자 Google에서 `400 redirect_uri_mismatch`가 표시됐다. 따라서 `https://imhmh.synology.me/api/google-workspace/callback`은 현재 OAuth 클라이언트의 승인된 리디렉션 URI에 추가해야 한다. Google 권한 승인이나 기존 토큰 해제는 실행하지 않았으며 앱으로 복귀했다. Google Cloud 설정 수정은 이번 확인 작업에서 수행하지 않았다.
 
+사용자가 공개 콜백을 추가한 뒤 계정 선택 화면 진입이 성공했고 Google 승인을 완료했다. 최초 콜백은 만료된 기기 access 세션으로 `DEVICE_AUTH_REQUIRED`를 반환했다. 앱에서 기존 refresh 세션을 갱신한 뒤 아직 사용되지 않은 콜백을 다시 처리해 `google=connected`로 복귀했으며 일정·Drive·Gmail 읽기 API가 모두 성공했다. OAuth 코드/상태 및 토큰은 문서·로그에 기록하지 않았다.
+
+재발 방지용 1.33.2는 공개 Google callback의 GET에만 기기와 호스트에 결합된 유효한 refresh 세션 및 일치하는 OAuth state 쿠키를 요구해 access 쿠키를 재발급하고 동일 콜백으로 303 복귀한다. 이후 기존 OAuth state·PKCE 검증을 그대로 실행한다. 일반 API는 access 세션을 계속 요구한다. 459개 테스트, typecheck, 변경 파일 lint, 기본/NAS 빌드와 dev/production 데스크톱·모바일 렌더 검증은 통과했다.
+
+1.33.2 패키지는 NAS에 업로드하고 app/compose 이전 파일을 `app.bak_oauth_20261009`, `compose.yaml.bak_oauth_20261009`로 보존했다. Container Manager가 실행 중인 웹 컨테이너 ID를 undefined로 표시해 교체를 완료하지 못했다. 기존 1.33.1 서비스 및 Google 연결은 정상이다. 비활성 일회성 작업을 `VoiceGrok OAuth Session Fix 20261009`로 수정하여 compose build/up 및 실패 시 이전 이미지 설정 복원을 준비했으며, 현재 DSM root 작업 저장의 패스워드 재인증을 기다린다. 보완 버전의 운영 배포는 아직 완료되지 않았다.
+
 - Google OAuth 승인된 리디렉션 URI에 `https://imhmh.synology.me/api/google-workspace/callback`을 추가한다. 기존 Tailscale URI는 유지한다.
 - 앱의 HTTPS 서버 주소는 `https://imhmh.synology.me`, 연결 모드는 자동으로 지정한다.
 - 기기 등록은 공개 호스트 자체에서 수행한다. 기존 주소의 Memory/Media 데이터는 삭제하지 않고 내보내기·복원 절차로 옮긴다.

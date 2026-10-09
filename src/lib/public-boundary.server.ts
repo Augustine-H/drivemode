@@ -1,5 +1,5 @@
 import { randomUUID, createHash } from 'node:crypto';
-import { ACCESS_COOKIE, REFRESH_COOKIE, DEVICE_COOKIE, publicOrigin, publicRequest, publicRequestOrigin, clientOriginAllowed, sameSecret, sessionCookies, sessionDevice } from './public-access.server.ts';
+import { ACCESS_COOKIE, REFRESH_COOKIE, DEVICE_COOKIE, publicOrigin, publicRequest, publicRequestOrigin, clientOriginAllowed, cookieValue, sameSecret, sessionCookies, sessionDevice } from './public-access.server.ts';
 
 const attempts = new Map<string, { count: number; until: number }>();
 const reply = (data: unknown, status = 200) => Response.json(data, { status, headers: { 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' } });
@@ -65,7 +65,20 @@ export async function publicBoundary(request: Request, env: Record<string, strin
   const api = path.startsWith('/api/') || path.startsWith('/_server') || path === '/health';
   if (!api) return null;
   if (!publicPathAllowed(path)) return reply({ error: 'NOT_FOUND' }, 404);
-  if (!sessionDevice(request.headers, 'access', env)) return reply({ error: 'DEVICE_AUTH_REQUIRED' }, 401);
+  if (!sessionDevice(request.headers, 'access', env)) {
+    // OAuth returns through a navigation, so browser-side renewal cannot run first.
+    // Renew only this callback, with a valid device-bound refresh and matching OAuth state.
+    if (path === '/api/google-workspace/callback' && request.method === 'GET') {
+      const url = new URL(request.url), state = url.searchParams.get('state') || '';
+      const device = sessionDevice(request.headers, 'refresh', env);
+      if (device && /^[A-Za-z0-9_-]{43}$/.test(state) && sameSecret(state, cookieValue(request.headers, '__Host-voicegrok-google-state'))) {
+        const response = new Response(null, { status: 303, headers: { location: origin + path + url.search, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' } });
+        for (const cookie of sessionCookies(device, env, origin)) response.headers.append('set-cookie', cookie);
+        return response;
+      }
+    }
+    return reply({ error: 'DEVICE_AUTH_REQUIRED' }, 401);
+  }
   if (request.method !== 'GET' && request.method !== 'HEAD' && !clientOriginAllowed(incoming, env)) return reply({ error: 'ORIGIN_REQUIRED' }, 403);
   if (path === '/health') return reply({ status: 'ok', service: 'voice-grok' });
   return null;

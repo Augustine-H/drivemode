@@ -10,6 +10,22 @@ const env = { VOICE_GROK_PUBLIC_ORIGIN:'https://voice.example.com', VOICE_GROK_L
 const device = '12345678-1234-1234-1234-123456789abc';
 function headers(auth = true) { return new Headers({ host:'voice.example.com','x-forwarded-host':'voice.example.com','x-forwarded-proto':'https', origin:env.VOICE_GROK_PUBLIC_ORIGIN, ...(auth ? {cookie:`${ACCESS_COOKIE}=${sessionToken(device,'access',env)}; ${REFRESH_COOKIE}=${sessionToken(device,'refresh',env)}; ${DEVICE_COOKIE}=${device}`} : {}) }); }
 const req = (path, auth = true, init = {}) => new Request(env.VOICE_GROK_PUBLIC_ORIGIN + path, {headers:headers(auth), ...init});
+test('OAuth callback renews expired access only with device-bound refresh and matching state', async () => {
+  const state='o'.repeat(43), path='/api/google-workspace/callback?state='+state+'&code=synthetic-code';
+  const h=headers(false);h.delete('origin');
+  const cookie=`${ACCESS_COOKIE}=${sessionToken(device,'access',env,Date.now()-901000)}; ${REFRESH_COOKIE}=${sessionToken(device,'refresh',env)}; ${DEVICE_COOKIE}=${device}; __Host-voicegrok-google-state=${state}`;
+  h.set('cookie',cookie);
+  const response=await publicBoundary(req(path,false,{headers:h}),env);
+  assert.equal(response.status,303);assert.equal(response.headers.get('location'),env.VOICE_GROK_PUBLIC_ORIGIN+path);
+  assert.equal(response.headers.getSetCookie().length,3);
+  const renewed=new Headers(h);renewed.set('cookie',response.headers.getSetCookie().map(row=>row.split(';')[0]).join('; '));
+  assert.equal(await publicBoundary(req(path,true,{headers:renewed}),env),null);
+  assert.equal((await publicBoundary(req('/api/ask',false,{headers:h}),env)).status,401);
+  for(const value of [cookie.replace(state,'bad-state'),cookie.replace(device,'00000000-0000-0000-0000-000000000000'),cookie.replace(sessionToken(device,'refresh',env),sessionToken(device,'refresh',env,Date.now()-8*86400000))]) {
+    const rejected=new Headers(h);rejected.set('cookie',value);
+    assert.equal((await publicBoundary(req(path,false,{headers:rejected}),env)).status,401);
+  }
+});
 test('expired, tampered, wrong device, wrong host and plaintext session requests fail closed', () => {
   assert.equal(sessionDevice(headers(), 'access', env), device);
   const expired=headers();expired.set('cookie', `${ACCESS_COOKIE}=${sessionToken(device,'access',env,Date.now()-901000)}; ${DEVICE_COOKIE}=${device}`);
