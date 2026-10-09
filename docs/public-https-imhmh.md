@@ -57,6 +57,8 @@ DSM 역방향 프록시 목록에서 `imhmh.synology.me:443`을 사용하는 기
 
 ## Google 및 앱 입력값
 
+2026-10-09 공개 HTTPS 앱의 연결 상태 확인 및 세 서비스 읽기 점검에서 일정, Drive 파일, Gmail 읽기 API가 모두 성공했다. 기존 NAS Google 토큰은 정상이다. 이어 새 공개 주소의 재연결 시작을 확인하자 Google에서 `400 redirect_uri_mismatch`가 표시됐다. 따라서 `https://imhmh.synology.me/api/google-workspace/callback`은 현재 OAuth 클라이언트의 승인된 리디렉션 URI에 추가해야 한다. Google 권한 승인이나 기존 토큰 해제는 실행하지 않았으며 앱으로 복귀했다. Google Cloud 설정 수정은 이번 확인 작업에서 수행하지 않았다.
+
 - Google OAuth 승인된 리디렉션 URI에 `https://imhmh.synology.me/api/google-workspace/callback`을 추가한다. 기존 Tailscale URI는 유지한다.
 - 앱의 HTTPS 서버 주소는 `https://imhmh.synology.me`, 연결 모드는 자동으로 지정한다.
 - 기기 등록은 공개 호스트 자체에서 수행한다. 기존 주소의 Memory/Media 데이터는 삭제하지 않고 내보내기·복원 절차로 옮긴다.
