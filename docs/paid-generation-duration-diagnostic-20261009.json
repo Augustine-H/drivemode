@@ -1,0 +1,90 @@
+{
+  "paidRetest": {
+    "scope": "fresh local adapter process, existing DPAPI authentication; not NAS integration",
+    "automaticRetries": false,
+    "estimatedUsd": 0.3,
+    "actualBillKnown": false,
+    "state": "FAILED",
+    "errorType": "PaidGenerationError",
+    "error": "PAID_GENERATION_DURATION_MISMATCH",
+    "paidCall": {
+      "provider": "elevenlabs",
+      "model": "music_v2_5",
+      "state": "FAILED",
+      "seconds": 120,
+      "estimatedUsd": 0.3,
+      "actualBillKnown": false,
+      "automaticRetries": false,
+      "apiSourceFormat": "mp3",
+      "wavSource": "decoded-from-provider-mp3",
+      "httpStatus": 200,
+      "sourceMp3Sha256": "083b3424b193a150f7c888828e8ed32783ca2c5fe1a0fa1407612995fe1156c3",
+      "sourceMp3Bytes": 1920567,
+      "responsePreserved": true,
+      "decodedAudio": {
+        "verified": true,
+        "frames": 5305739,
+        "sampleRate": 44100,
+        "channels": 2,
+        "duration": 120.31154195011338,
+        "rms": 0.16014459417772633,
+        "peak": 0.921833872795105
+      },
+      "durationDeltaSeconds": 0.311542,
+      "durationToleranceSeconds": 0.25,
+      "elapsedSeconds": 31.469
+    }
+  },
+  "independentDecoder": {
+    "ffmpegDecodedFrames": 5293440,
+    "ffmpegDecodedSeconds": 120.0326530612245,
+    "requestedSeconds": 120,
+    "durationDeltaSeconds": 0.03265306122449374,
+    "sourcePreserved": true
+  },
+  "offlineValidation": {
+    "state": "VERIFIED_OFFLINE",
+    "additionalPaidCalls": 0,
+    "source": "preserved real HTTP 200 response",
+    "validationDecoder": "ffmpeg-to-pcm-wav",
+    "durationToleranceSeconds": 0.25,
+    "wav": {
+      "filename": "original.wav",
+      "bytes": 31760684,
+      "sha256": "d4b7d9aaf6c76bec9e0de6c35e9d75418f7b3cb608e62f277cfe43f6fcc4795c",
+      "sampleRate": 44100,
+      "channels": 2,
+      "duration": 120.0326530612245,
+      "rms": 0.16033055168480173,
+      "peak": 0.9218342304229736,
+      "clippedFraction": 0.0,
+      "decoded": {
+        "verified": true,
+        "frames": 5293440,
+        "sampleRate": 44100,
+        "channels": 2,
+        "duration": 120.0326530612245,
+        "rms": 0.16033055168480173,
+        "peak": 0.9218342304229736
+      },
+      "qualityReview": "requires-listening"
+    },
+    "mp3": {
+      "filename": "preview.mp3",
+      "bytes": 4803439,
+      "sha256": "bd4f41bd844b18cc818f371a1cedcf2d0a69af6eea8887463939a930867d1bce",
+      "bitrateKbps": 320,
+      "decoded": {
+        "verified": true,
+        "frames": 5293440,
+        "sampleRate": 44100,
+        "channels": 2,
+        "duration": 120.0326530612245,
+        "rms": 0.16033244216863946,
+        "peak": 0.9225305318832397
+      }
+    },
+    "diagnosticPaidRequestEstimatedUsd": 0.3,
+    "actualBillKnown": false
+  }
+}

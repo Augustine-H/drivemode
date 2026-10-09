@@ -1,0 +1,315 @@
+{
+  "date": "2026-10-09",
+  "provider": "elevenlabs",
+  "model": "music_v2_5",
+  "results": [
+    {
+      "case": "instrumental-60",
+      "state": "COMPLETED",
+      "jobId": "2a373049-520d-488d-b095-2141652424fa",
+      "metrics": {
+        "paidGeneration": {
+          "provider": "elevenlabs",
+          "model": "music_v2_5",
+          "state": "COMPLETED",
+          "seconds": 60,
+          "estimatedUsd": 0.15,
+          "actualBillKnown": false,
+          "automaticRetries": false,
+          "apiSourceFormat": "mp3",
+          "wavSource": "decoded-from-provider-mp3",
+          "httpStatus": 200,
+          "sourceMp3Sha256": "8f408911c0d602bd5c11434a3eb79454505415d02455a206189f253ba10a54f4",
+          "elapsedSeconds": 13.018
+        }
+      },
+      "error": null,
+      "estimatedUsd": 0.15,
+      "actualBillKnown": false,
+      "files": {
+        "wav": {
+          "sha256": "24958b58104bb61f64af25df508782f341b397c20530d15747c87cc1a9296e31",
+          "audio": {
+            "verified": true,
+            "frames": 2647296,
+            "sampleRate": 44100,
+            "channels": 2,
+            "duration": 60.02938775510204,
+            "rms": 0.1214028924589019,
+            "peak": 0.8909425735473633
+          }
+        },
+        "mp3": {
+          "sha256": "8a68880b657c485802d915f7ae66407b9a65d72094562be476a3ffb5394be804",
+          "audio": {
+            "verified": true,
+            "frames": 2647296,
+            "sampleRate": 44100,
+            "channels": 2,
+            "duration": 60.02938775510204,
+            "rms": 0.12140825113205625,
+            "peak": 0.8935259580612183
+          }
+        }
+      },
+      "paidCall": {
+        "provider": "elevenlabs",
+        "model": "music_v2_5",
+        "state": "COMPLETED",
+        "seconds": 60,
+        "estimatedUsd": 0.15,
+        "actualBillKnown": false,
+        "automaticRetries": false,
+        "apiSourceFormat": "mp3",
+        "wavSource": "decoded-from-provider-mp3",
+        "httpStatus": 200,
+        "sourceMp3Sha256": "8f408911c0d602bd5c11434a3eb79454505415d02455a206189f253ba10a54f4",
+        "elapsedSeconds": 13.018
+      }
+    },
+    {
+      "case": "instrumental-120",
+      "state": "FAILED",
+      "jobId": "89d07a63-5ee9-48ca-b644-219452d35ac8",
+      "metrics": null,
+      "error": {
+        "type": "PaidGenerationError",
+        "message": "PAID_GENERATION_DURATION_MISMATCH"
+      },
+      "estimatedUsd": 0.3,
+      "actualBillKnown": false,
+      "files": {},
+      "paidCall": {
+        "provider": "elevenlabs",
+        "model": "music_v2_5",
+        "state": "FAILED",
+        "seconds": 120,
+        "estimatedUsd": 0.3,
+        "actualBillKnown": false,
+        "automaticRetries": false,
+        "apiSourceFormat": "mp3",
+        "wavSource": "decoded-from-provider-mp3",
+        "httpStatus": 200,
+        "elapsedSeconds": 43.783
+      }
+    },
+    {
+      "case": "vocal-en",
+      "state": "COMPLETED",
+      "jobId": "3332cd53-bd12-433a-8db7-93fece943aaa",
+      "metrics": {
+        "paidGeneration": {
+          "provider": "elevenlabs",
+          "model": "music_v2_5",
+          "state": "COMPLETED",
+          "seconds": 30,
+          "estimatedUsd": 0.075,
+          "actualBillKnown": false,
+          "automaticRetries": false,
+          "apiSourceFormat": "mp3",
+          "wavSource": "decoded-from-provider-mp3",
+          "httpStatus": 200,
+          "sourceMp3Sha256": "c0066cbc1084247d44688737bc62f7f3a73c67cbd6bf79f662d65991fc913b5a",
+          "elapsedSeconds": 4.983
+        }
+      },
+      "error": null,
+      "estimatedUsd": 0.075,
+      "actualBillKnown": false,
+      "files": {
+        "wav": {
+          "sha256": "a9add62e7a75e5817efa435107bc7b0ae5ff52634a4826389bda15e31f338f95",
+          "audio": {
+            "verified": true,
+            "frames": 1324800,
+            "sampleRate": 44100,
+            "channels": 2,
+            "duration": 30.040816326530614,
+            "rms": 0.15565449417669186,
+            "peak": 0.9662714004516602
+          }
+        },
+        "mp3": {
+          "sha256": "09f20cddf2383f30dba42003f9f7e885941973a7c8ee34d2ae716b59b3a1da6d",
+          "audio": {
+            "verified": true,
+            "frames": 1324800,
+            "sampleRate": 44100,
+            "channels": 2,
+            "duration": 30.040816326530614,
+            "rms": 0.155659838815944,
+            "peak": 0.9657779335975647
+          }
+        }
+      },
+      "asr": {
+        "state": "COMPLETED",
+        "error": null,
+        "referenceUsedForInference": false,
+        "audioTransmittedExternally": false,
+        "transcription": "Morning light is dancing on my window. I carry little dreams along the road. Even when the wind begins to follow, I keep a spark of hope inside my soul. Tomorrow we can make the world feel brighter. Together, let our quiet voices grow.\nYou.",
+        "cer": {
+          "unit": "characters",
+          "referenceUnits": 185,
+          "hypothesisUnits": 188,
+          "errors": 3,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 3,
+          "errorRate": 0.016216216216216217,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        },
+        "wer": {
+          "unit": "words",
+          "referenceUnits": 44,
+          "hypothesisUnits": 45,
+          "errors": 1,
+          "substitutions": 0,
+          "deletions": 0,
+          "insertions": 1,
+          "errorRate": 0.022727272727272728,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        },
+        "metrics": {
+          "totalSeconds": 108.222,
+          "peakAllocatedMiB": 4066.65,
+          "peakReservedMiB": 4130.0,
+          "resources": {
+            "peakProcessRamMiB": 4616.69,
+            "gpuUtilizationPeakPercent": 39,
+            "gpuMemoryDevicePeakMiB": 5927,
+            "gpuSamples": 106,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          }
+        }
+      },
+      "paidCall": {
+        "provider": "elevenlabs",
+        "model": "music_v2_5",
+        "state": "COMPLETED",
+        "seconds": 30,
+        "estimatedUsd": 0.075,
+        "actualBillKnown": false,
+        "automaticRetries": false,
+        "apiSourceFormat": "mp3",
+        "wavSource": "decoded-from-provider-mp3",
+        "httpStatus": 200,
+        "sourceMp3Sha256": "c0066cbc1084247d44688737bc62f7f3a73c67cbd6bf79f662d65991fc913b5a",
+        "elapsedSeconds": 4.983
+      }
+    },
+    {
+      "case": "vocal-ja",
+      "state": "COMPLETED",
+      "jobId": "6429ee18-4379-45e5-86dd-7c7cd37571ab",
+      "metrics": {
+        "paidGeneration": {
+          "provider": "elevenlabs",
+          "model": "music_v2_5",
+          "state": "COMPLETED",
+          "seconds": 30,
+          "estimatedUsd": 0.075,
+          "actualBillKnown": false,
+          "automaticRetries": false,
+          "apiSourceFormat": "mp3",
+          "wavSource": "decoded-from-provider-mp3",
+          "httpStatus": 200,
+          "sourceMp3Sha256": "65dc45e64686f9940a792734d87d9095dc6ea71edc200d301482bfc68939326a",
+          "elapsedSeconds": 4.142
+        }
+      },
+      "error": null,
+      "estimatedUsd": 0.075,
+      "actualBillKnown": false,
+      "files": {
+        "wav": {
+          "sha256": "507b2937ccc44d959197ad42b16fa7199f041806c0a3e8fd720c3f66fb8f5cfb",
+          "audio": {
+            "verified": true,
+            "frames": 1324800,
+            "sampleRate": 44100,
+            "channels": 2,
+            "duration": 30.040816326530614,
+            "rms": 0.15065540706123295,
+            "peak": 0.8599599599838257
+          }
+        },
+        "mp3": {
+          "sha256": "aa36c7710f190cbdaf7770809c40e0cc4f4eedc10564533348e9d46adf26d4db",
+          "audio": {
+            "verified": true,
+            "frames": 1324800,
+            "sampleRate": 44100,
+            "channels": 2,
+            "duration": 30.040816326530614,
+            "rms": 0.1506570695229656,
+            "peak": 0.8595470190048218
+          }
+        }
+      },
+      "asr": {
+        "state": "COMPLETED",
+        "error": null,
+        "referenceUsedForInference": false,
+        "audioTransmittedExternally": false,
+        "transcription": "朝の光が窓に揺れる小さな夢と道を歩く風が吹いても立ち止まらない今日の自分を信じて歌う明日は少し明るくなる頃の星を辿って行こう。\n持って行こう。",
+        "cer": {
+          "unit": "characters",
+          "referenceUnits": 63,
+          "hypothesisUnits": 68,
+          "errors": 8,
+          "substitutions": 3,
+          "deletions": 0,
+          "insertions": 5,
+          "errorRate": 0.12698412698412698,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        },
+        "metrics": {
+          "totalSeconds": 71.892,
+          "peakAllocatedMiB": 4066.65,
+          "peakReservedMiB": 4130.0,
+          "resources": {
+            "peakProcessRamMiB": 4549.91,
+            "gpuUtilizationPeakPercent": 62,
+            "gpuMemoryDevicePeakMiB": 5969,
+            "gpuSamples": 63,
+            "gpuMetricsScope": "whole-device-including-other-apps",
+            "ramMeasurement": "sampled-process-working-set"
+          }
+        },
+        "supplementaryReadingCer": {
+          "unit": "characters",
+          "referenceUnits": 82,
+          "hypothesisUnits": 87,
+          "errors": 8,
+          "substitutions": 1,
+          "deletions": 1,
+          "insertions": 6,
+          "errorRate": 0.0975609756097561,
+          "normalization": "NFKC casefold; punctuation/spacing ignored for CER; vowel/tone marks retained"
+        }
+      },
+      "paidCall": {
+        "provider": "elevenlabs",
+        "model": "music_v2_5",
+        "state": "COMPLETED",
+        "seconds": 30,
+        "estimatedUsd": 0.075,
+        "actualBillKnown": false,
+        "automaticRetries": false,
+        "apiSourceFormat": "mp3",
+        "wavSource": "decoded-from-provider-mp3",
+        "httpStatus": 200,
+        "sourceMp3Sha256": "65dc45e64686f9940a792734d87d9095dc6ea71edc200d301482bfc68939326a",
+        "elapsedSeconds": 4.142
+      }
+    }
+  ],
+  "estimatedUsd": 0.6,
+  "actualBillKnown": false,
+  "automaticRetries": false,
+  "humanListeningEvaluationPerformed": false,
+  "baselineKoreanCer": 0.07462686567164178,
+  "comparisonLimit": "Different authored lyrics, one sample per language; ASR errors are included. No ranking of musical or pronunciation quality."
+}

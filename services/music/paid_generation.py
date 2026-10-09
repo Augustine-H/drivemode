@@ -78,12 +78,13 @@ def generate(request, folder, cancelled=lambda: False):
                         if count > 16 * 2**20:
                             raise PaidGenerationError('PAID_GENERATION_RESPONSE_TOO_LARGE')
                         handle.write(block)
-        info = verify_audio_file(temporary)
-        if abs(info['duration'] - request['duration']) > .25:
-            raise PaidGenerationError('PAID_GENERATION_DURATION_MISMATCH')
+        # Preserve a fully received response before validation. Partial streams
+        # still get deleted; a rejected complete response remains diagnostic data.
         source = folder / 'provider-original.mp3'
         temporary.replace(source)
         record['sourceMp3Sha256'] = file_hash(source)
+        record['sourceMp3Bytes'] = source.stat().st_size
+        record['responsePreserved'] = True
         import imageio_ffmpeg
         intermediate = folder / 'provider-decoded.wav'
         result = subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), '-nostdin', '-hide_banner', '-loglevel', 'error',
@@ -91,6 +92,15 @@ def generate(request, folder, cancelled=lambda: False):
                                 capture_output=True, timeout=120)
         if result.returncode:
             raise PaidGenerationError('PAID_GENERATION_DECODE_FAILED')
+        # Check the exact PCM that will be saved. Direct MP3 decoding through
+        # libsndfile can disagree with FFmpeg about frame counts and gapless data.
+        info = verify_audio_file(intermediate)
+        record['decodedAudio'] = info
+        record['validationDecoder'] = 'ffmpeg-to-pcm-wav'
+        record['durationDeltaSeconds'] = round(info['duration'] - request['duration'], 6)
+        record['durationToleranceSeconds'] = .25
+        if abs(info['duration'] - request['duration']) > .25:
+            raise PaidGenerationError('PAID_GENERATION_DURATION_MISMATCH')
         import soundfile as sf
         audio, rate = sf.read(intermediate, dtype='float32', always_2d=True)
         wav = save_audio(audio, rate, folder / 'original.wav')

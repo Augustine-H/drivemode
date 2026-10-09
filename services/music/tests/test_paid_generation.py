@@ -109,3 +109,44 @@ class PaidGenerationTests(unittest.TestCase):
                 self.assertTrue(worker.health()['acceptingJobs'])
                 self.assertIsNone(worker.error)
             finally: worker.close()
+
+    def test_duration_failure_preserves_response_and_blocks_repeat(self):
+        from provider import file_hash
+        with tempfile.TemporaryDirectory() as name, patch('paid_generation.load',return_value='private-key'), patch('paid_generation.httpx.Client') as factory:
+            folder=Path(name)
+            response=MagicMock(status_code=200,is_success=True)
+            response.iter_bytes.return_value=[b'complete-response']
+            client=factory.return_value.__enter__.return_value
+            client.stream.return_value.__enter__.return_value=response
+            with patch('paid_generation.subprocess.run',return_value=MagicMock(returncode=0)), patch('paid_generation.verify_audio_file',return_value={'duration':119.5,'verified':True}) as verify:
+                with self.assertRaisesRegex(PaidGenerationError,'DURATION_MISMATCH'):
+                    generate(request() | {'duration':120},folder)
+            self.assertEqual(verify.call_args.args[0],folder/'provider-decoded.wav')
+            stored=json.loads((folder/'paid-generation-call.json').read_text())
+            self.assertEqual(stored['state'],'FAILED')
+            self.assertEqual(stored['decodedAudio']['duration'],119.5)
+            self.assertEqual(stored['durationDeltaSeconds'],-.5)
+            self.assertEqual(stored['sourceMp3Sha256'],file_hash(folder/'provider-original.mp3'))
+            self.assertEqual((folder/'provider-original.mp3').read_bytes(),b'complete-response')
+            self.assertFalse((folder/'original.wav').exists())
+            with self.assertRaisesRegex(PaidGenerationError,'ALREADY_ATTEMPTED'):
+                generate(request() | {'duration':120},folder)
+            self.assertEqual(client.stream.call_count,1)
+
+    def test_invalid_complete_audio_is_preserved_but_partial_stream_is_not(self):
+        for partial in [False,True]:
+            with self.subTest(partial=partial), tempfile.TemporaryDirectory() as name, patch('paid_generation.load',return_value='private-key'), patch('paid_generation.httpx.Client') as factory:
+                folder=Path(name)
+                def stream():
+                    yield b'invalid-audio'
+                    if partial: raise httpx.ReadTimeout('private-key')
+                response=MagicMock(status_code=200,is_success=True)
+                response.iter_bytes.return_value=stream()
+                factory.return_value.__enter__.return_value.stream.return_value.__enter__.return_value=response
+                with patch('paid_generation.subprocess.run',return_value=MagicMock(returncode=0)), patch('paid_generation.verify_audio_file',side_effect=RuntimeError('invalid audio')):
+                    with self.assertRaises(RuntimeError): generate(request(),folder)
+                self.assertEqual((folder/'provider-original.mp3').exists(),not partial)
+                self.assertFalse((folder/'provider.partial.mp3').exists())
+                stored=json.loads((folder/'paid-generation-call.json').read_text())
+                self.assertEqual(stored['state'],'FAILED')
+                self.assertNotIn('private-key',json.dumps(stored))
