@@ -81,13 +81,17 @@ import {
 } from "@/lib/conversation-actions";
 import { takePersonaWake } from "@/lib/wake";
 import {
+  ArrowDown,
   ArrowLeftRight,
+  ChevronDown,
+  ChevronUp,
   ClipboardPaste,
   Download,
   Mic,
   Pause,
   Play,
   RotateCcw,
+  Search,
   Share2,
   SkipBack,
   SkipForward,
@@ -307,6 +311,14 @@ function topicWith(name: string) {
   return `${name}${batchim ? "과" : "와"} 나누는 대화`;
 }
 
+function searchHighlight(text: string, query: string) {
+  if (!query) return text;
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return text.split(new RegExp(`(${escaped})`, "gi")).map((part, index) =>
+    index % 2 ? <mark key={index} className="rounded bg-fg font-semibold text-ink">{part}</mark> : part,
+  );
+}
+
 function Equalizer() {
   return (
     <span className="eq" aria-hidden="true">
@@ -499,6 +511,27 @@ export function ReaderApp() {
   const [composer, setComposer] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollerRef = useRef<HTMLElement>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchIndex, setSearchIndex] = useState(0);
+  const searchTerm = searchOpen ? searchQuery.trim() : "";
+  const searchMatches = useMemo(
+    () => searchTerm ? turns.filter((turn) => turn.text.toLowerCase().includes(searchTerm.toLowerCase())) : [],
+    [turns, searchTerm],
+  );
+  const activeSearchIndex = Math.min(searchIndex, Math.max(0, searchMatches.length - 1));
+  const activeSearchId = searchMatches[activeSearchIndex]?.id;
+  useEffect(() => {
+    setSearchIndex(0);
+  }, [searchQuery, personaId]);
+  useEffect(() => {
+    if (!activeSearchId) return;
+    const frame = requestAnimationFrame(() => revealInScroller(scrollerRef.current, `turn-${activeSearchId}`, "start"));
+    return () => cancelAnimationFrame(frame);
+  }, [activeSearchId, searchTerm, personaId]);
+  function moveSearch(direction: number) {
+    if (searchMatches.length) setSearchIndex((activeSearchIndex + direction + searchMatches.length) % searchMatches.length);
+  }
   const bootIndex = useRef(0);
   const previewAudio = useRef<HTMLAudioElement | null>(null);
   const turnsNow = useRef(turns);
@@ -3028,6 +3061,16 @@ export function ReaderApp() {
             />
             <button
               type="button"
+              aria-label="채팅 내역 검색"
+              aria-expanded={searchOpen}
+              aria-controls="chat-search"
+              className="inline-flex size-11 items-center justify-center rounded-full border border-line bg-surface text-fg"
+              onClick={() => setSearchOpen((open) => !open)}
+            >
+              <Search className="size-4" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
               aria-label="설정"
               className="inline-flex size-11 items-center justify-center rounded-full border border-line bg-surface text-fg"
               onClick={openSettings}
@@ -3063,11 +3106,37 @@ export function ReaderApp() {
             );
           })}
         </div>
+        {searchOpen ? (
+          <div id="chat-search" role="search" aria-label="현재 대화 검색" className="border-t border-line px-4 py-2">
+            <div className="flex items-center gap-1">
+              <input
+                autoFocus
+                type="search"
+                aria-label="채팅 검색어"
+                placeholder="채팅 내역에서 단어 검색"
+                value={searchQuery}
+                onChange={(event) => { setSearchQuery(event.target.value); setSearchIndex(0); }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") { event.preventDefault(); moveSearch(event.shiftKey ? -1 : 1); }
+                  if (event.key === "Escape") setSearchOpen(false);
+                }}
+                className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-surface px-3 text-sm text-fg"
+              />
+              <button type="button" aria-label="이전 검색 결과" disabled={!searchMatches.length} onClick={() => moveSearch(-1)} className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-fg disabled:opacity-40"><ChevronUp className="size-4" aria-hidden="true" /></button>
+              <button type="button" aria-label="다음 검색 결과" disabled={!searchMatches.length} onClick={() => moveSearch(1)} className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-fg disabled:opacity-40"><ChevronDown className="size-4" aria-hidden="true" /></button>
+              <button type="button" aria-label="검색 닫기" onClick={() => setSearchOpen(false)} className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-muted"><X className="size-4" aria-hidden="true" /></button>
+            </div>
+            <p role="status" className="mt-1 text-xs text-muted">
+              {searchTerm ? searchMatches.length ? `${activeSearchIndex + 1} / ${searchMatches.length}개 말풍선` : "검색 결과가 없습니다." : "현재 대화의 단어를 검색하세요."}
+            </p>
+          </div>
+        ) : null}
       </header>
 
+      <div className="relative flex min-h-0 flex-1 flex-col">
       <main
         ref={scrollerRef}
-        className="min-h-0 flex-1 overflow-y-auto bg-cover bg-center px-4 py-4"
+        className="min-h-0 flex-1 overflow-y-auto bg-cover bg-center px-4 pt-4 pb-20"
         style={
           selectedPersona?.photo && selectedPersona.showBackground !== false
             ? {
@@ -3106,9 +3175,9 @@ export function ReaderApp() {
                   {group.turns.map(({ turn, index }) => {
                     if (turn.event)
                       return (
-                        <li key={turn.id} id={`turn-${turn.id}`}>
+                        <li key={turn.id} id={`turn-${turn.id}`} className={turn.id === activeSearchId ? "rounded-xl ring-2 ring-primary" : undefined}>
                           <p role="status" className="py-2 text-center text-sm text-muted">
-                            {turn.text}
+                            {searchHighlight(turn.text, searchTerm)}
                           </p>
                         </li>
                       );
@@ -3146,7 +3215,8 @@ export function ReaderApp() {
                             (mine
                               ? "border-primary bg-primary text-ink"
                               : "border-line bg-raised text-fg") +
-                            (playing ? " ring-2 ring-fg ring-offset-2 ring-offset-bg" : "")
+                            (playing ? " ring-2 ring-fg ring-offset-2 ring-offset-bg" : "") +
+                            (turn.id === activeSearchId ? " outline-2 outline-offset-2 outline-primary" : "")
                           }
                         >
                           <div className="mb-2 flex items-center justify-between gap-2">
@@ -3216,6 +3286,9 @@ export function ReaderApp() {
                             !mine &&
                             !turn.textOnly ? (
                             <div className="space-y-2">
+                              {searchTerm && turn.text.toLowerCase().includes(searchTerm.toLowerCase()) ? (
+                                <p className="text-sm leading-relaxed">{searchHighlight(turn.text, searchTerm)}</p>
+                              ) : null}
                               <button
                                 type="button"
                                 aria-label={`${turn.personaName || personaName || "그록"} 음성 메시지 ${index + 1} ${playing && reader.status === "playing" ? "일시정지" : "재생"}`}
@@ -3284,7 +3357,7 @@ export function ReaderApp() {
                                               : undefined
                                           }
                                         >
-                                          {chunk}
+                                          {searchHighlight(chunk, searchTerm)}
                                         </span>
                                       </span>
                                     );
@@ -3371,6 +3444,18 @@ export function ReaderApp() {
           </ol>
         )}
       </main>
+      {turns.length ? (
+        <button
+          type="button"
+          aria-label="채팅 맨 아래로 이동"
+          title="맨 아래로 이동"
+          className="absolute right-4 bottom-4 inline-flex size-12 items-center justify-center rounded-full border border-line bg-raised text-fg shadow-lg transition-colors hover:bg-surface"
+          onClick={() => scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" })}
+        >
+          <ArrowDown className="size-5" aria-hidden="true" />
+        </button>
+      ) : null}
+      </div>
 
       <form
         className="shrink-0 border-t border-line bg-surface px-4 py-3"
