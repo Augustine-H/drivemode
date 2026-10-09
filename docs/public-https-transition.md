@@ -4,7 +4,9 @@
 
 ## 현재 단계
 
-공인 HTTPS를 추가하는 코드 변경이다. 기존 Tailscale Serve, 내부 포트, Google 사용량 DB, 음악 DB, 브라우저 Memory/Media 구조를 보존한다. NAS 배포·DNS·DSM·공유기·인증서는 자동 변경하지 않는다. 실제 도메인과 인증서가 없으므로 외부 TLS 및 S26U 실기 테스트는 아직 완료되지 않았다.
+공인 HTTPS를 추가하는 코드 변경이다. 기존 Tailscale Serve, 내부 포트, Google 사용량 DB, 음악 DB, 브라우저 Memory/Media 구조를 보존한다. NAS 배포·DNS·DSM·공유기·인증서는 자동 변경하지 않는다. 사용자가 지정한 주소는 **https://imhmh.synology.me**이다. 2026-10-09 이 PC에서 DNS 조회와 기본 TLS 인증서 검증에 성공했다. 루트는 403, `/health`와 `/api/network/status`는 404여서 Voice Grok 연결은 아직 확인되지 않았다. S26U 실기 테스트도 대기 중이다.
+
+도메인별 입력값과 적용 순서는 [imhmh.synology.me 적용 안내](public-https-imhmh.md)를 따른다. 현재 443에는 이미 응답하는 서비스가 있다. 같은 호스트의 기존 규칙을 덮어쓰지 말고, NAS 운영자가 충돌 여부를 먼저 확인한다.
 
 현재 내부 포트는 웹 8097, TTS 8092, 음악 8094이다. 예시의 8765로 변경하지 않는다. 외부는 하나의 HTTPS 호스트의 기본 443을 사용한다. 웹 서버가 음악 `/api/music/health`, `/api/music/v1/jobs` 및 음원 다운로드를 내부 8094로 프록시한다. `/internal/*`은 이 프록시에 등록하지 않는다. Google TTS는 기존 `/api/google-tts`를 통해 기존 백엔드 라우팅을 유지한다.
 
@@ -67,7 +69,8 @@ DSM 항목은 설치 버전에 따라 이름이 다를 수 있다. [Synology 역
 | 개발/운영 빌드 desktop·mobile 렌더 | 내용 표시·가로 넘침 없음·console/page 오류 없음; baseline 일치 |
 | NAS 운영 코드 인증 통합 | 등록·갱신·401·CSRF·관리 경로 격리·CORS·기존 Serve 인증 통과 |
 | Android APK/AAB 빌드 | Android 네이티브 소스 없음; 대상 아님 |
-| 공인 DNS/TLS/DSM/S26U/Unicorn Pro | 설정·실기 검증 대기 |
+| 공인 DNS/기본 TLS | imhmh.synology.me 조회·이 PC의 인증서 검증 통과; Voice Grok 경로 404 |
+| DSM 프록시/S26U/Unicorn Pro | 설정·실기 검증 대기 |
 
 검증 파일은 `artifacts/public-network-built-verification.json`, `screenshots/https-dev.json`, `screenshots/https-built.json`, `.grok/https-final-tests.log`, `.grok/https-music-tests.log`, `.grok/https-final-lint.log`에 기록되어 있다. 이전의 `npm test`는 Windows에서 인용된 glob 때문에 scripts 테스트를 0개 실행했으므로 이번 변경에서 테스트 파일을 명시적으로 수집하도록 고쳤다. ESLint는 생성된 배포 산출물/가상환경을 제외하고, 기존 빈 catch 5곳의 의도를 주석으로 명시했다. 동작은 변경하지 않았다.
 
