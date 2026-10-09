@@ -134,6 +134,8 @@ Docker NAS staging 시험은 기존 고정 이미지/Docker 접근 권한/공유
 
 ## 다음 작업과 완료 기준
 
+Desktop 후속 조사(2026-10-09): [메시지 식별 대안 조사](naver-mail-identity-investigation.md)를 먼저 읽는다. 원래 영구 UID 보장을 대체하는 경로는 확인하지 못했으며 기존 차단을 유지했다. 헤더/내용 hash, 세션 위치, RAM snapshot의 보장 차이와 채택 전 시험을 정리했다. runtime/NAS/실계정 모드는 변경하지 않았다. Desktop Voice 계약 회귀 11개 재통과; Python 90개는 인계의 기존 결과로 구분한다.
+
 현재 네이버 계정의 공식 UIDVALIDITY 해결 방법 또는 보장되는 대체 식별 경로를 확인한다. 문의가 필요하면 위 초안을 사용자가 직접 제출한다. 모델이 사용자 지시 없이 외부 문의를 전송하지 않는다.
 
 대체 설계를 제안할 경우 UID 재사용/메일함 reset/재연결/동시 변경/중복 Message-ID/동일 헤더·크기/큰 MIME/첨부 원본 비조회/개인정보 최소화/임시와 영구 cache를 검토하고, 원래 요구사항과 달라지는 보장을 분명히 설명한다. 테스트를 통과시키려고 UIDVALIDITY 검증이나 원래 safety oracle를 제거하지 않는다.

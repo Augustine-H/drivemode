@@ -274,3 +274,9 @@ nonzero uint32 epoch를 사용할 수 없어 folder+UID의 메일함 재생성 �
 운영자 화면에서 진단 status=passed, OBJECTID/CONDSTORE/QRESYNC/IMAP4REV2 모두 false, mail_body_read=false, credential_values_printed=false를 확인했다. OBJECTID 미지원이므로 RFC 8474의 MAILBOXID/EMAILID 경로는 사용할 수 없다. 관찰하지 않은 다른 capability 또는 네이버 전체 계정 동작은 추정하지 않는다. 기존 zero UIDVALIDITY 호환성 차단과 실계정 전환 보류를 유지한다.
 
 [네이버 고객센터 문의 초안](naver-mail-imap-support-request.md)을 준비했다. UIDVALIDITY 동작/공식 해결 방법/UID 재사용 안정성/공식 대체 읽기 전용 식별 경로를 문의하며 인증정보·메일 원문·NAS 주소는 포함하지 않는다. 문의는 전송하지 않았다. 이번 변경은 문서만으로, NAS 서비스/계정/기존 코드와 직전 Python 90개 결과를 변경하지 않았다.
+
+## 2026-10-09 Desktop 메시지 식별 대안 조사
+
+인계 커밋 e1ef916의 별도 feature checkout에서 표준/공급자 공개 문서와 실제 Python/Voice 참조 계약을 대조했다. [조사 결과](naver-mail-identity-investigation.md)에 UID reset/재사용, 동일 헤더·크기/중복 Message-ID, 부분 본문/전체 hash, 동시 변경, selected-session 번호 추적, 별도 RAM snapshot 계약의 보장 차이와 도입 전 시험 기준을 기록했다. 원래 영구 메시지 식별 보장을 만족하는 대체 경로를 확인하지 못했으며 runtime 검증 및 NAS validation 모드를 그대로 유지했다.
+
+이번 Desktop 실행: `node --test scripts/naver-mail.test.mjs` **11 passed**, 실패/skip 없음. Python 90개는 위 인계 시점의 결과이며 이번에 재실행하지 않았다. 앱 build/typecheck, NAS 설치/재시작, 실계정 메일/flags/음성 검증 및 외부 문의 전송은 수행하지 않았다. 변경은 문서 3개뿐이다.
