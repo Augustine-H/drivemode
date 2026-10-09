@@ -15,7 +15,8 @@
 - 20:17:11–20:17:13 KST 정상 종료(0): manhak 계정의 MCP 전용 authorized_keys 항목(codex-naver-mail-nas-2026-10-08) 제거. 다른 키는 보존한다.
 - 예약 작업 Task 22, voice-grok-naver-mail-release, naver-mail-nas-ssh, voice-grok-naver-mail-release2 및 Task 21을 대체한 일회성 정리 작업을 삭제했다. 목록에서 5개 모두 사라졌음을 확인했다.
 - 각 정리 종료 시 운영 웹 실행 및 /run/google/naver/credentials.enc 존재를 확인했다. MCP 중지 뒤에도 운영 앱의 실제 네이버 목록 조회가 정상이다.
-- 남은 Naver MCP Canary 역방향 프록시(HTTPS 8446 → 13003)는 별도 삭제 확인을 요청했다. 운영 HTTPS 443 → 8097은 보존한다.
+- 사용자 확인 후 Naver MCP Canary 역방향 프록시(HTTPS 8446 → 13003)를 삭제했다. 목록에는 운영 HTTPS 443 → 8097 규칙만 남아 있다.
+- 사용자 확인 후 빈 MCP 네트워크 voice-grok-naver-mail_default, voice-grok-naver-oauth, voice-grok-naver-canary를 삭제했다. 각 네트워크의 연결된 컨테이너가 0개임을 먼저 확인했다. 최종 목록에서 MCP 컨테이너/네트워크는 없고 운영 웹·TTS·음악 서비스는 실행 중이다.
 
 ## 실제 수신 검증
 
