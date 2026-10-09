@@ -63,6 +63,16 @@ DSM 역방향 프록시 목록에서 `imhmh.synology.me:443`을 사용하는 기
 
 ## 적용 후 성공 기준
 
+### 2026-10-09 공개 경로 적용 결과
+
+사용자의 저장 승인 후 일회성 활성화 작업은 DSM에서 정상 (0)으로 완료됐다. 최초 실행의 음악 키 읽기 오류는 제한된 도구 컨테이너에 DAC_READ_SEARCH를 추가해 해결했다. 기존 runtime 백업을 보존하고 공개 인증 설정을 적용했다. DSM의 `Voice Grok HTTPS` 규칙 저장도 완료됐으며 기존 Naver MCP Canary 규칙은 유지됐다. 위의 미저장 초안 설명은 적용 전 기록이다.
+
+이 PC에서 공인 HTTPS 인증서 검증 성공(TLS 검증 결과 0), `/api/network/status` 200 및 `public:true`, `authenticated:false`를 확인했다. 등록 전 `/health`, `/api/music/health`, `/api/google-tts`는 401, `/api/admin`은 404였다. 기존 Tailscale 경로의 상태 응답도 200으로 유지됐다. 방화벽, 공유기 포워딩, 인증서는 변경하지 않았다.
+
+공개 주소에서 데스크톱과 모바일 기기 등록 화면의 표시, 가로 넘침 없음, 런타임 예외 없음은 확인했다. 자동 브라우저 smoke는 최초 세션 갱신 요청의 예상된 401 콘솔 메시지로 종료 코드 1을 반환했으므로 전체 smoke 통과로 기록하지 않는다. 기기 등록 후 채팅·TTS·음악과 휴대폰 Wi-Fi/5G 검증은 아직 남아 있다. Google OAuth 공개 callback의 콘솔 등록도 아직 확인하지 않았다.
+
+등록 코드는 NAS File Station의 `docker/voice-grok-web/private/pairing-code.txt`에만 보관한다. 사용자가 공개 주소의 등록 입력란에 직접 입력하며 채팅, 로그, 공개 문서에 옮기지 않는다.
+
 등록 전 `/api/network/status`는 공개 연결 상태 JSON, `/health`는 401을 반환해야 한다. 등록 후 `/health`는 200과 `voice-grok` 상태 JSON을 반환해야 한다. HTML 로그인 페이지나 404 응답은 성공이 아니다.
 
 그다음 S26 Ultra에서 Unicorn Pro ON / Tailscale OFF로 Wi-Fi와 5G의 채팅·TTS 첫 응답, 음악 재생·탐색, 화면 복귀를 확인한다. 현재 확인한 HTTP 응답 시간은 채팅/TTS 지연 측정값이 아니다.
