@@ -6,6 +6,18 @@ globalThis.document=new EventTarget();document.hidden=false;
 const net=await import('../src/lib/network.ts');
 const originalFetch=globalThis.fetch;
 const config={mode:'auto',https:'https://voice.example.com',lan:'https://voice.lan.example.com',tailscale:'https://nas.example.ts.net:8445'};
+test('resume refresh distinguishes lost connectivity from an expired credential',async()=>{
+  try {
+    for (const status of [200,401,403,429,503]) {
+      globalThis.fetch=async()=>Response.json({}, {status});
+      assert.equal(await net.publicSessionRefreshOutcome(),status===200?true:status===401?false:null);
+    }
+    globalThis.fetch=async()=>{throw new DOMException('timed out','TimeoutError');};
+    assert.equal(await net.publicSessionRefreshOutcome(),null);
+    globalThis.fetch=async()=>Response.json({ok:true});
+    assert.equal(await net.publicSessionRefreshOutcome(),true);
+  } finally {globalThis.fetch=originalFetch;}
+});
 test('automatic selection preserves priority and caches health, manual modes never fall back',async()=>{
   try {
     const calls=[];globalThis.fetch=async(url)=>{calls.push(String(url));if(String(url).startsWith(config.https))throw Error('down');return Response.json({status:'ok'});};

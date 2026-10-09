@@ -5,7 +5,7 @@ const KEY = 'voice-grok-network-v1';
 export const NETWORK_EVENT = 'voice-grok-network-status';
 let active: { base: string; until: number; status: NetworkStatus } | undefined;
 let checking: Promise<string> | undefined;
-const renewals = new Map<string, Promise<boolean>>();
+const renewals = new Map<string, Promise<boolean | null>>();
 let revision = 0;
 let publicSession = false;
 let status: NetworkStatus = {};
@@ -36,10 +36,11 @@ export function networkConfigured() { const c = networkConfig(); return publicSe
 export function networkSnapshot() { return status; }
 function publish(value: NetworkStatus) { status = value; if (typeof window !== 'undefined') window.dispatchEvent(new Event(NETWORK_EVENT)); }
 export function invalidateNetwork() { active = undefined; checking = undefined; revision++; }
-export async function refreshPublicSession(base = '') {
-  if (!renewals.has(base)) renewals.set(base, fetch(base + '/api/network/refresh', { method: 'POST', credentials: 'include', redirect: 'error', signal: AbortSignal.timeout(3000) }).then(r => r.ok).catch(() => false).finally(() => { renewals.delete(base); }));
+export async function publicSessionRefreshOutcome(base = '') {
+  if (!renewals.has(base)) renewals.set(base, fetch(base + '/api/network/refresh', { method: 'POST', credentials: 'include', redirect: 'error', signal: AbortSignal.timeout(10000) }).then(r => r.ok ? true : r.status === 401 ? false : null).catch(() => null).finally(() => { renewals.delete(base); }));
   return renewals.get(base)!;
 }
+export async function refreshPublicSession(base = '') { return (await publicSessionRefreshOutcome(base)) === true; }
 export async function probeEndpoint(base: string, timeout = 1500) {
   if (window.location.protocol === 'https:' && base.startsWith('http:')) throw new Error('HTTPS 앱에서는 HTTP LAN 연결이 차단됩니다. 신뢰 가능한 LAN HTTPS를 사용하세요.');
   const start = performance.now();
