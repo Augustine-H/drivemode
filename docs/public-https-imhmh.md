@@ -1,6 +1,18 @@
 # imhmh.synology.me 적용 안내
 
-확정 주소: **https://imhmh.synology.me**. 버전 1.33.0의 NAS 배포 패키지를 사용한다. 이 문서는 입력값을 준비한 것이며 NAS 설정이나 서비스를 변경하지 않았다.
+확정 주소: **https://imhmh.synology.me**. 버전 1.33.0의 NAS 배포 패키지를 사용한다. NAS 웹 앱 업데이트는 완료했으며 공개 인증 설정·DSM 프록시·공유기·인증서는 아직 변경하지 않았다.
+
+## NAS 배포 결과 · 2026-10-09
+
+DSM `https://imhmh.synology.me:5119`의 기존 로그인 세션으로 확인했다. 기존 역방향 프록시 목록에는 Naver MCP Canary의 8446 규칙 한 개가 있었으며, 이를 변경하지 않았다. 443의 기존 HTTP 응답이 어느 앞단에서 만들어지는지는 이 목록만으로 확정할 수 없다.
+
+웹 프로젝트 `/volume1/docker/voice-grok-web`에 ZIP 업로드 완료를 확인하고 별도 폴더에도 압축을 풀었다. 기존 `app`, `compose.yaml`, `start.mjs`는 각각 `app.bak_https_20261009`, `compose.yaml.bak_https_20261009`, `start.mjs.bak_https_20261009`로 보관했다. 새 앱 파일 적용 후 웹 프로젝트만 일시 중지하고 빌드·재생성했다. 음악/TTS 프로젝트와 비공개 runtime, Google 데이터 볼륨은 유지했다.
+
+DSM 빌드 종료 코드 0, 이미지 `voice-grok-web:1.33.0-https1`, 웹 컨테이너 시작을 확인했다. 기존 Tailscale 앱은 1.33.0을 표시하고 `/health`는 정상 JSON, `/api/network/status`는 `public:false`, `authenticated:true`를 반환했다. Google TTS 상태는 인증/API 정상, 활성 backend NAS, 한도 100000, 초과 유료 사용 OFF였다. 이번 확인에서 유료 채팅·음성 생성을 호출하지 않았다.
+
+실 NAS의 데스크톱·모바일 렌더 검사는 HTTP 200, 표시 내용 있음, 가로 넘침 없음, console/page 오류 없음으로 통과했다. 두 화면을 직접 확인했다. 증거는 `screenshots/https-nas-live.json`, `screenshots/https-nas-live.png`, `screenshots/https-nas-live-mobile.png`에 있다. S26 실제 기기 검증은 아니다.
+
+**남은 순서:** 아래 비공개 공개 인증 설정 준비/적용 → DSM 443 프록시 수동 설정 및 인증서 할당 → Google OAuth 공개 callback 추가 → 공개 경로 인증 검사 → S26 확인. 웹 앱 업데이트만으로 공인 HTTPS가 활성화되지는 않는다.
 
 ## 먼저 확인할 기존 서비스
 
