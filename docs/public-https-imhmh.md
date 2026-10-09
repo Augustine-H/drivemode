@@ -73,6 +73,12 @@ DSM 역방향 프록시 목록에서 `imhmh.synology.me:443`을 사용하는 기
 
 등록 코드는 NAS File Station의 `docker/voice-grok-web/private/pairing-code.txt`에만 보관한다. 사용자가 공개 주소의 등록 입력란에 직접 입력하며 채팅, 로그, 공개 문서에 옮기지 않는다.
 
+### 등록 후 브라우저 확인
+
+사용자가 기기 등록을 완료한 뒤 공개 주소에서 1.33.0 앱 화면과 HTTPS 연결을 확인했다. 설정의 health 응답시간은 91 ms, TLS는 브라우저 검증 통과였다. 이는 이 PC의 상태 조회 수치이며 채팅/TTS 지연이나 휴대폰 5G 측정값은 아니다.
+
+TTS 서버 재확인에서 NAS 연결 및 기존 사용량이 표시됐다. Leda 음성 테스트는 오류 없이 완료됐고 사용량이 1,049자에서 1,073자로 증가했다. 짧은 연결 테스트 메시지 1회에 아라 음성 메시지가 생성되어 자동 재생 중 상태와 완료 후 재생 가능 상태까지 확인했다. 해당 브라우저의 오류 로그는 비어 있었다. 음악의 기존 NAS 작업 목록 조회도 성공했다. Google OAuth 공개 callback, 음악 실제 재생/탐색 및 S26 Ultra Unicorn Pro ON / Tailscale OFF 환경의 Wi-Fi·5G 검증은 남아 있다.
+
 등록 전 `/api/network/status`는 공개 연결 상태 JSON, `/health`는 401을 반환해야 한다. 등록 후 `/health`는 200과 `voice-grok` 상태 JSON을 반환해야 한다. HTML 로그인 페이지나 404 응답은 성공이 아니다.
 
 그다음 S26 Ultra에서 Unicorn Pro ON / Tailscale OFF로 Wi-Fi와 5G의 채팅·TTS 첫 응답, 음악 재생·탐색, 화면 복귀를 확인한다. 현재 확인한 HTTP 응답 시간은 채팅/TTS 지연 측정값이 아니다.
