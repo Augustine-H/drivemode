@@ -3136,7 +3136,7 @@ export function ReaderApp() {
       <div className="relative flex min-h-0 flex-1 flex-col">
       <main
         ref={scrollerRef}
-        className="min-h-0 flex-1 overflow-y-auto bg-cover bg-center px-4 pt-4 pb-20"
+        className="min-h-0 flex-1 overflow-y-auto bg-cover bg-center px-4 py-4"
         style={
           selectedPersona?.photo && selectedPersona.showBackground !== false
             ? {
