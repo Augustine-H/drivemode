@@ -152,7 +152,7 @@ export default defineConfig(({ command, isPreview }) => ({
     strictPort: true,
     // Models, worker ledgers and QA output are generated outside the app source.
     watch: {
-      ignored: ["**/.music-runtime/**", "**/screenshots/**", "**/.vercel/output/**"],
+      ignored: ["**/.music-runtime/**", "**/screenshots/**", "**/artifacts/**", "**/.output/**", "**/.vercel/output/**"],
     },
   },
   preview: {

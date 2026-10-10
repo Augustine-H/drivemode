@@ -3,6 +3,7 @@ import { connection, submitMusic, authorizeMusicRequest, musicHealth, MUSIC_CONN
 import { songRequest, singingLanguages, type SingingLanguage, type MusicRecord, type MusicRequest } from "@/lib/music-model";
 import { recognitionLanguages, type TranscriptionLanguage } from "@/lib/recognition-languages";
 import { transcriptionProviders, estimatedTranscriptionCost, type TranscriptionProvider, type PaidPricing } from "@/lib/transcription-providers";
+import { singingLyricsGuidance } from "@/lib/singing-lyrics-guidance";
 
 async function sampleWav(file: File, fullFile = false) {
   if (file.size > 32 * 1024 * 1024) throw new Error("32MB 이하의 오디오 파일을 선택하세요.");
@@ -49,6 +50,7 @@ export function SongTools({ onRecover, personaVoice, personaName }: { onRecover:
   const [fileSeconds, setFileSeconds] = useState<number>();
   const [generationProvider, setGenerationProvider] = useState<"local" | "elevenlabs">("local");
   const [generationConsent, setGenerationConsent] = useState(false);
+  const lyricsGuidance = singingLyricsGuidance(lyrics, duration, singingLanguage, generationProvider);
   const [generationProviders, setGenerationProviders] = useState<string[]>(["local"]);
   const [generationPricing, setGenerationPricing] = useState<{ estimatedUsdPerMinute: number; checkedAt: string }>();
   const [supportedLanguages, setSupportedLanguages] = useState<string[]>([]);
@@ -253,6 +255,11 @@ export function SongTools({ onRecover, personaVoice, personaName }: { onRecover:
         <label className="block">곡 분위기<input aria-label="보컬 곡 분위기" className={input} value={prompt} onChange={e => setPrompt(e.target.value)} maxLength={2000}/></label>
         <label className="block">가사<textarea aria-label="노래 가사" className={input + " min-h-32"} value={lyrics} onChange={e => setLyrics(e.target.value)} maxLength={8000} placeholder={"[Verse]\n여기에 직접 쓴 가사를 입력하세요\n[Chorus]\n후렴 가사"}/></label>
         <label className="block">길이 (10~120초)<input aria-label="보컬 노래 길이" type="number" min={10} max={120} className={input} value={duration} onChange={e => setDuration(Number(e.target.value))}/></label>
+        {lyricsGuidance && <div className="space-y-2 rounded-xl border border-line p-3" aria-label="가사 분량 안내">
+          <p className="font-medium">{lyricsGuidance.message}</p>
+          <p className="text-muted">{lyricsGuidance.advice}</p>
+          {lyricsGuidance.crowded && <p className="text-muted">가사를 줄이거나 곡 길이를 늘려 비교해 보세요. 입력한 가사는 그대로 전달됩니다.</p>}
+        </div>}
         <button className="min-h-11 rounded-xl bg-primary px-4 text-ink disabled:opacity-50" disabled={generationBlocked || !supportedSingingLanguages.includes(singingLanguage) || !lyrics.trim() || (personaSinging && (!personaVoice || !singingVoices.includes(personaVoice)))} onClick={() => void submit(async () => generationRequest(true))}>보컬 노래 생성</button>
       </div>
     </details>
