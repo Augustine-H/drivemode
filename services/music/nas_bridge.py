@@ -104,6 +104,7 @@ class NasBridge:
         # Capability negotiation keeps an older NAS usable during a rolling update.
         if getattr(self, 'persona_singing_supported', False):
             poll['singingVoices'] = health.get('singingVoices', [])
+            poll['singingLanguages'] = health.get('singingLanguages', ['ko'])
         response = self.data(self.nas.post("/internal/worker/poll", json=poll))
         self.persona_singing_supported = response.get('personaSingingSupported', False)
         assigned = response['job']

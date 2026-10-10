@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { connection, submitMusic, authorizeMusicRequest, musicHealth, MUSIC_CONNECTION_CHANGED } from "@/lib/music-client";
-import { songRequest, type MusicRecord, type MusicRequest } from "@/lib/music-model";
+import { songRequest, singingLanguages, type SingingLanguage, type MusicRecord, type MusicRequest } from "@/lib/music-model";
 import { recognitionLanguages, type TranscriptionLanguage } from "@/lib/recognition-languages";
 import { transcriptionProviders, estimatedTranscriptionCost, type TranscriptionProvider, type PaidPricing } from "@/lib/transcription-providers";
 
@@ -38,7 +38,9 @@ async function sampleWav(file: File, fullFile = false) {
 export function SongTools({ onRecover, personaVoice, personaName }: { onRecover: (record: MusicRecord) => void; personaVoice?: string; personaName?: string }) {
   const [personaSinging, setPersonaSinging] = useState(false);
   const [singingVoices, setSingingVoices] = useState<string[]>([]);
-  const [prompt, setPrompt] = useState("따뜻한 피아노 팝, 한국어 보컬"), [lyrics, setLyrics] = useState("");
+  const [prompt, setPrompt] = useState("따뜻한 피아노 팝"), [lyrics, setLyrics] = useState("");
+  const [singingLanguage, setSingingLanguage] = useState<SingingLanguage>("ko");
+  const [supportedSingingLanguages, setSupportedSingingLanguages] = useState<string[]>(["ko"]);
   const [duration, setDuration] = useState(30), [file, setFile] = useState<File>();
   const [identify, setIdentify] = useState(false), [transcribe, setTranscribe] = useState(true);
   const [language, setLanguage] = useState<TranscriptionLanguage>("ko");
@@ -97,6 +99,7 @@ export function SongTools({ onRecover, personaVoice, personaName }: { onRecover:
         setPricing(h.paidTranscriptionPricing);
         setGenerationProviders(h.generationProviders ?? ["local"]);
         setSingingVoices(h.singingVoices ?? []);
+        setSupportedSingingLanguages(h.singingLanguages ?? ["ko"]);
         setGenerationPricing(h.paidGenerationPricing);
         setFullFileLimit(h.fullFileTranscriptionMaxSeconds ?? 0);
         setServiceNotice(ready ? "" : "NAS에 보컬·인식 업데이트를 적용한 뒤 사용할 수 있습니다.");
@@ -107,7 +110,7 @@ export function SongTools({ onRecover, personaVoice, personaName }: { onRecover:
     void check(); window.addEventListener(MUSIC_CONNECTION_CHANGED, check);
     return () => { stopped = true; window.removeEventListener(MUSIC_CONNECTION_CHANGED, check); };
   }, []);
-  useEffect(() => { setGenerationConsent(false); }, [prompt, lyrics, duration, generationProvider]);
+  useEffect(() => { setGenerationConsent(false); }, [prompt, lyrics, duration, generationProvider, singingLanguage]);
   useEffect(() => { setPersonaSinging(false); }, [personaVoice, generationProvider]);
   useEffect(() => {
     setFileSeconds(undefined); setPaidConsent(false);
@@ -206,8 +209,9 @@ export function SongTools({ onRecover, personaVoice, personaName }: { onRecover:
   const generationCost = generationPricing ? duration / 60 * generationPricing.estimatedUsdPerMinute : undefined;
   const generationBlocked = busy || !serviceReady || (paidGeneration && (!generationConsent || !generationProviders.includes("elevenlabs") || generationCost === undefined));
   function generationRequest(song: boolean): MusicRequest {
-    const request = songRequest(prompt, song ? lyrics : "instrumental", duration, `generation-${crypto.randomUUID()}`);
-    if (!song) { delete request.kind; delete request.lyrics; }
+    const request = songRequest(prompt, song ? lyrics : "instrumental", duration, `generation-${crypto.randomUUID()}`, singingLanguage);
+    if (!song) { delete request.kind; delete request.lyrics; delete request.singingLanguage; }
+    if (song && !supportedSingingLanguages.includes(singingLanguage)) throw new Error("선택한 보컬 언어를 사용하려면 NAS와 Worker 업데이트가 필요합니다.");
     if (paidGeneration && song && lyrics.length > 4000) throw new Error("유료 보컬 가사는 4,000자 이내로 입력하세요.");
     if (song && personaSinging && (!personaVoice || !singingVoices.includes(personaVoice))) throw new Error("선택한 페르소나 가창 목소리가 준비되지 않았습니다.");
     return { ...request, generationProvider, ...(paidGeneration ? { paidGenerationConsent: true } : {}),
@@ -237,7 +241,10 @@ export function SongTools({ onRecover, personaVoice, personaName }: { onRecover:
     </details>
     <details><summary className="min-h-11 cursor-pointer font-medium">보컬 노래 만들기</summary>
       <div className="mt-3 space-y-3">
-        <p className="text-muted">직접 쓴 한국어 가사로 새 노래를 만듭니다. 특정 가수의 목소리를 복제하지 않습니다.</p>
+        <p className="text-muted">직접 쓴 가사로 새 노래를 만듭니다. 가사에 맞는 언어를 선택하세요. 특정 가수의 목소리를 복제하지 않습니다.</p>
+        <label className="block">보컬 언어<select aria-label="보컬 언어" className={input} disabled={busy} value={singingLanguage} onChange={e => setSingingLanguage(e.target.value as SingingLanguage)}>
+          {singingLanguages.map(item => <option key={item.code} value={item.code} disabled={!supportedSingingLanguages.includes(item.code)}>{item.label}{!supportedSingingLanguages.includes(item.code) ? " · 서버 업데이트 필요" : ""}</option>)}
+        </select></label>
         <div className="space-y-2 rounded-xl border border-line p-3">
           <label className="flex min-h-11 items-center gap-2"><input type="checkbox" aria-label="페르소나 목소리로 노래" disabled={busy || !personaVoice || !singingVoices.includes(personaVoice)} checked={personaSinging} onChange={e => setPersonaSinging(e.target.checked)}/>{personaName ?? "현재 페르소나"}의 목소리로 노래 · 로컬 음색 변환</label>
           <p className="text-muted">{personaVoice && singingVoices.includes(personaVoice) ? "xAI 목소리를 기준으로 보컬 음색을 변환합니다. 추가 처리 시간이 필요하며 곡과 음역에 따라 유사성이 달라질 수 있습니다." : "이 페르소나의 가창 목소리가 준비되지 않았거나 NAS 업데이트가 필요합니다. 다른 목소리로 자동 대체하지 않습니다."}</p>
@@ -246,7 +253,7 @@ export function SongTools({ onRecover, personaVoice, personaName }: { onRecover:
         <label className="block">곡 분위기<input aria-label="보컬 곡 분위기" className={input} value={prompt} onChange={e => setPrompt(e.target.value)} maxLength={2000}/></label>
         <label className="block">가사<textarea aria-label="노래 가사" className={input + " min-h-32"} value={lyrics} onChange={e => setLyrics(e.target.value)} maxLength={8000} placeholder={"[Verse]\n여기에 직접 쓴 가사를 입력하세요\n[Chorus]\n후렴 가사"}/></label>
         <label className="block">길이 (10~120초)<input aria-label="보컬 노래 길이" type="number" min={10} max={120} className={input} value={duration} onChange={e => setDuration(Number(e.target.value))}/></label>
-        <button className="min-h-11 rounded-xl bg-primary px-4 text-ink disabled:opacity-50" disabled={generationBlocked || !lyrics.trim() || (personaSinging && (!personaVoice || !singingVoices.includes(personaVoice)))} onClick={() => void submit(async () => generationRequest(true))}>보컬 노래 생성</button>
+        <button className="min-h-11 rounded-xl bg-primary px-4 text-ink disabled:opacity-50" disabled={generationBlocked || !supportedSingingLanguages.includes(singingLanguage) || !lyrics.trim() || (personaSinging && (!personaVoice || !singingVoices.includes(personaVoice)))} onClick={() => void submit(async () => generationRequest(true))}>보컬 노래 생성</button>
       </div>
     </details>
     <details><summary className="min-h-11 cursor-pointer font-medium">노래 제목·가수 찾기 / 가사 받아쓰기</summary>

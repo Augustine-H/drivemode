@@ -10,7 +10,7 @@ import {
   authorizeMusicRequest,
   musicRequestAuthorized,
 } from "@/lib/music-client";
-import { musicStateLabel, musicTerminal, type MusicJob, type MusicRecord } from "@/lib/music-model";
+import { musicStateLabel, musicTerminal, singingLanguageLabel, type MusicJob, type MusicRecord } from "@/lib/music-model";
 import { getMedia, ingestMedia, readMediaBlob, retryMedia } from "@/lib/media-repository";
 import { ManagedMedia } from "./managed-media";
 import { LyricsEditor } from "./lyrics-editor";
@@ -174,7 +174,7 @@ export function MusicJobCard({
       <div role="status" aria-live="polite">
         <p className="font-medium">{musicStateLabel(effectiveState, music.request.kind)}</p>
         <p className="mt-1 text-xs text-muted">
-          {music.request.duration}초 · {music.request.kind === "recognition" ? "노래 인식" : music.request.kind === "song" ? "한국어 보컬 · MP3 320 kbps" : "연주곡 · MP3 320 kbps"}
+          {music.request.duration}초 · {music.request.kind === "recognition" ? "노래 인식" : music.request.kind === "song" ? `${singingLanguageLabel(music.request.singingLanguage)} 보컬 · MP3 320 kbps` : "연주곡 · MP3 320 kbps"}
         </p>
       </div>
       {music.request.generationProvider === "elevenlabs" ? <div className="space-y-1 rounded-xl border border-line p-3 text-sm" aria-label="유료 음악 생성 정보">

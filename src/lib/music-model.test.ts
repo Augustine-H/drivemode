@@ -4,6 +4,21 @@ import { musicRequest, wantsMusic, musicUrl, isMusicRecord, songRequest } from "
 import { buildBackup } from "./nangdok-backup.ts";
 import { makeMemoryArchive, parseMemoryArchive } from "./storage-backup.ts";
 import { newMedia } from "./media-model.ts";
+test("song language survives restoration and explicit chat requests without changing legacy Korean records", () => {
+  const source = "https://nas.example.ts.net";
+  for (const language of ["ko", "en", "ja"] as const) {
+    const request = songRequest("pop", "original lyrics", 30, "language-test", language);
+    assert.equal(request.singingLanguage, language);
+    assert(isMusicRecord({ source, request }));
+  }
+  const legacy = songRequest("pop", "가사", 30, "legacy");
+  delete legacy.singingLanguage;
+  assert(isMusicRecord({ source, request: legacy }));
+  assert(!isMusicRecord({ source, request: { ...legacy, singingLanguage: "xx" } }));
+  assert(!isMusicRecord({ source, request: { ...musicRequest("음악 만들어줘", "wrong-mode"), singingLanguage: "en" } }));
+  assert.equal(musicRequest("영어 보컬 노래 30초 만들어줘 가사: Morning light", "chat-en").singingLanguage, "en");
+  assert.equal(musicRequest("일본어 보컬 노래 30초 만들어줘 가사: 朝の光", "chat-ja").singingLanguage, "ja");
+});
 test("paid persona songs restore with consent and reject ACE reference or missing consent", () => {
   const source = "https://nas.example.ts.net";
   const request = { ...songRequest("pop", "직접 쓴 가사", 30, "paid-persona"),

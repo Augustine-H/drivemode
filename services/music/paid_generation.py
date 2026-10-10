@@ -15,9 +15,10 @@ class PaidGenerationError(RuntimeError):
 def payload(request):
     common = {'model_id': MUSIC_MODEL, 'store_for_inpainting': False}
     if request.get('kind') == 'song':
+        language_style = {'ko': 'Vocals sung in Korean', 'en': 'Vocals sung in English', 'ja': 'Vocals sung in Japanese'}[request.get('singingLanguage') or 'ko']
         return {**common, 'seed': request['seed'], 'composition_plan': {'chunks': [{
             'text': request['lyrics'], 'duration_ms': request['duration'] * 1000,
-            'positive_styles': [request['prompt']], 'negative_styles': ['instrumental only'],
+            'positive_styles': [request['prompt'], language_style], 'negative_styles': ['instrumental only'],
             'context_adherence': 'high'}]}}
     return {**common, 'prompt': request['prompt'], 'music_length_ms': request['duration'] * 1000,
             'force_instrumental': True}

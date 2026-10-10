@@ -34,6 +34,7 @@ class Poll(BaseModel):
     transcriptionProviders: list[TranscriptionProvider] = Field(default_factory=lambda: ['qwen'], max_length=4)
     generationProviders: list[GenerationProvider] = Field(default_factory=lambda: ['local'], max_length=2)
     singingVoices: list[str] = Field(default_factory=list, max_length=40)
+    singingLanguages: list[Literal['ko', 'en', 'ja']] = Field(default_factory=lambda: ['ko'], max_length=3)
 
 
 class Artifact(BaseModel):
@@ -106,6 +107,8 @@ def create_nas_app(directory: Path, client_token: str, bridge_token: str,
 
     @app.post("/v1/jobs")
     def enqueue(body: GenerateRequest, response: Response):
+        if body.singingLanguage in {'en', 'ja'} and body.singingLanguage not in app.state.store.health()['singingLanguages']:
+            raise JobError('SINGING_LANGUAGE_NOT_READY', 503)
         if shutil.disk_usage(directory).free < min_free_bytes:
             raise JobError("INSUFFICIENT_DISK_SPACE", 507)
         job, created = app.state.store.enqueue(body.model_dump(exclude_none=True))
@@ -142,7 +145,7 @@ def create_nas_app(directory: Path, client_token: str, bridge_token: str,
 
     @app.post("/internal/worker/poll")
     def poll(body: Poll):
-        job = app.state.store.poll(body.ready, body.sessionId, body.transcriptionProviders, body.generationProviders, body.singingVoices)
+        job = app.state.store.poll(body.ready, body.sessionId, body.transcriptionProviders, body.generationProviders, body.singingVoices, body.singingLanguages)
         return {"job": job, "pollAfterSeconds": 3, "personaSingingSupported": True}
 
     @app.post("/internal/jobs/{job_id}/status")

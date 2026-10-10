@@ -17,13 +17,13 @@ class NasStore(JobStore):
         with self.connect() as db:
             db.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
 
-    def poll(self, ready: bool, session_id: str, transcription_providers=None, generation_providers=None, singing_voices=None):
+    def poll(self, ready: bool, session_id: str, transcription_providers=None, generation_providers=None, singing_voices=None, singing_languages=None):
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             heartbeat = {"seenAt": now(), "ready": ready, "sessionId": session_id,
                          "transcriptionProviders": transcription_providers or ['qwen'],
                          "generationProviders": generation_providers or ['local'],
-                         "singingVoices": singing_voices or []}
+                         "singingVoices": singing_voices or [], "singingLanguages": singing_languages or ['ko']}
             db.execute("INSERT OR REPLACE INTO settings VALUES ('heartbeat',?)", (json.dumps(heartbeat),))
             row = db.execute("SELECT document FROM jobs WHERE state NOT IN ('QUEUED','COMPLETED','FAILED','CANCELLED','INTERRUPTED') ORDER BY rowid LIMIT 1").fetchone()
             if row:
@@ -53,6 +53,7 @@ class NasStore(JobStore):
                 "generationProviders": heartbeat.get('generationProviders', ['local']) if fresh else ['local'],
                 "personaSingingSupported": True,
                 "singingVoices": heartbeat.get('singingVoices', []) if fresh and heartbeat.get('ready') else [],
+                "singingLanguages": heartbeat.get('singingLanguages', ['ko']) if fresh and heartbeat.get('ready') else ['ko'],
                 "paidGenerationPricing": MUSIC_PRICING,
                 "workerState": ("READY" if heartbeat["ready"] else "UNAVAILABLE") if fresh else "UNKNOWN",
                 "lastHeartbeat": heartbeat, "heartbeatAgeSeconds": round(age, 1) if age is not None else None,

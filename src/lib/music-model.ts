@@ -2,6 +2,10 @@ import { audioIntent } from "./audio-tools.ts";
 import { isTranscriptionLanguage, type TranscriptionLanguage } from "./recognition-languages.ts";
 import { isTranscriptionProvider, type TranscriptionProvider } from "./transcription-providers.ts";
 
+export type SingingLanguage = "ko" | "en" | "ja";
+export const singingLanguages = [{ code: "ko", label: "한국어" }, { code: "en", label: "영어" }, { code: "ja", label: "일본어" }] as const;
+export const singingLanguageLabel = (language?: SingingLanguage) => singingLanguages.find(item => item.code === (language ?? "ko"))?.label ?? "한국어";
+
 export type MusicRequest = {
   requestId: string;
   prompt: string;
@@ -10,6 +14,7 @@ export type MusicRequest = {
   bitrate: 320;
   kind?: "song" | "recognition";
   lyrics?: string;
+  singingLanguage?: SingingLanguage;
   audioBase64?: string;
   identify?: boolean;
   transcribe?: boolean;
@@ -88,6 +93,7 @@ export function isMusicRecord(value: unknown): value is MusicRecord {
     r.bitrate === 320 &&
     (r.kind === undefined || r.kind === "song" || r.kind === "recognition") &&
     (r.kind !== "song" || (typeof r.lyrics === "string" && r.lyrics.trim().length > 0 && r.lyrics.length <= 8000 && r.duration >= 10)) &&
+    (r.singingLanguage === undefined || (r.kind === "song" && singingLanguages.some(item => item.code === r.singingLanguage))) &&
     (r.kind !== "recognition" || ((r.identify === true || r.transcribe === true) && r.duration <= (r.fullFile === true && r.transcribe === true ? 600 : 30) && (!r.identify || r.fingerprintConsent === true))) &&
     (r.fullFile === undefined || (typeof r.fullFile === "boolean" && r.kind === "recognition" && (!r.fullFile || r.transcribe === true))) &&
     (r.generationProvider === undefined || (r.kind !== "recognition" && ["local", "elevenlabs"].includes(r.generationProvider))) &&
@@ -155,7 +161,9 @@ export function musicRequest(text: string, requestId: string): MusicRequest {
   if (vocal || /노래\s*불러/.test(text)) {
     const lyrics = text.match(/(?:가사|노랫말)\s*[:：]\s*([\s\S]+)$/)?.[1]?.trim();
     if (!lyrics) throw new Error("노래에 넣을 가사를 ‘가사:’ 뒤에 입력하거나 설정의 ‘보컬 노래 만들기’를 사용하세요.");
-    return songRequest(text.slice(0, text.indexOf(lyrics)), lyrics, duration, requestId);
+    const description = text.slice(0, text.indexOf(lyrics));
+    const language: SingingLanguage = /일본어|Japanese/i.test(description) ? "ja" : /영어|English/i.test(description) ? "en" : "ko";
+    return songRequest(description, lyrics, duration, requestId, language);
   }
   const prompt = `Instrumental music, no vocals. ${matched.join(", ")}${matched.length ? ". " : ""}${text.trim()}`;
   if (prompt.length > 2000) throw new Error("음악 설명을 1,800자 이내로 줄여 주세요.");
@@ -167,12 +175,13 @@ export function musicRequest(text: string, requestId: string): MusicRequest {
     bitrate: 320,
   };
 }
-export function songRequest(prompt: string, lyrics: string, duration: number, requestId: string): MusicRequest {
+export function songRequest(prompt: string, lyrics: string, duration: number, requestId: string, singingLanguage: SingingLanguage = "ko"): MusicRequest {
+  if (!singingLanguages.some(item => item.code === singingLanguage)) throw new Error("보컬 언어는 한국어·영어·일본어 중 선택하세요.");
   if (!prompt.trim() || prompt.length > 2000 || !lyrics.trim() || lyrics.length > 8000)
     throw new Error("곡 설명은 2,000자, 가사는 8,000자 이내로 입력하세요.");
   if (!Number.isInteger(duration) || duration < 10 || duration > 120)
     throw new Error("보컬 노래는 10~120초로 만들 수 있습니다.");
-  return { requestId, prompt: prompt.trim(), lyrics: lyrics.trim(), kind: "song", duration,
+  return { requestId, prompt: prompt.trim(), lyrics: lyrics.trim(), kind: "song", duration, singingLanguage,
     seed: crypto.getRandomValues(new Uint32Array(1))[0] & 0x7fffffff, bitrate: 320 };
 }
 export function musicUrl(raw: string) {

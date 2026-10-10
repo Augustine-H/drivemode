@@ -100,6 +100,7 @@ class MusicWorker:
                     "model": self.model_metadata, "error": self.error,
                     "offline": True, "apiCostUsd": 0, "transcriptionProviders": available(),
                     "singingVoices": available_voices(),
+                    "singingLanguages": ['ko', 'en', 'ja'],
                     "generationProviders": ['local', 'elevenlabs'] if 'elevenlabs' in available() else ['local']}
 
     def _run(self):

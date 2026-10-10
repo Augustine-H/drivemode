@@ -133,12 +133,13 @@ def run(request, folder):
             pipe = AceStepPipeline.from_pretrained(ACE, revision=ACE_REVISION, torch_dtype=torch.bfloat16,
                                                    local_files_only=True)
             from vocal_conditioning import validate_conditioning, TEXT_LIMIT, LYRIC_LIMIT
-            instruction, conditioning = validate_conditioning(pipe, request)
+            singing_language = request.get('singingLanguage') or 'ko'
+            instruction, conditioning = validate_conditioning(pipe, request, vocal_language=singing_language)
             pipe.vae.enable_tiling()
             pipe.enable_model_cpu_offload()
             load_seconds = time.perf_counter() - started
             generated = time.perf_counter()
-            audio = pipe(prompt=request['prompt'], lyrics=request['lyrics'], vocal_language='ko',
+            audio = pipe(prompt=request['prompt'], lyrics=request['lyrics'], vocal_language=singing_language,
                          audio_duration=float(request['duration']), num_inference_steps=8,
                          instruction=instruction, max_text_length=TEXT_LIMIT, max_lyric_length=LYRIC_LIMIT,
                          guidance_scale=1.0, shift=3.0, reference_audio=reference_audio,
@@ -148,7 +149,8 @@ def run(request, folder):
             waveform = audio[0].T.cpu().float().numpy()
             wav = save_audio(waveform, pipe.sample_rate, folder / 'original.wav')
             result = {'wav': wav, 'model': {'provider': 'ace_step_local', 'model': ACE, 'modelRevision': ACE_REVISION,
-                      'device': torch.cuda.get_device_name(), 'loadSeconds': round(load_seconds, 3), 'apiCostUsd': 0},
+                      'device': torch.cuda.get_device_name(), 'loadSeconds': round(load_seconds, 3), 'apiCostUsd': 0,
+                      'singingLanguage': singing_language},
                       'metrics': {'generationSeconds': round(generation_seconds, 3),
                                   'conditioning': conditioning, 'numInferenceSteps': 8,
                                   'guidanceScale': 1.0, 'shift': 3.0}}

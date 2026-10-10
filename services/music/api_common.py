@@ -20,6 +20,7 @@ class GenerateRequest(BaseModel):
     bitrate: Literal[128, 192, 256, 320] = 320
     kind: Literal['song', 'recognition'] | None = None
     lyrics: str | None = Field(default=None, max_length=8000)
+    singingLanguage: Literal['ko', 'en', 'ja'] | None = None
     audioBase64: str | None = Field(default=None, max_length=25601000)
     fullFile: bool | None = None
     identify: bool | None = None
@@ -35,6 +36,8 @@ class GenerateRequest(BaseModel):
 
     @model_validator(mode='after')
     def task_contract(self):
+        if self.singingLanguage is not None and self.kind != 'song':
+            raise ValueError('Singing language requires song generation')
         if self.singingMethod is not None and self.singingVoice is None:
             raise ValueError('Singing method requires a voice')
         if self.singingVoice is not None and self.kind != 'song':

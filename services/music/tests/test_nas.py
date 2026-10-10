@@ -24,6 +24,19 @@ def body(key="nas-test"):
 
 
 class NasTests(unittest.TestCase):
+    def test_song_language_round_trip_requires_ready_capability(self):
+        request = dict(body('english-song'), kind='song', lyrics='Morning light', duration=30, singingLanguage='en')
+        self.assertEqual(self.client.post('/v1/jobs', json=request, headers=self.user).status_code, 503)
+        self.client.post('/internal/worker/poll', json={'ready': True, 'sessionId': 'multilingual',
+            'singingLanguages': ['ko', 'en', 'ja']}, headers=self.agent)
+        response = self.client.post('/v1/jobs', json=request, headers=self.user)
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json()['job']['request']['singingLanguage'], 'en')
+        self.assertEqual(self.client.get('/health', headers=self.user).json()['singingLanguages'], ['ko', 'en', 'ja'])
+        self.assertEqual(self.poll()['request']['singingLanguage'], 'en')
+        self.assertEqual(self.client.post('/v1/jobs', json=dict(body('wrong-mode'), singingLanguage='en'), headers=self.user).status_code, 422)
+        self.assertEqual(self.client.post('/v1/jobs', json=dict(request, requestId='unsupported', singingLanguage='xx'), headers=self.user).status_code, 422)
+
     def test_persona_capability_is_advertised_only_by_ready_fresh_worker(self):
         response = self.client.post('/internal/worker/poll', json={'ready': True,
             'sessionId': 'persona-test', 'singingVoices': ['ara', 'eve']}, headers=self.agent)
