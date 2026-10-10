@@ -89,3 +89,7 @@ WAV·MP3 모두 NAS에서 다시 받아 크기·SHA-256 일치, 요청 길이, �
 네 완성 WAV·MP3는 모두 60초·48kHz·2채널로 전체 디코딩·유한 PCM·피크·길이 검사를 통과했다. 추론은 공통 원곡 보컬 SHA-256을 확인했고 참조는 기존 아라·서연 각각을 유지했다. 대기 중 Worker와 bridge를 잠시 정지한 뒤 기존 GPU 잠금으로 순차 실행하고 finally에서 자동 시작 경로로 복구했다. 복구 종료코드 0, 인증 health acceptingJobs=true·activeJobId=null·error=null을 확인했다. 새 모델·유료 API 호출·운영 기본값 변경은 없다.
 
 후보와 결과 보고서는 로컬 `artifacts/persona-distinction-2026-10-10/`에 보존했다. 청취 편의를 위해 기존 0.7과 새 0.9·1.0 각각의 동일 10~30초 구간을 아라 20초 → 1초 침묵 → 서연 20초 순으로 연결했다. 모든 비교 프리뷰에 같은 gain을 적용하고 시간 늘이기는 하지 않았다. 발음·자연스러움·음색 구분의 최종 평가는 대기 중이며 운영 기본 CFG 0.7을 유지한다.
+
+이후 사용자가 비교 후보 **0.9**를 선택했다. 운영 `persona_pipeline`이 Seed-VC 호출에 CFG 0.9를 명시적으로 전달하도록 적용했다. 진단 CLI의 기본 0.7은 이전 실험 재현을 위해 유지하며 운영 호출과 구분한다. 무료 ACE-Step 및 유료 ElevenLabs 원곡 뒤 로컬 페르소나 변환에 공통으로 적용되는 Worker 조정으로, NAS API·웹앱 요청 규약이나 표시 버전은 변경하지 않았다. 새 유료 원곡 호출은 없다.
+
+관련 paid-persona 회귀 테스트 4개 통과 후 idle Worker를 갱신했다. NAS 운영 큐에서 무료 아라 30초를 새로 생성해 `model.singingVoice.conversion.parameters.cfgRate=0.9`를 확인했다. NAS 작업 `467a63ea-71b3-4ded-bdcb-ee7b65a4fd83`, 생성+변환 49.120초. WAV·MP3 모두 30초·48kHz stereo이며 NAS 크기·SHA-256 일치, 전체 디코딩·유한 PCM·피크 검사 통과. 결과는 로컬 `artifacts/persona-cfg09-production-2026-10-10/`에 보존했다. 신규 유료 호출 0이며 무료 원곡으로 실제 운영 파이프라인을 검증한 결과다.

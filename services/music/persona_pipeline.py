@@ -10,6 +10,8 @@ import time
 from provider import save_audio
 
 HERE = Path(__file__).resolve().parent
+# Selected in the controlled Ara/Eve same-source listening comparison.
+PERSONA_CFG_RATE = 0.9
 
 
 def convert(folder: Path, voice: str):
@@ -21,7 +23,8 @@ def convert(folder: Path, voice: str):
     commands = [
         ['prepare_singing_vocals.py', str(baseline), '--folder'],
         ['probe_singing_conversion.py', '--source', str(baseline / 'vocals.wav'), '--voice', voice,
-         '--output', str(output), '--queue-parent-pid', str(os.getpid())],
+         '--output', str(output), '--cfg-rate', str(PERSONA_CFG_RATE),
+         '--queue-parent-pid', str(os.getpid())],
         ['remix_singing_conversion.py', '--baseline', str(baseline), '--conversion', str(output)],
     ]
     for arguments in commands:
