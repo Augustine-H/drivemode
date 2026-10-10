@@ -8,6 +8,9 @@ import os
 from pathlib import Path
 import sys
 import time
+import faulthandler
+
+faulthandler.enable()
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / '.music-runtime' / 'vocal-deps'))
@@ -122,6 +125,10 @@ def run(request, folder):
             result = {'recognition': recognition(request, folder), 'model': {'provider': 'local_qwen3_asr_and_shazam_fingerprint', 'model': ASR_MODEL, 'modelRevision': ASR_REVISION,
                       'transcriptionDecoding': 'greedy', 'language': request.get('transcriptionLanguage') or 'ko', 'precision': 'bfloat16'}}
         else:
+            reference_audio, singing_profile = None, None
+            if request.get('singingVoice') and request.get('singingMethod') == 'ace_reference_experiment':
+                from singing_voice import load_reference
+                reference_audio, singing_profile = load_reference(request['singingVoice'])
             from diffusers import AceStepPipeline
             pipe = AceStepPipeline.from_pretrained(ACE, revision=ACE_REVISION, torch_dtype=torch.bfloat16,
                                                    local_files_only=True)
@@ -134,7 +141,7 @@ def run(request, folder):
             audio = pipe(prompt=request['prompt'], lyrics=request['lyrics'], vocal_language='ko',
                          audio_duration=float(request['duration']), num_inference_steps=8,
                          instruction=instruction, max_text_length=TEXT_LIMIT, max_lyric_length=LYRIC_LIMIT,
-                         guidance_scale=1.0, shift=3.0,
+                         guidance_scale=1.0, shift=3.0, reference_audio=reference_audio,
                          generator=torch.Generator(device='cuda').manual_seed(request['seed'])).audios
             torch.cuda.synchronize()
             generation_seconds = time.perf_counter() - generated
@@ -145,6 +152,9 @@ def run(request, folder):
                       'metrics': {'generationSeconds': round(generation_seconds, 3),
                                   'conditioning': conditioning, 'numInferenceSteps': 8,
                                   'guidanceScale': 1.0, 'shift': 3.0}}
+            if singing_profile:
+                result['model']['singingVoice'] = {key: singing_profile[key] for key in
+                    ('version', 'voiceId', 'sha256', 'method', 'qualityVerified')}
     result.setdefault('metrics', {}).update(totalSeconds=round(time.perf_counter() - started, 3),
                                            peakAllocatedMiB=round(torch.cuda.max_memory_allocated() / 2**20, 2),
                                            peakReservedMiB=round(torch.cuda.max_memory_reserved() / 2**20, 2),

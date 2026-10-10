@@ -35,7 +35,9 @@ async function sampleWav(file: File, fullFile = false) {
   } finally { await context.close(); }
 }
 
-export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => void }) {
+export function SongTools({ onRecover, personaVoice, personaName }: { onRecover: (record: MusicRecord) => void; personaVoice?: string; personaName?: string }) {
+  const [personaSinging, setPersonaSinging] = useState(false);
+  const [singingVoices, setSingingVoices] = useState<string[]>([]);
   const [prompt, setPrompt] = useState("따뜻한 피아노 팝, 한국어 보컬"), [lyrics, setLyrics] = useState("");
   const [duration, setDuration] = useState(30), [file, setFile] = useState<File>();
   const [identify, setIdentify] = useState(false), [transcribe, setTranscribe] = useState(true);
@@ -94,17 +96,19 @@ export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => v
         setAvailableProviders(h.transcriptionProviders ?? ["qwen"]);
         setPricing(h.paidTranscriptionPricing);
         setGenerationProviders(h.generationProviders ?? ["local"]);
+        setSingingVoices(h.singingVoices ?? []);
         setGenerationPricing(h.paidGenerationPricing);
         setFullFileLimit(h.fullFileTranscriptionMaxSeconds ?? 0);
         setServiceNotice(ready ? "" : "NAS에 보컬·인식 업데이트를 적용한 뒤 사용할 수 있습니다.");
       } catch (error) {
-        if (!stopped) { setServiceReady(false); setSupportedLanguages([]); setFullFileLimit(0); setServiceNotice(error instanceof Error ? error.message : "NAS 지원 확인 실패"); }
+        if (!stopped) { setServiceReady(false); setSingingVoices([]); setSupportedLanguages([]); setFullFileLimit(0); setServiceNotice(error instanceof Error ? error.message : "NAS 지원 확인 실패"); }
       }
     }
     void check(); window.addEventListener(MUSIC_CONNECTION_CHANGED, check);
     return () => { stopped = true; window.removeEventListener(MUSIC_CONNECTION_CHANGED, check); };
   }, []);
   useEffect(() => { setGenerationConsent(false); }, [prompt, lyrics, duration, generationProvider]);
+  useEffect(() => { setPersonaSinging(false); }, [personaVoice, generationProvider]);
   useEffect(() => {
     setFileSeconds(undefined); setPaidConsent(false);
     if (!file) { setPreview(""); return; }
@@ -205,7 +209,9 @@ export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => v
     const request = songRequest(prompt, song ? lyrics : "instrumental", duration, `generation-${crypto.randomUUID()}`);
     if (!song) { delete request.kind; delete request.lyrics; }
     if (paidGeneration && song && lyrics.length > 4000) throw new Error("유료 보컬 가사는 4,000자 이내로 입력하세요.");
-    return { ...request, generationProvider, ...(paidGeneration ? { paidGenerationConsent: true } : {}) };
+    if (song && personaSinging && (!personaVoice || !singingVoices.includes(personaVoice))) throw new Error("선택한 페르소나 가창 목소리가 준비되지 않았습니다.");
+    return { ...request, generationProvider, ...(paidGeneration ? { paidGenerationConsent: true } : {}),
+      ...(song && personaSinging ? { singingVoice: personaVoice, singingMethod: "persona_seed_vc" as const } : {}) };
   }
   return <div className="space-y-4 border-t border-line pt-4">
     {serviceNotice ? <p role="status" className="text-muted">{serviceNotice}</p> : null}
@@ -232,10 +238,15 @@ export function SongTools({ onRecover }: { onRecover: (record: MusicRecord) => v
     <details><summary className="min-h-11 cursor-pointer font-medium">보컬 노래 만들기</summary>
       <div className="mt-3 space-y-3">
         <p className="text-muted">직접 쓴 한국어 가사로 새 노래를 만듭니다. 특정 가수의 목소리를 복제하지 않습니다.</p>
+        <div className="space-y-2 rounded-xl border border-line p-3">
+          <label className="flex min-h-11 items-center gap-2"><input type="checkbox" aria-label="페르소나 목소리로 노래" disabled={busy || !personaVoice || !singingVoices.includes(personaVoice)} checked={personaSinging} onChange={e => setPersonaSinging(e.target.checked)}/>{personaName ?? "현재 페르소나"}의 목소리로 노래 · 로컬 음색 변환</label>
+          <p className="text-muted">{personaVoice && singingVoices.includes(personaVoice) ? "xAI 목소리를 기준으로 보컬 음색을 변환합니다. 추가 처리 시간이 필요하며 곡과 음역에 따라 유사성이 달라질 수 있습니다." : "이 페르소나의 가창 목소리가 준비되지 않았거나 NAS 업데이트가 필요합니다. 다른 목소리로 자동 대체하지 않습니다."}</p>
+          {paidGeneration && <p className="text-muted">ElevenLabs에서 유료 원곡을 만든 뒤 PC에서 목소리를 변환합니다. 페르소나 참조 음성은 ElevenLabs에 전송하지 않습니다.</p>}
+        </div>
         <label className="block">곡 분위기<input aria-label="보컬 곡 분위기" className={input} value={prompt} onChange={e => setPrompt(e.target.value)} maxLength={2000}/></label>
         <label className="block">가사<textarea aria-label="노래 가사" className={input + " min-h-32"} value={lyrics} onChange={e => setLyrics(e.target.value)} maxLength={8000} placeholder={"[Verse]\n여기에 직접 쓴 가사를 입력하세요\n[Chorus]\n후렴 가사"}/></label>
         <label className="block">길이 (10~120초)<input aria-label="보컬 노래 길이" type="number" min={10} max={120} className={input} value={duration} onChange={e => setDuration(Number(e.target.value))}/></label>
-        <button className="min-h-11 rounded-xl bg-primary px-4 text-ink disabled:opacity-50" disabled={generationBlocked || !lyrics.trim()} onClick={() => void submit(async () => generationRequest(true))}>보컬 노래 생성</button>
+        <button className="min-h-11 rounded-xl bg-primary px-4 text-ink disabled:opacity-50" disabled={generationBlocked || !lyrics.trim() || (personaSinging && (!personaVoice || !singingVoices.includes(personaVoice)))} onClick={() => void submit(async () => generationRequest(true))}>보컬 노래 생성</button>
       </div>
     </details>
     <details><summary className="min-h-11 cursor-pointer font-medium">노래 제목·가수 찾기 / 가사 받아쓰기</summary>

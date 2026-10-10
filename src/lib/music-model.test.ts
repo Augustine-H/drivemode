@@ -4,6 +4,15 @@ import { musicRequest, wantsMusic, musicUrl, isMusicRecord, songRequest } from "
 import { buildBackup } from "./nangdok-backup.ts";
 import { makeMemoryArchive, parseMemoryArchive } from "./storage-backup.ts";
 import { newMedia } from "./media-model.ts";
+test("paid persona songs restore with consent and reject ACE reference or missing consent", () => {
+  const source = "https://nas.example.ts.net";
+  const request = { ...songRequest("pop", "직접 쓴 가사", 30, "paid-persona"),
+    generationProvider: "elevenlabs" as const, paidGenerationConsent: true, singingVoice: "ara",
+    singingMethod: "persona_seed_vc" as const };
+  assert(isMusicRecord({ source, request }));
+  assert(!isMusicRecord({ source, request: { ...request, paidGenerationConsent: false } }));
+  assert(!isMusicRecord({ source, request: { ...request, singingMethod: "ace_reference_experiment" } }));
+});
 test("full-file recognition records restore without expanding generation or title-only limits", () => {
   const source = "https://nas.example.ts.net";
   const request = { requestId: "full-test", prompt: "가사", duration: 600, seed: 1042, bitrate: 320, kind: "recognition", transcribe: true, fullFile: true };

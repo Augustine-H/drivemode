@@ -30,9 +30,17 @@ class GenerateRequest(BaseModel):
     fingerprintConsent: bool | None = None
     generationProvider: GenerationProvider | None = None
     paidGenerationConsent: bool | None = None
+    singingVoice: str | None = Field(default=None, pattern=r'^[a-z][a-z0-9_-]{0,39}$')
+    singingMethod: Literal['persona_seed_vc', 'ace_reference_experiment'] | None = None
 
     @model_validator(mode='after')
     def task_contract(self):
+        if self.singingMethod is not None and self.singingVoice is None:
+            raise ValueError('Singing method requires a voice')
+        if self.singingVoice is not None and self.kind != 'song':
+            raise ValueError('Persona singing voice requires song generation')
+        if self.generationProvider == 'elevenlabs' and self.singingMethod == 'ace_reference_experiment':
+            raise ValueError('ACE reference requires local generation')
         if self.generationProvider is not None and self.kind == 'recognition':
             raise ValueError('Generation provider requires generation mode')
         if self.generationProvider == 'elevenlabs':

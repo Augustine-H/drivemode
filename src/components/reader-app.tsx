@@ -4693,7 +4693,7 @@ export function ReaderApp() {
                   metrics={memoryMetrics}
                   personaId={personaId}
                 />
-                <MusicSettings onRecover={recoverMusic} />
+                <MusicSettings onRecover={recoverMusic} personaVoice={selectedPersona?.voice} personaName={selectedPersona?.name} />
                 <StorageSettings
                   items={mediaLibrary.items}
                   error={mediaLibrary.error}

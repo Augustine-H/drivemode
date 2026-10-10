@@ -97,10 +97,16 @@ class NasBridge:
             health = health_response.json()
         except httpx.TransportError:
             health = {"acceptingJobs": False, "sessionId": "worker-unreachable"}
-        assigned = self.data(self.nas.post("/internal/worker/poll", json={
+        poll = {
             "ready": bool(health.get("acceptingJobs")), "sessionId": health.get("sessionId", "unknown"),
             "transcriptionProviders": health.get('transcriptionProviders', ['qwen']),
-            "generationProviders": health.get('generationProviders', ['local'])}))["job"]
+            "generationProviders": health.get('generationProviders', ['local'])}
+        # Capability negotiation keeps an older NAS usable during a rolling update.
+        if getattr(self, 'persona_singing_supported', False):
+            poll['singingVoices'] = health.get('singingVoices', [])
+        response = self.data(self.nas.post("/internal/worker/poll", json=poll))
+        self.persona_singing_supported = response.get('personaSingingSupported', False)
+        assigned = response['job']
         if not assigned:
             return {"state": "IDLE", "workerReady": bool(health.get("acceptingJobs"))}
         nas_id = str(UUID(assigned["id"]))

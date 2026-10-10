@@ -10,7 +10,7 @@ import {
 import { musicStateLabel, type MusicRecord } from "@/lib/music-model";
 import { SongTools } from "./song-tools";
 
-export function MusicSettings({ onRecover }: { onRecover: (music: MusicRecord) => void }) {
+export function MusicSettings({ onRecover, personaVoice, personaName }: { onRecover: (music: MusicRecord) => void; personaVoice?: string; personaName?: string }) {
   const [url, setUrl] = useState(""),
     [token, setToken] = useState(""),
     [notice, setNotice] = useState(""),
@@ -192,7 +192,7 @@ export function MusicSettings({ onRecover }: { onRecover: (music: MusicRecord) =
             {notice}
           </p>
         ) : null}
-        <SongTools onRecover={onRecover} />
+        <SongTools onRecover={onRecover} personaVoice={personaVoice} personaName={personaName} />
         {busy ? (
           <p role="status" className="text-muted">
             연결 확인 중…

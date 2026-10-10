@@ -68,6 +68,16 @@ class MusicWorker:
             if self.stop.is_set() or self.error or not self.thread or not self.thread.is_alive():
                 raise JobError("WORKER_UNAVAILABLE", 503)
             if request.get('kind') in {'song', 'recognition'}:
+                if request.get('singingVoice'):
+                    from singing_voice import profile
+                    try:
+                        profile(request['singingVoice'])
+                    except ValueError as error:
+                        raise JobError(str(error), 503) from error
+                    if request.get('singingMethod') != 'ace_reference_experiment':
+                        from singing_capabilities import available_voices
+                        if request['singingVoice'] not in available_voices():
+                            raise JobError('PERSONA_SINGING_NOT_PREPARED', 503)
                 from vocal_models import prepared
                 paid = request.get('generationProvider') == 'elevenlabs' or (request.get('kind') == 'recognition' and request.get('transcriptionProvider', 'qwen') != 'qwen')
                 if not paid and not prepared(request['kind']):
@@ -80,6 +90,7 @@ class MusicWorker:
 
     def health(self):
         from paid_credentials import available
+        from singing_capabilities import available_voices
         with self.guard:
             accepting = bool(self.thread and self.thread.is_alive() and not self.stop.is_set() and not self.error)
             return {"service": "voice-grok-music-worker", "version": 1,
@@ -88,6 +99,7 @@ class MusicWorker:
                     "queue": self.store.counts(), "capacity": self.capacity,
                     "model": self.model_metadata, "error": self.error,
                     "offline": True, "apiCostUsd": 0, "transcriptionProviders": available(),
+                    "singingVoices": available_voices(),
                     "generationProviders": ['local', 'elevenlabs'] if 'elevenlabs' in available() else ['local']}
 
     def _run(self):
@@ -132,6 +144,31 @@ class MusicWorker:
                 self.store.update(job_id, stage='GENERATING', model={'provider': 'elevenlabs', 'model': MUSIC_MODEL, 'local': False})
                 wav, paid_call = generate(request, folder, lambda: self.store.get(job_id)['cancelRequested'])
                 self.store.update(job_id, artifacts={'wav': wav}, metrics={'paidGeneration': paid_call})
+                if request.get('singingVoice') and not self.store.get(job_id)['cancelRequested']:
+                    stage = 'PERSONA_CONVERSION'
+                    self.store.update(job_id, stage=stage)
+                    import torch
+                    from persona_pipeline import convert
+                    if isinstance(self.provider, StableAudioLocalProvider):
+                        self.provider.model = None
+                        self.provider.metadata = {}
+                    gc.collect()
+                    torch.cuda.empty_cache()
+                    with self.guard:
+                        self.model_metadata = None
+                        self.model_state = 'LOADING'
+                    try:
+                        wav, persona = convert(folder, request['singingVoice'])
+                    finally:
+                        with self.guard:
+                            self.model_state = 'UNLOADED'
+                    if abs(wav['duration'] - request['duration']) > 0.25:
+                        raise RuntimeError('WAV_DURATION_MISMATCH')
+                    self.store.update(job_id, artifacts={'wav': wav},
+                                      model={'provider': 'elevenlabs', 'model': MUSIC_MODEL, 'local': False,
+                                             'singingVoice': persona},
+                                      metrics={'paidGeneration': paid_call,
+                                               'personaSingingSeconds': persona['elapsedSeconds']})
                 if not self.store.get(job_id)['cancelRequested']:
                     self.store.update(job_id, stage='ENCODING')
                     mp3 = encode_mp3(folder / 'original.wav', folder / 'preview.mp3', request['bitrate'])
@@ -245,13 +282,20 @@ class MusicWorker:
                             process.wait()
             if process.returncode:
                 error_path = folder / 'vocal-error.json'
-                detail = json.loads(error_path.read_text(encoding='utf-8')) if error_path.exists() else {'message': 'VOCAL_RUNTIME_FAILED'}
+                detail = json.loads(error_path.read_text(encoding='utf-8')) if error_path.exists() else {'message': f'VOCAL_RUNTIME_FAILED:exit={process.returncode}:hex={process.returncode & 0xffffffff:08x}'}
                 message = detail.get('message', 'VOCAL_RUNTIME_FAILED')
                 if (job['request'].get('kind') == 'song' and detail.get('type') == 'VocalInputLimit'
                         and message.startswith(('VOCAL_PROMPT_TOKEN_LIMIT:', 'VOCAL_LYRICS_TOKEN_LIMIT:'))):
                     raise VocalInputLimit(message)
                 raise RuntimeError(message)
             result = json.loads((folder / 'vocal-result.json').read_text(encoding='utf-8'))
+            if job['request'].get('singingVoice') and job['request'].get('singingMethod') != 'ace_reference_experiment':
+                from persona_pipeline import convert
+                result['wav'], persona = convert(folder, job['request']['singingVoice'])
+                result['model']['singingVoice'] = persona
+                result['metrics']['personaSingingSeconds'] = persona['elapsedSeconds']
+                result['metrics']['baseGenerationTotalSeconds'] = result['metrics']['totalSeconds']
+                result['metrics']['totalSeconds'] = round(result['metrics']['totalSeconds'] + persona['elapsedSeconds'], 3)
             progress_path = folder / 'recognition-progress.json'
             if progress_path.exists():
                 self.store.update(job['id'], progress=json.loads(progress_path.read_text(encoding='utf-8')))

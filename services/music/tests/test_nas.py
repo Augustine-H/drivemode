@@ -24,6 +24,16 @@ def body(key="nas-test"):
 
 
 class NasTests(unittest.TestCase):
+    def test_persona_capability_is_advertised_only_by_ready_fresh_worker(self):
+        response = self.client.post('/internal/worker/poll', json={'ready': True,
+            'sessionId': 'persona-test', 'singingVoices': ['ara', 'eve']}, headers=self.agent)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['personaSingingSupported'])
+        self.assertEqual(self.client.get('/health', headers=self.user).json()['singingVoices'], ['ara', 'eve'])
+        self.client.post('/internal/worker/poll', json={'ready': False, 'sessionId': 'persona-test',
+            'singingVoices': ['ara', 'eve']}, headers=self.agent)
+        self.assertEqual(self.client.get('/health', headers=self.user).json()['singingVoices'], [])
+
     def test_full_file_api_progress_recovery_and_input_cleanup(self):
         from test_lyrics_chunks import body as recognition_body
         health = self.client.get('/health', headers=self.user).json()

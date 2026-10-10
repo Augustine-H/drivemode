@@ -20,6 +20,8 @@ export type MusicRequest = {
   fullFile?: boolean;
   generationProvider?: "local" | "elevenlabs";
   paidGenerationConsent?: boolean;
+  singingVoice?: string;
+  singingMethod?: "persona_seed_vc" | "ace_reference_experiment";
 };
 export const MAX_EDITED_LYRICS = 60000;
 export type EditedLyrics = { original: string; text: string; updatedAt: string; partial: boolean };
@@ -91,6 +93,8 @@ export function isMusicRecord(value: unknown): value is MusicRecord {
     (r.generationProvider === undefined || (r.kind !== "recognition" && ["local", "elevenlabs"].includes(r.generationProvider))) &&
     (r.generationProvider !== "elevenlabs" || (r.paidGenerationConsent === true && r.duration >= 10 && (!r.lyrics || r.lyrics.length <= 4000))) &&
     (r.paidGenerationConsent === undefined || (typeof r.paidGenerationConsent === "boolean" && r.generationProvider === "elevenlabs")) &&
+    (r.singingVoice === undefined || (r.kind === "song" && /^[a-z][a-z0-9_-]{0,39}$/.test(r.singingVoice))) &&
+    (r.singingMethod === undefined || (r.singingVoice !== undefined && ["persona_seed_vc", "ace_reference_experiment"].includes(r.singingMethod) && !(r.generationProvider === "elevenlabs" && r.singingMethod === "ace_reference_experiment"))) &&
     (r.transcriptionLanguage === undefined || (r.kind === "recognition" && r.transcribe === true && isTranscriptionLanguage(r.transcriptionLanguage))) &&
     (r.transcriptionProvider === undefined || (r.kind === "recognition" && r.transcribe === true && isTranscriptionProvider(r.transcriptionProvider))) &&
     (!(r.transcriptionProvider && r.transcriptionProvider !== "qwen") || r.paidAudioConsent === true) &&
