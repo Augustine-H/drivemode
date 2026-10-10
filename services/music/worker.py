@@ -22,6 +22,20 @@ from vocal_conditioning import VocalInputLimit
 logger = logging.getLogger("music.worker")
 
 
+def read_recognition_progress(path, *, required=False):
+    """Polling may race with Windows replacement; final reads must still succeed."""
+    attempts = 4 if required else 1
+    for attempt in range(attempts):
+        try:
+            return json.loads(path.read_text(encoding='utf-8'))
+        except (PermissionError, FileNotFoundError):
+            if not required:
+                return None
+            if attempt + 1 == attempts:
+                raise
+            time.sleep(0.05)
+
+
 class MusicWorker:
     def __init__(self, directory: Path, *, provider=None, capacity=8, lock_path=None, min_free_bytes=2 * 2**30):
         self.directory = directory.resolve()
@@ -266,8 +280,8 @@ class MusicWorker:
                                 (folder / 'cancel-recognition').touch()
                             progress_path = folder / 'recognition-progress.json'
                             if progress_path.exists():
-                                progress = json.loads(progress_path.read_text(encoding='utf-8'))
-                                if progress != previous_progress:
+                                progress = read_recognition_progress(progress_path)
+                                if progress is not None and progress != previous_progress:
                                     self.store.update(job['id'], progress=progress)
                                     previous_progress = progress
                         if time.monotonic() - started > 1800:
@@ -299,7 +313,7 @@ class MusicWorker:
                 result['metrics']['totalSeconds'] = round(result['metrics']['totalSeconds'] + persona['elapsedSeconds'], 3)
             progress_path = folder / 'recognition-progress.json'
             if progress_path.exists():
-                self.store.update(job['id'], progress=json.loads(progress_path.read_text(encoding='utf-8')))
+                self.store.update(job['id'], progress=read_recognition_progress(progress_path, required=True))
             self.store.update(job['id'], model=result['model'], metrics=result['metrics'])
             if 'recognition' in result:
                 self.store.update(job['id'], recognition=result['recognition'])
