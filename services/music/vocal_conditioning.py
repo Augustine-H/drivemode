@@ -7,10 +7,10 @@ class VocalInputLimit(ValueError):
     """A rejected input before GPU inference, not a CUDA/model failure."""
 
 
-def validate_conditioning(pipe, request):
+def validate_conditioning(pipe, request, *, vocal_language='ko'):
     instruction = pipe._get_task_instruction(task_type='text2music')
     text, lyrics = pipe._format_prompt(
-        prompt=request['prompt'], lyrics=request['lyrics'], vocal_language='ko',
+        prompt=request['prompt'], lyrics=request['lyrics'], vocal_language=vocal_language,
         audio_duration=float(request['duration']), instruction=instruction)
     counts = {}
     for name, value, limit in (('prompt', text, TEXT_LIMIT), ('lyrics', lyrics, LYRIC_LIMIT)):
